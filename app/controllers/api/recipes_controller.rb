@@ -1,11 +1,14 @@
 class Api::RecipesController < ApplicationController
-  before_action :set_recipe, only: %i[ show update destroy ]
+  before_action :set_recipe, only: :show
+
+  rate_limit to: 5, within: 1.hour, only: :create,
+    with: -> { render json: { error: "Too many submissions, try again later" }, status: :too_many_requests }
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
 
   # GET /api/recipes
   def index
-    @recipes = Recipe.order(:id)
+    @recipes = Recipe.approved.order(:id)
 
     render json: @recipes
   end
@@ -20,34 +23,19 @@ class Api::RecipesController < ApplicationController
     @recipe = Recipe.new(recipe_params)
 
     if @recipe.save
-      render json: @recipe, status: :created, location: api_recipe_url(@recipe)
+      render json: @recipe, status: :created
     else
       render json: { errors: @recipe.errors }, status: :unprocessable_content
     end
-  end
-
-  # PATCH/PUT /api/recipes/1
-  def update
-    if @recipe.update(recipe_params)
-      render json: @recipe
-    else
-      render json: { errors: @recipe.errors }, status: :unprocessable_content
-    end
-  end
-
-  # DELETE /api/recipes/1
-  def destroy
-    @recipe.destroy!
-
-    head :no_content
   end
 
   private
+    # Unapproved recipes are reported as not found, so guessing ids reveals nothing.
     def set_recipe
-      @recipe = Recipe.find(params[:id])
+      @recipe = Recipe.approved.find(params[:id])
     end
 
-    # Only allow a list of trusted parameters through.
+    # Only allow a list of trusted parameters through. Status is never accepted from the public.
     def recipe_params
       params.expect(recipe: [ :title, :description, :servings ])
     end

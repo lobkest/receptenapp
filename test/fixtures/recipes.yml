@@ -2,3 +2,16 @@ pannenkoeken:
   title: Pannenkoeken
   description: Klassieke Hollandse pannenkoeken
   servings: 4
+  status: approved
+
+erwtensoep:
+  title: Erwtensoep
+  description: Ingestuurd, wacht op goedkeuring
+  servings: 6
+  status: pending
+
+stamppot:
+  title: Stamppot
+  description: Ingestuurd en afgewezen
+  servings: 4
+  status: rejected

@@ -6,7 +6,16 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   namespace :api do
-    resources :recipes
+    resources :recipes, only: %i[ index show create ]
+
+    namespace :admin do
+      resources :recipes, only: %i[ index show update destroy ] do
+        member do
+          patch :approve
+          patch :reject
+        end
+      end
+    end
   end
 
   # Defines the root path route ("/")

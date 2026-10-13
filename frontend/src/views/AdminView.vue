@@ -150,7 +150,7 @@ onMounted(() => {
 <template>
   <h1>Beheer</h1>
 
-  <form v-if="!admin.isLoggedIn" class="login" @submit.prevent="login">
+  <form v-if="!admin.isLoggedIn" class="login card" @submit.prevent="login">
     <div class="field">
       <label for="admin-code">Beheercode</label>
       <input
@@ -164,14 +164,16 @@ onMounted(() => {
         aria-describedby="login-error"
       />
     </div>
-    <p v-if="loginError" id="login-error" class="error" role="alert">{{ loginError }}</p>
-    <button type="submit" :disabled="loggingIn || !codeInput">
+    <p v-if="loginError" id="login-error" class="error login-error" role="alert">
+      {{ loginError }}
+    </p>
+    <button type="submit" class="btn-primary btn-block" :disabled="loggingIn || !codeInput">
       {{ loggingIn ? 'Controleren…' : 'Inloggen' }}
     </button>
   </form>
 
   <template v-else>
-    <p>
+    <p class="toolbar">
       <button type="button" @click="logout">Uitloggen</button>
     </p>
 
@@ -187,12 +189,12 @@ onMounted(() => {
       </button>
     </div>
 
-    <p v-if="message" class="message" role="status">{{ message }}</p>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="message" class="message notice notice-success" role="status">{{ message }}</p>
+    <p v-if="error" class="error notice notice-error" role="alert">{{ error }}</p>
 
-    <p v-if="loading && recipes.length === 0">Recepten laden…</p>
+    <p v-if="loading && recipes.length === 0" class="muted">Recepten laden…</p>
 
-    <p v-else-if="!error && recipes.length === 0">
+    <p v-else-if="!error && recipes.length === 0" class="muted">
       {{
         status === 'pending'
           ? 'Geen recepten om te beoordelen.'
@@ -201,7 +203,7 @@ onMounted(() => {
     </p>
 
     <ul v-else class="recipes">
-      <li v-for="recipe in recipes" :key="recipe.id">
+      <li v-for="recipe in recipes" :key="recipe.id" class="card">
         <h2>{{ recipe.title }}</h2>
         <p class="meta">
           {{ recipe.servings }} {{ recipe.servings === 1 ? 'portie' : 'porties' }} ·
@@ -214,6 +216,7 @@ onMounted(() => {
           <button
             v-if="recipe.status !== 'approved'"
             type="button"
+            class="btn-primary"
             :disabled="busyId === recipe.id"
             @click="approve(recipe)"
           >
@@ -227,10 +230,12 @@ onMounted(() => {
           >
             Afwijzen
           </button>
-          <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`">Bewerken</RouterLink>
+          <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`" class="btn">
+            Bewerken
+          </RouterLink>
           <button
             type="button"
-            class="danger"
+            class="btn-danger"
             :disabled="busyId === recipe.id"
             @click="destroy(recipe)"
           >
@@ -243,80 +248,69 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.field {
+.login {
+  max-width: 24rem;
+}
+
+.login-error {
+  margin-bottom: var(--space-4);
+}
+
+.toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 1rem;
+  justify-content: flex-end;
 }
 
-input {
-  font: inherit;
-  padding: 0.5rem;
-  border: 1px solid #bbb;
-  border-radius: 4px;
-}
-
-button {
-  font: inherit;
-  padding: 0.4rem 0.8rem;
-}
-
+/* Tabs als segmentknoppen: één rij, de gekozen tab gevuld groen. */
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  padding: var(--space-1);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius);
+}
+
+.tabs button {
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+  background: transparent;
+  border-color: transparent;
 }
 
 .tabs button[aria-pressed='true'] {
-  font-weight: bold;
-  border-bottom: 3px solid #222;
-}
-
-.message {
-  padding: 0.75rem;
-  background: #e8f5e9;
-  color: #1b5e20;
-  border-radius: 4px;
-}
-
-.error {
-  color: #c00;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
 }
 
 .recipes {
-  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
   padding: 0;
-}
-
-.recipes li {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid #eee;
+  list-style: none;
 }
 
 h2 {
-  font-size: 1.1rem;
   margin: 0;
+  font-size: var(--text-lg);
 }
 
 .meta {
-  color: #666;
-  margin: 0.25rem 0;
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .description {
-  margin: 0.25rem 0;
+  margin-bottom: var(--space-3);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: center;
-}
-
-.danger {
-  color: #c00;
 }
 </style>

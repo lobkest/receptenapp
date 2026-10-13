@@ -197,7 +197,7 @@ const sortedErrors = computed(() => {
 
 <template>
   <form @submit.prevent="onSubmit">
-    <ul v-if="sortedErrors.general.length" class="general-errors" role="alert">
+    <ul v-if="sortedErrors.general.length" class="general-errors notice notice-error" role="alert">
       <li v-for="message in sortedErrors.general" :key="message">{{ message }}</li>
     </ul>
 
@@ -231,9 +231,9 @@ const sortedErrors = computed(() => {
       <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
     </div>
 
-    <fieldset class="ingredients">
+    <fieldset class="ingredients card">
       <legend>Ingrediënten</legend>
-      <p class="hint">Laat de hoeveelheid leeg voor "naar smaak".</p>
+      <p class="hint muted">Laat de hoeveelheid leeg voor "naar smaak".</p>
 
       <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
       <div
@@ -270,7 +270,7 @@ const sortedErrors = computed(() => {
           />
           <button
             type="button"
-            class="remove"
+            class="remove btn-danger"
             :disabled="ingredients.length === 1"
             @click="remove('recipe_ingredients', index)"
           >
@@ -285,7 +285,7 @@ const sortedErrors = computed(() => {
       <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
     </fieldset>
 
-    <fieldset class="steps">
+    <fieldset class="steps card">
       <legend>Bereiding</legend>
 
       <ol>
@@ -318,7 +318,7 @@ const sortedErrors = computed(() => {
             </button>
             <button
               type="button"
-              class="remove"
+              class="remove btn-danger"
               :disabled="steps.length === 1"
               @click="remove('steps', index)"
             >
@@ -334,117 +334,121 @@ const sortedErrors = computed(() => {
       <button type="button" class="add" @click="addStep">+ stap</button>
     </fieldset>
 
-    <button type="submit" :disabled="submitting">
+    <button type="submit" class="btn-primary btn-block" :disabled="submitting">
       {{ submitting ? 'Versturen…' : submitLabel }}
     </button>
   </form>
 </template>
 
 <style scoped>
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 1rem;
-}
-
-input,
-select,
-textarea {
-  font: inherit;
-  padding: 0.5rem;
-  border: 1px solid #bbb;
-  border-radius: 4px;
-  width: 100%;
-}
-
-input[aria-invalid='true'],
-textarea[aria-invalid='true'] {
-  border-color: #c00;
-}
-
-.error {
-  color: #c00;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
 .general-errors {
-  padding: 0.75rem 0.75rem 0.75rem 2rem;
-  background: #fdecea;
-  color: #900;
-  border-radius: 4px;
+  padding-left: var(--space-6);
 }
 
-button {
-  font: inherit;
-  padding: 0.5rem 1rem;
+.general-errors li + li {
+  margin-top: var(--space-1);
+}
+
+.field .error,
+.row .error {
+  margin-top: var(--space-1);
 }
 
 fieldset {
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin: 0 0 1rem;
-  padding: 0.75rem;
+  min-width: 0;
+  margin: 0 0 var(--space-5);
+}
+
+legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
 }
 
 .hint {
-  margin: 0 0 0.5rem;
-  color: #666;
-  font-size: 0.9rem;
+  clear: both;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .row {
-  margin-bottom: 0.75rem;
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--color-border);
 }
 
+.row:last-child {
+  border-bottom: 0;
+}
+
+/* Mobiel: hoeveelheid en eenheid naast elkaar, daaronder naam en notitie. */
 .inputs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
 }
 
-.quantity {
-  flex: 0 0 6rem;
-}
-
-.unit {
-  flex: 0 0 6rem;
-}
-
-.name {
-  flex: 1 1 10rem;
-}
-
-.note {
-  flex: 1 1 10rem;
+.inputs .name,
+.inputs .note,
+.inputs .remove {
+  grid-column: 1 / -1;
 }
 
 .inputs .remove {
-  flex: 0 0 auto;
+  justify-self: end;
+}
+
+/* Breed: hoeveelheid, eenheid, naam en verwijderen op één regel, notitie eronder. */
+@media (min-width: 40rem) {
+  .inputs {
+    grid-template-columns: 6rem 7rem 1fr auto;
+  }
+
+  .inputs .name,
+  .inputs .remove {
+    grid-column: auto;
+  }
+
+  .inputs .note {
+    grid-column: 1 / 4;
+  }
 }
 
 .steps ol {
-  list-style: none;
-  padding: 0;
+  clear: both;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .step-row {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-2);
 }
 
 .step-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
-.step-actions button,
-.inputs button,
+.step-actions .remove {
+  margin-left: auto;
+}
+
+.inputs .remove,
+.step-actions button {
+  font-size: var(--text-sm);
+}
+
+/* Toevoegen: een gestippelde knop over de hele breedte, als een lege regel. */
 .add {
-  padding: 0.25rem 0.75rem;
+  width: 100%;
+  margin-top: var(--space-2);
+  color: var(--color-brand);
+  border-style: dashed;
 }
 </style>

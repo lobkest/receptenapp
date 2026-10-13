@@ -1,0 +1,356 @@
+/*
+ * Designsysteem van de receptenapp.
+ *
+ * 1. Tokens: alle kleuren, maten en lettertypen als custom properties op :root.
+ *    Componenten gebruiken alleen deze variabelen, nooit losse waarden als #c00.
+ * 2. Donkere modus: zet alleen de kleurtokens opnieuw; de rest volgt vanzelf.
+ * 3. Basisstijl en gedeelde klassen (knoppen, formulieren, kaarten, meldingen)
+ *    die in meerdere componenten terugkomen. Wat maar in één component voorkomt,
+ *    staat scoped in dat component.
+ *
+ * Mobiel eerst: de standaardstijl is voor de telefoon; brede schermen krijgen
+ * aanvullingen via @media (min-width: 40rem). Let op: custom properties werken
+ * niet in een media query zelf, daarom staat 40rem daar steeds letterlijk.
+ */
+
+/* ---------- 1. Tokens ---------- */
+
+:root {
+  color-scheme: light;
+
+  /* Merk: het groen van het icoon. Wit op dit groen haalt 5,1:1 (AA). */
+  --color-brand: #2e7d43;
+  --color-brand-strong: #235f33;
+  --color-brand-soft: #e3f1e6;
+  --color-on-brand: #ffffff;
+
+  /* Warm en rustig, als papier van een kookboek. */
+  --color-bg: #faf6ef;
+  --color-surface: #fffdf9;
+  --color-surface-hover: #f3ece1;
+  --color-text: #2b2620;
+  --color-text-muted: #6b6157;
+  /* Lijnen tussen regels (decoratief) en randen van invoervelden (min. 3:1). */
+  --color-border: #e4dacb;
+  --color-border-strong: #8a7f73;
+
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbe9e7;
+  --color-on-danger: #ffffff;
+  --color-success-text: #1e5a2d;
+  --color-success-soft: #e3f1e6;
+  --color-error-text: #8c1d17;
+  --color-error-soft: #fbe9e7;
+
+  --color-focus: #2e7d43;
+
+  /* Ruimte: één schaal, zodat afstanden overal in dezelfde maat verspringen. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(60 40 20 / 0.08);
+  --shadow: 0 2px 8px rgb(60 40 20 / 0.1);
+  --shadow-nav: 0 -2px 10px rgb(60 40 20 / 0.08);
+
+  /* Koppen in een serif voor het kookboekgevoel; lopende tekst in de systeemletter. */
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Iowan Old Style', 'Charter', 'Bitstream Charter', Georgia, serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  /* Minimale maat van een aanraakdoel (WCAG 2.5.5 / richtlijnen van Apple en Google). */
+  --tap: 44px;
+  /* Hoogte van de navigatiebalk onderaan op mobiel, zonder de veilige zone. */
+  --nav-height: 60px;
+  --content-width: 42rem;
+
+  --duration: 150ms;
+}
+
+/* Donkere modus: alleen kleuren. Het groen wordt lichter, anders is het te donker
+   op een donkere achtergrond. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --color-brand: #6cc287;
+    --color-brand-strong: #8fd6a5;
+    --color-brand-soft: #1f3526;
+    --color-on-brand: #0f1f13;
+
+    --color-bg: #1c1915;
+    --color-surface: #26221d;
+    --color-surface-hover: #322d26;
+    --color-text: #f1ebe2;
+    --color-text-muted: #b8ad9f;
+    --color-border: #3a342c;
+    --color-border-strong: #8c8276;
+
+    --color-danger: #ff8a80;
+    --color-danger-soft: #3a1f1c;
+    --color-on-danger: #2a0c0a;
+    --color-success-text: #a6dfb6;
+    --color-success-soft: #1f3526;
+    --color-error-text: #ffb4ab;
+    --color-error-soft: #3a1f1c;
+
+    --color-focus: #8fd6a5;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow: 0 2px 8px rgb(0 0 0 / 0.45);
+    --shadow-nav: 0 -2px 10px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* ---------- 2. Basis ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  line-height: 1.2;
+  margin: 0 0 var(--space-3);
+}
+
+h1 {
+  font-size: var(--text-2xl);
+}
+
+h2 {
+  font-size: var(--text-xl);
+}
+
+h3 {
+  font-size: var(--text-lg);
+}
+
+p {
+  margin: 0 0 var(--space-4);
+}
+
+a {
+  color: var(--color-brand);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--color-brand-strong);
+}
+
+/* Zichtbare focus, alleen bij toetsenbord (niet bij elke tik of klik). */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Geen beweging voor wie dat in het systeem heeft uitgezet. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 3. Knoppen ---------- */
+
+/* Standaard is elke knop secundair; .btn maakt een link er net zo uit. */
+button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+  text-decoration: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    background-color var(--duration) ease,
+    border-color var(--duration) ease,
+    color var(--duration) ease;
+}
+
+button:hover:not(:disabled),
+.btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+.btn-primary:hover:not(:disabled) {
+  color: var(--color-on-brand);
+  background: var(--color-brand-strong);
+  border-color: var(--color-brand-strong);
+}
+
+.btn-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+/* Op een telefoon is een knop over de hele breedte makkelijker te raken. */
+.btn-block {
+  width: 100%;
+}
+
+@media (min-width: 40rem) {
+  .btn-block {
+    width: auto;
+  }
+}
+
+/* ---------- 4. Formulieren ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+label,
+legend {
+  font-weight: 600;
+}
+
+input:not([type='checkbox'], [type='radio']),
+select,
+textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--space-2) var(--space-3);
+  /* 1rem (16px) of meer: anders zoomt iOS in bij het aantikken. */
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+textarea {
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+[aria-invalid='true'] {
+  border-color: var(--color-danger) !important;
+  border-width: 2px !important;
+}
+
+input[type='checkbox'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-brand);
+}
+
+/* ---------- 5. Kaarten, meldingen, hulpklassen ---------- */
+
+.card {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-error-text);
+}
+
+.notice {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  border-radius: var(--radius);
+}
+
+.notice-success {
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+}
+
+.notice-error {
+  color: var(--color-error-text);
+  background: var(--color-error-soft);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  margin-top: var(--space-5);
+}

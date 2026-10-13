@@ -36,25 +36,16 @@ function reset() {
 <template>
   <h1>Recept insturen</h1>
 
-  <div v-if="submitted" role="status">
+  <div v-if="submitted" class="card" role="status">
     <p>Bedankt! Je recept wacht op goedkeuring.</p>
     <p>
-      <button type="button" @click="reset">Nog een recept insturen</button>
+      <button type="button" class="btn-primary" @click="reset">Nog een recept insturen</button>
       of <RouterLink to="/">terug naar de recepten</RouterLink>.
     </p>
   </div>
 
   <template v-else>
-    <p v-if="message" class="message" role="alert">{{ message }}</p>
+    <p v-if="message" class="message notice notice-error" role="alert">{{ message }}</p>
     <RecipeForm :errors="errors" :submitting="submitting" @submit="handleSubmit" />
   </template>
 </template>
-
-<style scoped>
-.message {
-  padding: 0.75rem;
-  background: #fdecea;
-  color: #900;
-  border-radius: 4px;
-}
-</style>

@@ -127,20 +127,21 @@ watch(() => props.id, load, { immediate: true })
 </script>
 
 <template>
-  <p v-if="loading">Recept laden…</p>
+  <p v-if="loading" class="muted">Recept laden…</p>
 
   <div v-else-if="notFound">
     <h1>Recept niet gevonden</h1>
     <p>Dit recept bestaat niet of is nog niet goedgekeurd.</p>
   </div>
 
-  <p v-else-if="error" role="alert">{{ error }}</p>
+  <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
   <article v-else-if="recipe">
     <h1>{{ recipe.title }}</h1>
     <div class="servings">
       <button
         type="button"
+        class="round"
         aria-label="Minder porties"
         :disabled="servings <= MIN_SERVINGS"
         @click="changeServings(-1)"
@@ -150,6 +151,7 @@ watch(() => props.id, load, { immediate: true })
       <span class="servings-count">{{ servings }} {{ servings === 1 ? 'portie' : 'porties' }}</span>
       <button
         type="button"
+        class="round"
         aria-label="Meer porties"
         :disabled="servings >= MAX_SERVINGS"
         @click="changeServings(1)"
@@ -163,7 +165,7 @@ watch(() => props.id, load, { immediate: true })
     <p v-if="recipe.description" class="description">{{ recipe.description }}</p>
 
     <!-- Oudere recepten hebben geen ingrediënten of stappen; dan vervalt het kopje. -->
-    <section v-if="recipe.ingredients?.length" class="ingredients">
+    <section v-if="recipe.ingredients?.length" class="ingredients card">
       <h2>Ingrediënten</h2>
       <ul>
         <li v-for="ingredient in scaledIngredients" :key="ingredient.id">
@@ -178,8 +180,12 @@ watch(() => props.id, load, { immediate: true })
           </button>
         </li>
       </ul>
-      <button type="button" class="add-all" @click="addAllToList">Alles op lijst</button>
-      <p v-if="addedMessage" class="added" role="status">{{ addedMessage }}</p>
+      <button type="button" class="add-all btn-primary btn-block" @click="addAllToList">
+        Alles op lijst
+      </button>
+      <p v-if="addedMessage" class="added notice notice-success" role="status">
+        {{ addedMessage }}
+      </p>
     </section>
 
     <section v-if="recipe.steps?.length" class="steps">
@@ -190,67 +196,41 @@ watch(() => props.id, load, { immediate: true })
     </section>
 
     <div v-if="admin.isLoggedIn" class="admin-actions">
-      <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`">Bewerken</RouterLink>
-      <button type="button" :disabled="deleting" @click="destroy">Verwijderen</button>
+      <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`" class="btn">Bewerken</RouterLink>
+      <button type="button" class="btn-danger" :disabled="deleting" @click="destroy">
+        Verwijderen
+      </button>
       <p v-if="deleteError" class="error" role="alert">{{ deleteError }}</p>
     </div>
   </article>
 
-  <p><RouterLink to="/">← Terug naar alle recepten</RouterLink></p>
+  <p><RouterLink to="/" class="back-link">← Terug naar alle recepten</RouterLink></p>
 </template>
 
 <style scoped>
 .servings {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: center;
-  color: #666;
+  margin-bottom: var(--space-4);
 }
 
-.servings button,
-.ingredients button {
-  font: inherit;
+.round {
+  width: var(--tap);
+  padding: 0;
+  font-size: var(--text-lg);
+  border-radius: var(--radius-full);
 }
 
 .servings-count {
   min-width: 6rem;
+  font-weight: 600;
   text-align: center;
 }
 
-.ingredients li {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.25rem;
-}
-
-.ingredients .add-one {
-  flex-shrink: 0;
-  font-size: 0.85rem;
-}
-
-.added {
-  color: #060;
-}
-
-.admin-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  padding-top: 0.75rem;
-  border-top: 1px solid #eee;
-}
-
-.admin-actions button {
-  font: inherit;
-  color: #c00;
-}
-
-.error {
-  color: #c00;
+.reset {
+  font-size: var(--text-sm);
 }
 
 /* Behoud enters uit de beschrijving en de stappen. */
@@ -259,7 +239,83 @@ watch(() => props.id, load, { immediate: true })
   white-space: pre-line;
 }
 
+.description {
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+
+.ingredients {
+  margin-bottom: var(--space-6);
+}
+
+.ingredients ul {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.ingredients li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ingredients li:last-child {
+  border-bottom: 0;
+}
+
+.ingredients .add-one {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-brand);
+  border-color: var(--color-border);
+}
+
+.added {
+  margin: var(--space-3) 0 0;
+}
+
+/* Grote groene nummers voor de stappen, als in een kookboek. */
+.steps ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
 .steps li {
-  margin-bottom: 0.5rem;
+  position: relative;
+  min-height: 2.5rem;
+  margin-bottom: var(--space-4);
+  padding-left: 3rem;
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  top: -0.2rem;
+  left: 0;
+  width: 2.25rem;
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--color-brand);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 </style>

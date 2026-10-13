@@ -89,14 +89,14 @@ watch(() => props.id, load, { immediate: true })
 <template>
   <h1>Recept bewerken</h1>
 
-  <p v-if="loading">Recept laden…</p>
+  <p v-if="loading" class="muted">Recept laden…</p>
 
   <p v-else-if="notFound">Dit recept bestaat niet (meer).</p>
 
-  <p v-else-if="loadError" role="alert">{{ loadError }}</p>
+  <p v-else-if="loadError" class="notice notice-error" role="alert">{{ loadError }}</p>
 
   <template v-else-if="recipe">
-    <p v-if="message" class="message" role="alert">{{ message }}</p>
+    <p v-if="message" class="message notice notice-error" role="alert">{{ message }}</p>
     <!-- :key zorgt dat het formulier opnieuw begint bij een ander recept. -->
     <RecipeForm
       :key="recipe.id"
@@ -109,14 +109,5 @@ watch(() => props.id, load, { immediate: true })
     />
   </template>
 
-  <p><RouterLink to="/beheer">← Terug naar beheer</RouterLink></p>
+  <p><RouterLink to="/beheer" class="back-link">← Terug naar beheer</RouterLink></p>
 </template>
-
-<style scoped>
-.message {
-  padding: 0.75rem;
-  background: #fdecea;
-  color: #900;
-  border-radius: 4px;
-}
-</style>

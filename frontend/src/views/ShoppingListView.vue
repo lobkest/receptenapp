@@ -24,13 +24,13 @@ function clearAll() {
 <template>
   <h1>Boodschappen</h1>
 
-  <p v-if="list.items.length === 0" class="empty">
+  <p v-if="list.items.length === 0" class="empty card">
     Je boodschappenlijst is leeg. Voeg ingrediënten toe vanaf een
     <RouterLink to="/">recept</RouterLink>.
   </p>
 
   <template v-else>
-    <ul class="items">
+    <ul class="items card">
       <li v-for="item in list.items" :key="item.key" :class="{ checked: item.checked }">
         <label>
           <input type="checkbox" :checked="item.checked" @change="list.toggle(item.key)" />
@@ -57,67 +57,88 @@ function clearAll() {
       >
         Afgevinkte wissen
       </button>
-      <button type="button" class="clear-all" @click="clearAll">Alles wissen</button>
+      <button type="button" class="clear-all btn-danger" @click="clearAll">Alles wissen</button>
     </div>
 
-    <p class="hint">Deze lijst staat alleen in deze browser op dit apparaat.</p>
+    <p class="hint muted">Deze lijst staat alleen in deze browser op dit apparaat.</p>
   </template>
 </template>
 
 <style scoped>
 .items {
+  margin: 0;
+  padding: 0 var(--space-4);
   list-style: none;
-  padding: 0;
 }
 
 .items li {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid #eee;
+  column-gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
+.items li:last-child {
+  border-bottom: 0;
+}
+
+/* Het hele label is het aanraakvak, niet alleen het vinkje. */
 .items label {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-3);
   align-items: center;
+  min-height: var(--tap);
+  font-weight: 400;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.items input[type='checkbox'] {
+  flex-shrink: 0;
 }
 
 .sources {
   grid-column: 1;
-  padding-left: 1.6rem;
-  font-size: 0.85rem;
-  color: #666;
+  /* Zelfde inspringing als de tekst naast het vinkje. */
+  padding-left: calc(1.5rem + var(--space-3));
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .remove {
   grid-row: 1 / span 2;
   grid-column: 2;
-  font: inherit;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-color: transparent;
 }
 
 .checked .line {
   text-decoration: line-through;
-  color: #888;
+  color: var(--color-text-muted);
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .actions button {
-  font: inherit;
+  flex: 1 1 auto;
 }
 
-.clear-all {
-  color: #c00;
+@media (min-width: 40rem) {
+  .actions button {
+    flex: 0 0 auto;
+  }
 }
 
-.empty,
 .hint {
-  color: #666;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
 }
 </style>

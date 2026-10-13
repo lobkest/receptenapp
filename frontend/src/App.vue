@@ -1,5 +1,8 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
+import { useShoppingListStore } from '@/stores/shoppingList'
+
+const shoppingList = useShoppingListStore()
 </script>
 
 <template>
@@ -10,11 +13,18 @@ import { RouterLink, RouterView } from 'vue-router'
         Recepten
       </RouterLink>
       <RouterLink to="/recepten/nieuw">Recept insturen</RouterLink>
+      <RouterLink to="/boodschappen" class="shopping-link">
+        Boodschappen<span v-if="shoppingList.openCount"> ({{ shoppingList.openCount }})</span>
+      </RouterLink>
     </nav>
   </header>
   <main>
     <RouterView />
   </main>
+  <!-- Beheer bewust niet in het hoofdmenu: bezoekers hebben er niets te zoeken. -->
+  <footer>
+    <RouterLink to="/beheer">Beheer</RouterLink>
+  </footer>
 </template>
 
 <!-- Niet scoped: basisstijl voor de hele pagina. -->
@@ -39,7 +49,8 @@ header {
 }
 
 nav,
-main {
+main,
+footer {
   max-width: 40rem;
   margin: 0 auto;
   padding: 1rem;
@@ -55,6 +66,16 @@ nav {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+footer {
+  margin-top: 2rem;
+  border-top: 1px solid #eee;
+  font-size: 0.85rem;
+}
+
+footer a {
+  color: #888;
 }
 
 /* RouterLink zet deze class op de link van de huidige pagina. */

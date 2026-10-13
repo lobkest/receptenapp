@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
+import { useShoppingListStore } from '../stores/shoppingList'
 import { jsonResponse, mockFetch } from './helpers'
 
 const SOUP = { id: 5, title: 'Tomatensoep', description: 'Lekker.', servings: 4 }
@@ -20,6 +21,7 @@ async function mountAt(path) {
 describe('RecipeDetailView', () => {
   beforeEach(() => {
     sessionStorage.clear()
+    localStorage.clear()
   })
 
   afterEach(() => {
@@ -84,7 +86,7 @@ describe('RecipeDetailView', () => {
     )
     const { wrapper } = await mountAt('/recepten/5')
 
-    expect(wrapper.findAll('.ingredients li').map((li) => li.text())).toEqual([
+    expect(wrapper.findAll('.ingredients .line').map((line) => line.text())).toEqual([
       '200 g bloem',
       '2 stuks ei',
       '0,5 ml olie',
@@ -102,5 +104,139 @@ describe('RecipeDetailView', () => {
     expect(wrapper.text()).toContain('Lekker.')
     expect(wrapper.find('.ingredients').exists()).toBe(false)
     expect(wrapper.find('.steps').exists()).toBe(false)
+  })
+
+  describe('porties en boodschappenlijst', () => {
+    const PANCAKES = {
+      id: 7,
+      title: 'Pannenkoeken',
+      description: null,
+      servings: 4,
+      ingredients: [
+        { id: 1, name: 'bloem', quantity: 250, unit: 'g', note: null },
+        { id: 2, name: 'ei', quantity: 1, unit: 'stuks', note: null },
+        { id: 3, name: 'melk', quantity: 500, unit: 'ml', note: null },
+        { id: 4, name: 'zout', quantity: null, unit: null, note: null },
+      ],
+      steps: [],
+    }
+
+    function lines(wrapper) {
+      return wrapper.findAll('.ingredients .line').map((l) => l.text())
+    }
+
+    function button(wrapper, label) {
+      return wrapper.find(`button[aria-label="${label}"]`)
+    }
+
+    function buttonWithText(wrapper, text) {
+      return wrapper.findAll('button').find((b) => b.text().startsWith(text))
+    }
+
+    async function clickTimes(wrapper, label, times) {
+      for (let i = 0; i < times; i++) await button(wrapper, label).trigger('click')
+    }
+
+    async function mountPancakes() {
+      mockFetch(() => jsonResponse(PANCAKES))
+      return (await mountAt('/recepten/7')).wrapper
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('begint bij de porties van het recept, zonder "terug naar origineel"', async () => {
+      const wrapper = await mountPancakes()
+
+      expect(wrapper.find('.servings-count').text()).toBe('4 porties')
+      expect(buttonWithText(wrapper, 'Terug naar origineel')).toBeUndefined()
+      expect(lines(wrapper)).toEqual([
+        '250 g bloem',
+        '1 stuks ei',
+        '500 ml melk',
+        'zout — naar smaak',
+      ])
+    })
+
+    it('schaalt alle hoeveelheden mee, behalve "naar smaak"', async () => {
+      const wrapper = await mountPancakes()
+
+      await clickTimes(wrapper, 'Meer porties', 2)
+
+      expect(wrapper.find('.servings-count').text()).toBe('6 porties')
+      expect(lines(wrapper)).toEqual([
+        '375 g bloem',
+        '1,5 stuks ei',
+        '750 ml melk',
+        'zout — naar smaak',
+      ])
+    })
+
+    it('schaalt terug naar 1 portie zonder 0 stuks', async () => {
+      const wrapper = await mountPancakes()
+
+      await clickTimes(wrapper, 'Minder porties', 3)
+
+      expect(wrapper.find('.servings-count').text()).toBe('1 portie')
+      expect(lines(wrapper)[1]).toBe('0,5 stuks ei')
+      expect(button(wrapper, 'Minder porties').attributes('disabled')).toBeDefined()
+
+      await button(wrapper, 'Minder porties').trigger('click')
+      expect(wrapper.find('.servings-count').text()).toBe('1 portie')
+    })
+
+    it('gaat niet boven 50 porties', async () => {
+      const wrapper = await mountPancakes()
+
+      await clickTimes(wrapper, 'Meer porties', 50)
+
+      expect(wrapper.find('.servings-count').text()).toBe('50 porties')
+      expect(button(wrapper, 'Meer porties').attributes('disabled')).toBeDefined()
+      expect(lines(wrapper)[0]).toBe('3.125 g bloem')
+    })
+
+    it('zet met "terug naar origineel" de porties terug', async () => {
+      const wrapper = await mountPancakes()
+      await clickTimes(wrapper, 'Meer porties', 1)
+
+      await buttonWithText(wrapper, 'Terug naar origineel').trigger('click')
+
+      expect(wrapper.find('.servings-count').text()).toBe('4 porties')
+      expect(buttonWithText(wrapper, 'Terug naar origineel')).toBeUndefined()
+    })
+
+    it('zet één ingrediënt geschaald op de lijst, met een korte bevestiging', async () => {
+      vi.useFakeTimers()
+      const wrapper = await mountPancakes()
+      await clickTimes(wrapper, 'Meer porties', 2)
+
+      await button(wrapper, 'bloem op boodschappenlijst').trigger('click')
+
+      const list = useShoppingListStore()
+      expect(list.items).toHaveLength(1)
+      expect(list.items[0]).toMatchObject({ name: 'bloem', quantity: 375, unit: 'g' })
+      expect(list.items[0].sources).toEqual([{ id: 7, title: 'Pannenkoeken' }])
+      expect(wrapper.find('[role="status"]').text()).toBe('bloem staat op je boodschappenlijst.')
+
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    })
+
+    it('zet met "Alles op lijst" alle geschaalde ingrediënten op de lijst', async () => {
+      const wrapper = await mountPancakes()
+      await clickTimes(wrapper, 'Minder porties', 2)
+
+      await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
+
+      const list = useShoppingListStore()
+      expect(list.items.map((i) => [i.name, i.quantity, i.unit])).toEqual([
+        ['bloem', 125, 'g'],
+        ['ei', 0.5, 'stuks'],
+        ['melk', 250, 'ml'],
+        ['zout', null, null],
+      ])
+      expect(wrapper.find('[role="status"]').text()).toContain('Alle ingrediënten')
+    })
   })
 })

@@ -88,12 +88,15 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  # Unknown API routes end up in Api::NotFoundController, so check behaviour instead of routing.
   test "update and destroy are not publicly routed" do
-    assert_raises(ActionController::RoutingError) do
-      Rails.application.routes.recognize_path("/api/recipes/#{@recipe.id}", method: :patch)
+    patch api_recipe_url(@recipe), params: { recipe: { title: "Gehackt" } }, as: :json
+    assert_response :not_found
+
+    assert_no_difference("Recipe.count") do
+      delete api_recipe_url(@recipe), as: :json
     end
-    assert_raises(ActionController::RoutingError) do
-      Rails.application.routes.recognize_path("/api/recipes/#{@recipe.id}", method: :delete)
-    end
+    assert_response :not_found
+    assert_equal "Pannenkoeken", @recipe.reload.title
   end
 end

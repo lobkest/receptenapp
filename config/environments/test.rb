@@ -52,4 +52,7 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Use a fixed index.html, so tests don't depend on a frontend build.
+  config.x.frontend_index = Rails.root.join("test/fixtures/files/frontend_index.html")
 end

@@ -16,8 +16,16 @@ Rails.application.routes.draw do
         end
       end
     end
+
+    # Unknown API paths get a JSON 404, never the frontend's index.html.
+    match "*path", to: "not_found#show", via: :all
   end
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  # The Vue app. Existing files in public/ (assets, favicon) never get here, because
+  # ActionDispatch::Static serves them before routing. The constraint keeps /api and /up
+  # out and only answers HTML requests, so a missing /assets/x.js stays a plain 404.
+  root "frontend#index"
+  get "*path", to: "frontend#index", constraints: ->(request) {
+    !request.path.match?(%r{\A/(api|up)(/|\z)}) && request.format.html?
+  }
 end

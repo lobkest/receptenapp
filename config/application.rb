@@ -28,5 +28,8 @@ module Receptenapp
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # The built index.html of the Vue app (see bin/render-build.sh and FrontendController).
+    config.x.frontend_index = Rails.root.join("frontend/dist/index.html")
   end
 end

@@ -33,3 +33,7 @@
 
 .claude/settings.local.json
 *:Zone.Identifier
+
+# Frontend build output copied in by bin/render-build.sh; only robots.txt is tracked.
+/public/*
+!/public/robots.txt

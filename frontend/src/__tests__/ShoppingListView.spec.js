@@ -50,10 +50,7 @@ describe('ShoppingListView', () => {
   it('toont regels met hoeveelheid en herkomst', async () => {
     const wrapper = await mountApp(fillTwo)
 
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual([
-      '300 g bloem',
-      'zout — naar smaak',
-    ])
+    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['300 g bloem', 'zout'])
     expect(wrapper.findAll('.items .sources').map((s) => s.text())).toEqual([
       'uit: Pannenkoeken, Wafels',
       'uit: Pannenkoeken',
@@ -81,7 +78,7 @@ describe('ShoppingListView', () => {
 
     await wrapper.find('.items .remove').trigger('click')
 
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout — naar smaak'])
+    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout'])
   })
 
   it('wist afgevinkte regels zonder te vragen', async () => {
@@ -93,7 +90,7 @@ describe('ShoppingListView', () => {
     await buttonWithText(wrapper, 'Afgevinkte wissen').trigger('click')
 
     expect(confirm).not.toHaveBeenCalled()
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout — naar smaak'])
+    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout'])
   })
 
   it('wist alles alleen na bevestiging', async () => {

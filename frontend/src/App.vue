@@ -44,6 +44,13 @@ const shoppingLabel = computed(() =>
           </svg>
           <span class="nav-label">{{ shoppingLabel }}</span>
         </RouterLink>
+        <RouterLink to="/standaard" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 6h11M9 12h11M9 18h11" />
+            <path d="M4 6h.01M4 12h.01M4 18h.01" />
+          </svg>
+          <span class="nav-label">Standaard</span>
+        </RouterLink>
       </nav>
     </div>
   </header>
@@ -112,7 +119,7 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   /* De balk loopt door tot de onderrand; de veilige zone (thuisbalk van de
      iPhone) blijft leeg, zodat er geen link onder je duim-gebaar zit. */
   padding-bottom: env(safe-area-inset-bottom);
@@ -134,6 +141,7 @@ main {
   padding: var(--space-1);
   font-size: var(--text-xs);
   font-weight: 600;
+  line-height: 1.15;
   text-align: center;
   color: var(--color-text-muted);
   text-decoration: none;

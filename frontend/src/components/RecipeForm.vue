@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { UNITS } from '@/utils/quantity'
 
 // Props: data die de ouder (RecipeNewView of AdminRecipeEditView) naar dit component stuurt.
 const props = defineProps({
@@ -13,9 +14,6 @@ const props = defineProps({
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
 const emit = defineEmits(['submit', 'dirty-change'])
-
-// Bewust geen eetlepels of cups: alleen eenheden die je kunt optellen en schalen.
-const UNITS = ['g', 'ml', 'stuks']
 
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.

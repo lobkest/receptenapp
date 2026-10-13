@@ -7,8 +7,10 @@ import { formatQuantity } from '@/utils/quantity'
 // wijzigt alleen.
 const list = useShoppingListStore()
 
+// Zonder hoeveelheid ("naar smaak" uit een recept, of wc-papier uit de
+// standaardlijst) is alleen de naam genoeg: je moet het gewoon kopen.
 function itemLine(item) {
-  if (item.quantity == null) return `${item.name} — naar smaak`
+  if (item.quantity == null) return item.name
   return `${formatQuantity(item.quantity)} ${item.unit} ${item.name}`
 }
 

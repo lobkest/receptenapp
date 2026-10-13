@@ -3,6 +3,9 @@
 //
 // null betekent overal "naar smaak": dat schaalt niet mee en wordt niet afgerond.
 
+// Bewust geen eetlepels of cups: alleen eenheden die je kunt optellen en schalen.
+export const UNITS = ['g', 'ml', 'stuks']
+
 // Kleinste waarde die we tonen als er wél iets nodig is; nooit afronden naar 0.
 const MINIMUM = { g: 0.1, ml: 0.1, stuks: 0.5 }
 

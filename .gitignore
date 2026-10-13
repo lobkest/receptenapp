@@ -32,3 +32,4 @@
 /config/*.key
 
 .claude/settings.local.json
+*:Zone.Identifier

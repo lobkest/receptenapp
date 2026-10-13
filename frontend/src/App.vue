@@ -5,7 +5,10 @@ import { RouterLink, RouterView } from 'vue-router'
 <template>
   <header>
     <nav>
-      <RouterLink to="/">Recepten</RouterLink>
+      <RouterLink to="/" class="brand">
+        <img src="/icon-192.png" alt="Recepten-logo" width="24" height="24" />
+        Recepten
+      </RouterLink>
       <RouterLink to="/recepten/nieuw">Recept insturen</RouterLink>
     </nav>
   </header>
@@ -45,6 +48,13 @@ main {
 nav {
   display: flex;
   gap: 1rem;
+  align-items: center;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* RouterLink zet deze class op de link van de huidige pagina. */

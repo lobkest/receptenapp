@@ -326,7 +326,9 @@ describe('RecipeForm bij bewerken', () => {
 
   it('laat een ouder recept zonder regels de lijsten weglaten, zodat bewerken kan', async () => {
     const wrapper = mount(RecipeForm, {
-      props: { initial: { title: 'Soep', description: '', servings: 2, ingredients: [], steps: [] } },
+      props: {
+        initial: { title: 'Soep', description: '', servings: 2, ingredients: [], steps: [] },
+      },
     })
 
     expect(stepRows(wrapper)).toHaveLength(1)

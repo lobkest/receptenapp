@@ -32,6 +32,14 @@ function clearAll() {
   </p>
 
   <template v-else>
+    <RouterLink
+      v-if="list.openCount"
+      to="/winkelen"
+      class="btn btn-primary btn-block start-shopping"
+    >
+      Ik ga winkelen
+    </RouterLink>
+
     <ul class="items card">
       <li v-for="item in list.items" :key="item.key" :class="{ checked: item.checked }">
         <label>
@@ -67,6 +75,10 @@ function clearAll() {
 </template>
 
 <style scoped>
+.start-shopping {
+  margin-bottom: var(--space-4);
+}
+
 .items {
   margin: 0;
   padding: 0 var(--space-4);

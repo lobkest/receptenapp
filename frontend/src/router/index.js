@@ -3,6 +3,7 @@ import RecipeListView from '@/views/RecipeListView.vue'
 import RecipeNewView from '@/views/RecipeNewView.vue'
 import RecipeDetailView from '@/views/RecipeDetailView.vue'
 import ShoppingListView from '@/views/ShoppingListView.vue'
+import ShoppingModeView from '@/views/ShoppingModeView.vue'
 import StandardItemsView from '@/views/StandardItemsView.vue'
 import AdminView from '@/views/AdminView.vue'
 import AdminRecipeEditView from '@/views/AdminRecipeEditView.vue'
@@ -14,6 +15,7 @@ export const routes = [
   // props: true geeft :id als prop door aan het component, in plaats van via useRoute().
   { path: '/recepten/:id', name: 'recipe', component: RecipeDetailView, props: true },
   { path: '/boodschappen', name: 'shopping-list', component: ShoppingListView },
+  { path: '/winkelen', name: 'shopping-mode', component: ShoppingModeView },
   { path: '/standaard', name: 'standard-items', component: StandardItemsView },
   // /beheer toont zelf het inlogscherm als je niet ingelogd bent, dus geen guard nodig.
   { path: '/beheer', name: 'admin', component: AdminView },

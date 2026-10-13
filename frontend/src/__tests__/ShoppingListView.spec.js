@@ -105,6 +105,14 @@ describe('ShoppingListView', () => {
     expect(wrapper.find('.empty').exists()).toBe(true)
   })
 
+  it('toont "Ik ga winkelen" alleen als er nog iets te halen is', async () => {
+    const wrapper = await mountApp(fillTwo)
+    expect(wrapper.find('.start-shopping').attributes('href')).toBe('/winkelen')
+
+    for (const input of wrapper.findAll('.items input[type="checkbox"]')) await input.setValue(true)
+    expect(wrapper.find('.start-shopping').exists()).toBe(false)
+  })
+
   it('toont de beheerlink in de voettekst en niet in het menu', async () => {
     const wrapper = await mountApp()
 

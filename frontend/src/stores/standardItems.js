@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { normalizeName, useShoppingListStore } from '@/stores/shoppingList'
+import { byName, groupByCategory } from '@/utils/grouping'
 import { UNITS, roundQuantity } from '@/utils/quantity'
 
 // Zelfde aanpak als de boodschappenlijst: localStorage, met een versienummer,
@@ -95,8 +96,6 @@ function storeItems(items) {
   }
 }
 
-const byName = (a, b) => a.name.localeCompare(b.name, 'nl')
-
 // De vaste boodschappen. Elke actie die iets wijzigt, slaat daarna op.
 export const useStandardItemsStore = defineStore('standardItems', {
   state: () => ({
@@ -105,15 +104,16 @@ export const useStandardItemsStore = defineStore('standardItems', {
 
   getters: {
     // Per categorie op alfabet, "overig" (null) achteraan; binnen een groep op naam.
-    groups: (state) => {
-      const map = new Map()
+    groups: (state) => groupByCategory(state.items.toSorted(byName), (item) => item.category),
+
+    // Categorie bij een naam, ongeacht de eenheid, of null. Zo komt ook melk uit
+    // een recept onder "zuivel" als melk in de standaardlijst onder zuivel staat.
+    categoryFor: (state) => {
+      const categories = new Map()
       for (const item of state.items) {
-        if (!map.has(item.category)) map.set(item.category, [])
-        map.get(item.category).push(item)
+        if (item.category && !categories.has(item.name)) categories.set(item.name, item.category)
       }
-      return [...map.entries()]
-        .sort(([a], [b]) => (a === null) - (b === null) || (a ?? '').localeCompare(b ?? '', 'nl'))
-        .map(([category, items]) => ({ category, items: items.toSorted(byName) }))
+      return (name) => categories.get(normalizeName(name)) ?? null
     },
   },
 

@@ -11,15 +11,16 @@ module RecipeSerializer
   end
 
   # For a single recipe. Load it with Recipe.with_details to avoid one query per ingredient.
+  # Row ids let the admin form edit (id) and remove (_destroy) existing rows.
   def detail(recipe)
     summary(recipe).merge(
       "ingredients" => recipe.recipe_ingredients.map { |row| ingredient(row) },
-      "steps" => recipe.steps.map { |step| { "position" => step.position, "body" => step.body } }
+      "steps" => recipe.steps.map { |step| { "id" => step.id, "position" => step.position, "body" => step.body } }
     )
   end
 
   def ingredient(row)
-    { "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "note" => row.note }
+    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "note" => row.note }
   end
 
   # Rails turns a BigDecimal into the string "200.0"; the API sends the number 200 or 0.5.

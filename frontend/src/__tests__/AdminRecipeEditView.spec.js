@@ -14,6 +14,24 @@ const SOUP = {
   servings: 4,
   status: 'rejected',
   created_at: '2026-10-01T12:00:00Z',
+  // Een ouder recept, van vóór ingrediënten en stappen.
+  ingredients: [],
+  steps: [],
+}
+
+const PANCAKES = {
+  ...SOUP,
+  id: 6,
+  title: 'Pannenkoeken',
+  ingredients: [
+    { id: 21, name: 'bloem', quantity: 250, unit: 'g', note: null },
+    { id: 22, name: 'zout', quantity: null, unit: null, note: null },
+  ],
+  steps: [
+    { id: 11, position: 1, body: 'Beslag maken.' },
+    { id: 12, position: 2, body: 'Laten rusten.' },
+    { id: 13, position: 3, body: 'Bakken.' },
+  ],
 }
 
 // Een echte router (in het geheugen), omdat de view useRouter en
@@ -50,7 +68,7 @@ describe('AdminRecipeEditView', () => {
     expect(wrapper.find('button[type="submit"]').text()).toBe('Opslaan')
   })
 
-  it('stuurt een PATCH met alleen titel, beschrijving en porties, en gaat terug naar beheer', async () => {
+  it('stuurt voor een ouder recept zonder regels alleen titel, beschrijving en porties', async () => {
     const fetch = mockFetch((method, url) => {
       if (method === 'PATCH') return jsonResponse({ ...SOUP, title: 'Pompoensoep' })
       return jsonResponse(url === '/api/admin/recipes/5' ? SOUP : [])
@@ -70,6 +88,48 @@ describe('AdminRecipeEditView', () => {
     })
     expect(router.currentRoute.value.name).toBe('admin')
     expect(wrapper.find('[role="status"]').text()).toBe('"Pompoensoep" is opgeslagen.')
+  })
+
+  it('stuurt bewerkte, herschikte, nieuwe en verwijderde regels in één PATCH', async () => {
+    const fetch = mockFetch((method, url) => {
+      if (method === 'PATCH') return jsonResponse(PANCAKES)
+      return jsonResponse(url === '/api/admin/recipes/6' ? PANCAKES : [])
+    })
+    const { wrapper, router } = await mountAt('/beheer/recepten/6/bewerken')
+    const steps = () => wrapper.findAll('.step-row')
+
+    // "Laten rusten." weg, "Bakken." naar boven, "Beslag maken." aanpassen, stap erbij.
+    await steps()[1].find('.remove').trigger('click')
+    await steps()[1].find('.up').trigger('click')
+    await steps()[1].find('textarea').setValue('Beslag maken met melk.')
+    await wrapper.find('.steps .add').trigger('click')
+    await steps()[2].find('textarea').setValue('Opdienen.')
+    // Zout weg, bloem aanpassen.
+    await wrapper.findAll('.ingredient-row')[1].find('.remove').trigger('click')
+    await wrapper.find('.ingredient-row .quantity').setValue('300')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const patch = fetch.mock.calls.find(([, options]) => options.method === 'PATCH')
+    expect(patch[0]).toBe('/api/admin/recipes/6')
+    expect(JSON.parse(patch[1].body)).toEqual({
+      recipe: {
+        title: 'Pannenkoeken',
+        description: 'Lekker.',
+        servings: 4,
+        recipe_ingredients_attributes: [
+          { id: 21, ingredient_name: 'bloem', quantity: 300, unit: 'g', note: '' },
+          { id: 22, _destroy: true },
+        ],
+        steps_attributes: [
+          { id: 13, body: 'Bakken.' },
+          { id: 11, body: 'Beslag maken met melk.' },
+          { body: 'Opdienen.' },
+          { id: 12, _destroy: true },
+        ],
+      },
+    })
+    expect(router.currentRoute.value.name).toBe('admin')
   })
 
   it('toont 422-fouten per veld en blijft op de pagina', async () => {
@@ -96,6 +156,30 @@ describe('AdminRecipeEditView', () => {
     const { wrapper, router } = await mountAt('/beheer/recepten/5/bewerken')
 
     await wrapper.find('#title').setValue('Iets anders')
+    await router.push('/')
+
+    expect(confirm).toHaveBeenCalled()
+    expect(router.currentRoute.value.name).toBe('admin-recipe-edit')
+  })
+
+  it('waarschuwt ook als alleen de volgorde van de stappen is gewijzigd', async () => {
+    mockFetch(() => jsonResponse(PANCAKES))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { wrapper, router } = await mountAt('/beheer/recepten/6/bewerken')
+
+    await wrapper.findAll('.step-row')[2].find('.up').trigger('click')
+    await router.push('/')
+
+    expect(confirm).toHaveBeenCalledWith('Je hebt niet-opgeslagen wijzigingen. Toch weggaan?')
+    expect(router.currentRoute.value.name).toBe('admin-recipe-edit')
+  })
+
+  it('waarschuwt ook als alleen een ingrediënt is gewijzigd', async () => {
+    mockFetch(() => jsonResponse(PANCAKES))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { wrapper, router } = await mountAt('/beheer/recepten/6/bewerken')
+
+    await wrapper.find('.ingredient-row .name').setValue('volkorenmeel')
     await router.push('/')
 
     expect(confirm).toHaveBeenCalled()

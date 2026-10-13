@@ -38,10 +38,11 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     body = response.parsed_body
     assert_equal [ 1, 2, 3 ], body["steps"].map { |step| step["position"] }
+    assert_equal steps(:pannenkoeken_beslag).id, body["steps"].first["id"]
     assert_match "glad beslag", body["steps"].first["body"]
-    assert_includes body["ingredients"], { "name" => "bloem", "quantity" => 250, "unit" => "g", "note" => nil }
-    assert_includes body["ingredients"], { "name" => "ei", "quantity" => 2, "unit" => "stuks", "note" => "op kamertemperatuur" }
-    assert_includes body["ingredients"], { "name" => "zout", "quantity" => nil, "unit" => nil, "note" => nil }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_bloem).id, "name" => "bloem", "quantity" => 250, "unit" => "g", "note" => nil }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_ei).id, "name" => "ei", "quantity" => 2, "unit" => "stuks", "note" => "op kamertemperatuur" }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_zout).id, "name" => "zout", "quantity" => nil, "unit" => nil, "note" => nil }
   end
 
   test "show loads ingredients without one query per row" do
@@ -107,7 +108,7 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
       { "name" => "wortel", "quantity" => 1000, "unit" => "g", "note" => nil },
       { "name" => "ui", "quantity" => 2, "unit" => "stuks", "note" => "grof gesneden" },
       { "name" => "peper", "quantity" => nil, "unit" => nil, "note" => nil }
-    ], body["ingredients"]
+    ], body["ingredients"].map { |row| row.except("id") }
     assert_equal [ 1, 2, 3 ], Recipe.find(body["id"]).steps.pluck(:position)
   end
 

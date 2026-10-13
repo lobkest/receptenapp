@@ -92,7 +92,7 @@ watch(() => props.id, load, { immediate: true })
     <section v-if="recipe.ingredients?.length" class="ingredients">
       <h2>Ingrediënten</h2>
       <ul>
-        <li v-for="ingredient in recipe.ingredients" :key="ingredient.name">
+        <li v-for="ingredient in recipe.ingredients" :key="ingredient.id">
           {{ ingredientLine(ingredient) }}
         </li>
       </ul>
@@ -101,7 +101,7 @@ watch(() => props.id, load, { immediate: true })
     <section v-if="recipe.steps?.length" class="steps">
       <h2>Bereiding</h2>
       <ol>
-        <li v-for="step in recipe.steps" :key="step.position">{{ step.body }}</li>
+        <li v-for="step in recipe.steps" :key="step.id">{{ step.body }}</li>
       </ol>
     </section>
 

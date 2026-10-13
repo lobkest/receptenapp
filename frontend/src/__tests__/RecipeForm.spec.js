@@ -206,13 +206,177 @@ describe('RecipeForm', () => {
     // De titel heeft al een eigen plek bij het veld.
     expect(general.text()).not.toContain('Titel')
   })
+})
 
-  it('zonder rows: geen ingrediënten of stappen, alleen de basisvelden', async () => {
+// Een bestaand recept zoals de admin-API het teruggeeft (GET /api/admin/recipes/:id).
+const PANCAKES = {
+  id: 1,
+  title: 'Pannenkoeken',
+  description: 'Dun.',
+  servings: 4,
+  status: 'approved',
+  ingredients: [
+    { id: 21, name: 'bloem', quantity: 250, unit: 'g', note: null },
+    { id: 22, name: 'zout', quantity: null, unit: null, note: null },
+  ],
+  steps: [
+    { id: 11, position: 1, body: 'Beslag maken.' },
+    { id: 12, position: 2, body: 'Laten rusten.' },
+    { id: 13, position: 3, body: 'Bakken.' },
+  ],
+}
+
+function mountEdit() {
+  return mount(RecipeForm, { props: { initial: PANCAKES, submitLabel: 'Opslaan' } })
+}
+
+function lastDirty(wrapper) {
+  return wrapper.emitted('dirty-change')?.at(-1)[0]
+}
+
+describe('RecipeForm bij bewerken', () => {
+  it('vult de bestaande regels uit initial; "naar smaak" wordt een leeg veld', () => {
+    const wrapper = mountEdit()
+
+    expect(stepTexts(wrapper)).toEqual(['Beslag maken.', 'Laten rusten.', 'Bakken.'])
+    const rows = ingredientRows(wrapper)
+    expect(rows.map((row) => row.find('.name').element.value)).toEqual(['bloem', 'zout'])
+    expect(rows[0].find('.quantity').element.value).toBe('250')
+    expect(rows[1].find('.quantity').element.value).toBe('')
+    expect(wrapper.find('button[type="submit"]').text()).toBe('Opslaan')
+  })
+
+  it('stuurt zonder wijzigingen alle bestaande regels met hun id', async () => {
+    const body = await submit(mountEdit())
+
+    expect(body.recipe_ingredients_attributes).toEqual([
+      { id: 21, ingredient_name: 'bloem', quantity: 250, unit: 'g', note: '' },
+      { id: 22, ingredient_name: 'zout', quantity: null, unit: 'g', note: '' },
+    ])
+    expect(body.steps_attributes).toEqual([
+      { id: 11, body: 'Beslag maken.' },
+      { id: 12, body: 'Laten rusten.' },
+      { id: 13, body: 'Bakken.' },
+    ])
+  })
+
+  it('stuurt gewijzigde en herschikte regels met id, nieuwe zonder, en verwijderde als _destroy achteraan', async () => {
+    const wrapper = mountEdit()
+
+    // Stappen: "Laten rusten." weg, "Bakken." omhoog, een nieuwe stap erbij.
+    await stepRows(wrapper)[1].find('.remove').trigger('click')
+    await stepRows(wrapper)[1].find('.up').trigger('click')
+    await stepRows(wrapper)[1].find('textarea').setValue('Beslag maken met melk.')
+    await fillSteps(wrapper, ['Bakken.', 'Beslag maken met melk.', 'Opdienen.'])
+    // Ingrediënten: bloem wijzigen, zout weg, suiker erbij.
+    await ingredientRows(wrapper)[0].find('.quantity').setValue('300')
+    await ingredientRows(wrapper)[1].find('.remove').trigger('click')
+    await wrapper.find('.ingredients .add').trigger('click')
+    await fillIngredient(ingredientRows(wrapper)[1], { quantity: '25', name: 'suiker' })
+
+    expect(await submit(wrapper)).toEqual({
+      title: 'Pannenkoeken',
+      description: 'Dun.',
+      servings: 4,
+      recipe_ingredients_attributes: [
+        { id: 21, ingredient_name: 'bloem', quantity: 300, unit: 'g', note: '' },
+        { ingredient_name: 'suiker', quantity: 25, unit: 'g', note: '' },
+        { id: 22, _destroy: true },
+      ],
+      steps_attributes: [
+        { id: 13, body: 'Bakken.' },
+        { id: 11, body: 'Beslag maken met melk.' },
+        { body: 'Opdienen.' },
+        { id: 12, _destroy: true },
+      ],
+    })
+  })
+
+  it('verwijdert een nieuwe regel gewoon, zonder _destroy', async () => {
+    const wrapper = mountEdit()
+    await fillSteps(wrapper, ['Beslag maken.', 'Laten rusten.', 'Bakken.', 'Extra'])
+
+    await stepRows(wrapper)[3].find('.remove').trigger('click')
+
+    expect((await submit(wrapper)).steps_attributes).toEqual([
+      { id: 11, body: 'Beslag maken.' },
+      { id: 12, body: 'Laten rusten.' },
+      { id: 13, body: 'Bakken.' },
+    ])
+  })
+
+  it('stuurt een leeggemaakte bestaande regel wel mee: weghalen gaat alleen met de knop', async () => {
+    const wrapper = mountEdit()
+    await stepRows(wrapper)[0].find('textarea').setValue('')
+
+    expect((await submit(wrapper)).steps_attributes[0]).toEqual({ id: 11, body: '' })
+  })
+
+  it('toont fouten bij de juiste regel als er verwijderde regels meegaan', async () => {
+    const wrapper = mountEdit()
+    await stepRows(wrapper)[0].find('.remove').trigger('click')
+    await submit(wrapper)
+
+    // Request: [12, 13, 11 (_destroy)]. Index 1 is dus "Bakken.", nu de tweede regel.
+    await wrapper.setProps({ errors: { 'steps[1].body': ['is ongeldig'] } })
+
+    expect(stepRows(wrapper)[0].find('.error').exists()).toBe(false)
+    expect(stepRows(wrapper)[1].find('.error').text()).toBe('Stap is ongeldig')
+  })
+
+  it('laat een ouder recept zonder regels de lijsten weglaten, zodat bewerken kan', async () => {
     const wrapper = mount(RecipeForm, {
-      props: { rows: false, initial: { title: 'Soep', description: '', servings: 2 } },
+      props: { initial: { title: 'Soep', description: '', servings: 2, ingredients: [], steps: [] } },
     })
 
-    expect(wrapper.find('fieldset').exists()).toBe(false)
+    expect(stepRows(wrapper)).toHaveLength(1)
     expect(await submit(wrapper)).toEqual({ title: 'Soep', description: '', servings: 2 })
+  })
+})
+
+describe('RecipeForm: niet-opgeslagen wijzigingen (dirty-change)', () => {
+  it('meldt een gewijzigde stap, en niets meer als je hem terugzet', async () => {
+    const wrapper = mountEdit()
+    expect(wrapper.emitted('dirty-change')).toBeUndefined()
+
+    await stepRows(wrapper)[0].find('textarea').setValue('Iets anders.')
+    expect(lastDirty(wrapper)).toBe(true)
+
+    await stepRows(wrapper)[0].find('textarea').setValue('Beslag maken.')
+    expect(lastDirty(wrapper)).toBe(false)
+  })
+
+  it('meldt een gewijzigd ingrediënt', async () => {
+    const wrapper = mountEdit()
+    await ingredientRows(wrapper)[1].find('.note').setValue('grof')
+
+    expect(lastDirty(wrapper)).toBe(true)
+  })
+
+  it('meldt herschikken, en terugschuiven maakt het weer ongewijzigd', async () => {
+    const wrapper = mountEdit()
+
+    await stepRows(wrapper)[2].find('.up').trigger('click')
+    expect(lastDirty(wrapper)).toBe(true)
+
+    await stepRows(wrapper)[1].find('.down').trigger('click')
+    expect(lastDirty(wrapper)).toBe(false)
+  })
+
+  it('meldt het verwijderen van een bestaande regel', async () => {
+    const wrapper = mountEdit()
+    await ingredientRows(wrapper)[0].find('.remove').trigger('click')
+
+    expect(lastDirty(wrapper)).toBe(true)
+  })
+
+  it('telt een lege nieuwe regel niet als wijziging, een ingevulde wel', async () => {
+    const wrapper = mountEdit()
+
+    await wrapper.find('.steps .add').trigger('click')
+    expect(wrapper.emitted('dirty-change')).toBeUndefined()
+
+    await stepRows(wrapper)[3].find('textarea').setValue('Opdienen.')
+    expect(lastDirty(wrapper)).toBe(true)
   })
 })

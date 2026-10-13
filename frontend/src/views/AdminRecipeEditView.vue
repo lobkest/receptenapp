@@ -41,16 +41,17 @@ async function load(id) {
   }
 }
 
+// values komt rechtstreeks uit RecipeForm: titel, beschrijving, porties en de regels
+// (met id voor bestaande regels, _destroy voor verwijderde). Het formulier heeft geen
+// statusveld: de status wijzigt alleen via goedkeuren/afwijzen.
 async function handleSubmit(values) {
   submitting.value = true
   errors.value = {}
   message.value = null
   try {
-    // Alleen deze drie velden; de status wijzigt alleen via goedkeuren/afwijzen.
-    const { title, description, servings } = values
-    await admin.updateRecipe(props.id, { title, description, servings })
+    await admin.updateRecipe(props.id, values)
     dirty.value = false
-    admin.setFlash(`"${title}" is opgeslagen.`)
+    admin.setFlash(`"${values.title}" is opgeslagen.`)
     router.push({ name: 'admin' })
   } catch (e) {
     if (e.kind === 'validation') {
@@ -96,15 +97,13 @@ watch(() => props.id, load, { immediate: true })
 
   <template v-else-if="recipe">
     <p v-if="message" class="message" role="alert">{{ message }}</p>
-    <!-- :key zorgt dat het formulier opnieuw begint bij een ander recept.
-         :rows="false": ingrediënten en stappen bewerken in beheer komt in een latere stap. -->
+    <!-- :key zorgt dat het formulier opnieuw begint bij een ander recept. -->
     <RecipeForm
       :key="recipe.id"
       :initial="recipe"
       :errors="errors"
       :submitting="submitting"
       submit-label="Opslaan"
-      :rows="false"
       @submit="handleSubmit"
       @dirty-change="dirty = $event"
     />

@@ -1,9 +1,6 @@
 // De openbare API: alleen goedgekeurde recepten lezen en nieuwe insturen.
 import { request } from '@/api/client'
 
-// Zodat bestaande imports van ApiError uit dit bestand blijven werken.
-export { ApiError } from '@/api/client'
-
 export function fetchRecipes() {
   return request('/api/recipes')
 }

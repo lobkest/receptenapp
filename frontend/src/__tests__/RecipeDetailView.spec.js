@@ -70,15 +70,15 @@ describe('RecipeDetailView', () => {
       jsonResponse({
         ...SOUP,
         ingredients: [
-          { name: 'bloem', quantity: 200, unit: 'g', note: null },
-          { name: 'ei', quantity: 2, unit: 'stuks', note: null },
-          { name: 'olie', quantity: 0.5, unit: 'ml', note: null },
-          { name: 'ui', quantity: 1, unit: 'stuks', note: 'fijngesneden' },
-          { name: 'zout', quantity: null, unit: null, note: null },
+          { id: 1, name: 'bloem', quantity: 200, unit: 'g', note: null },
+          { id: 2, name: 'ei', quantity: 2, unit: 'stuks', note: null },
+          { id: 3, name: 'olie', quantity: 0.5, unit: 'ml', note: null },
+          { id: 4, name: 'ui', quantity: 1, unit: 'stuks', note: 'fijngesneden' },
+          { id: 5, name: 'zout', quantity: null, unit: null, note: null },
         ],
         steps: [
-          { position: 1, body: 'Snijden.' },
-          { position: 2, body: 'Koken.' },
+          { id: 11, position: 1, body: 'Snijden.' },
+          { id: 12, position: 2, body: 'Koken.' },
         ],
       }),
     )

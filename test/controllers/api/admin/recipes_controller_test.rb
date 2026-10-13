@@ -180,6 +180,58 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.parsed_body["ingredients"].map { |i| i["name"] }, "zout"
   end
 
+  # The body the admin form sends: kept rows in form order, new rows without id,
+  # removed rows as _destroy at the end.
+  test "update saves reordered, edited, added and removed rows in one request" do
+    recipe = recipes(:pannenkoeken)
+    beslag, melk, bakken = recipe.steps.to_a
+    bloem, ei, zout = recipe_ingredients(:pannenkoeken_bloem), recipe_ingredients(:pannenkoeken_ei), recipe_ingredients(:pannenkoeken_zout)
+
+    assert_no_difference("Step.count") do
+      patch api_admin_recipe_url(recipe), params: { recipe: {
+        title: recipe.title, description: recipe.description, servings: recipe.servings,
+        steps_attributes: [
+          { id: bakken.id, body: "Bak in boter." },
+          { body: "Laat het beslag rusten." },
+          { id: beslag.id, body: beslag.body },
+          { id: melk.id, _destroy: true }
+        ],
+        recipe_ingredients_attributes: [
+          { id: bloem.id, ingredient_name: "bloem", quantity: 300, unit: "g", note: "" },
+          { id: ei.id, ingredient_name: "ei", quantity: 2, unit: "stuks", note: "op kamertemperatuur" },
+          { ingredient_name: "suiker", quantity: 25, unit: "g", note: "" },
+          { id: zout.id, _destroy: true }
+        ]
+      } }, headers: auth_headers, as: :json
+    end
+
+    assert_response :ok
+    expected_steps = [ [ 1, "Bak in boter." ], [ 2, "Laat het beslag rusten." ], [ 3, beslag.body ] ]
+    assert_equal expected_steps, response.parsed_body["steps"].map { |s| [ s["position"], s["body"] ] }
+    assert_equal expected_steps, recipe.reload.steps.map { |s| [ s.position, s.body ] }
+    assert_equal bakken.id, recipe.steps.first.id
+    assert_not Step.exists?(melk.id)
+
+    # Ingredients have no position (sorted by id, and fixture ids are hashes), so compare without order.
+    assert_equal({ "bloem" => 300, "melk" => 500, "ei" => 2, "suiker" => 25 },
+      recipe.recipe_ingredients.to_h { |row| [ row.ingredient_name, row.quantity ] })
+    assert_not RecipeIngredient.exists?(zout.id)
+    assert Ingredient.exists?(name: "zout"), "the ingredient itself stays"
+  end
+
+  test "update reports a row error with its index in the request, also with removed rows" do
+    recipe = recipes(:pannenkoeken)
+    beslag, melk, bakken = recipe.steps.to_a
+
+    patch api_admin_recipe_url(recipe), params: { recipe: {
+      steps_attributes: [ { id: beslag.id, body: beslag.body }, { id: bakken.id, body: "" }, { id: melk.id, _destroy: true } ]
+    } }, headers: auth_headers, as: :json
+
+    assert_response :unprocessable_content
+    assert_equal [ "steps[1].body" ], response.parsed_body["errors"].keys
+    assert_equal [ beslag.id, melk.id, bakken.id ], recipe.reload.steps.map(&:id)
+  end
+
   test "update cannot remove the last step" do
     recipe = recipes(:pannenkoeken)
 

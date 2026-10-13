@@ -5,11 +5,10 @@ import { computed, reactive, ref, watch } from 'vue'
 const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
-  // Beginwaarden, bijv. een bestaand recept bij bewerken. Leeg bij insturen.
+  // Beginwaarden, bijv. een bestaand recept (met ingredients en steps) bij bewerken.
+  // Leeg bij insturen.
   initial: { type: Object, default: () => ({}) },
   submitLabel: { type: String, default: 'Recept insturen' },
-  // Ingrediënten en stappen tonen en meesturen. Uit bij bewerken in beheer, dat kan nog niet.
-  rows: { type: Boolean, default: true },
 })
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
@@ -21,31 +20,54 @@ const UNITS = ['g', 'ml', 'stuks']
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.
 // Geen eigen validatie: de server beslist wat geldig is.
-function startValues() {
-  return {
-    title: props.initial.title ?? '',
-    description: props.initial.description ?? '',
-    servings: props.initial.servings ?? 4,
-  }
-}
-
-const start = startValues()
-const form = reactive({ ...start })
+const form = reactive({
+  title: props.initial.title ?? '',
+  description: props.initial.description ?? '',
+  servings: props.initial.servings ?? 4,
+})
 
 // Elke regel krijgt bij het aanmaken een eigen, vaste key. Die blijft bij de regel,
 // ook als regels erboven verdwijnen of de volgorde verandert (de index doet dat niet).
+// Daarnaast heeft een regel die al in de database staat een id; een nieuwe regel niet.
 let nextKey = 1
 
 function newIngredient() {
-  return { key: nextKey++, quantity: '', unit: 'g', ingredient_name: '', note: '' }
+  return { key: nextKey++, id: null, quantity: '', unit: 'g', ingredient_name: '', note: '' }
 }
 
 function newStep() {
-  return { key: nextKey++, body: '' }
+  return { key: nextKey++, id: null, body: '' }
 }
 
-const ingredients = ref([newIngredient()])
-const steps = ref([newStep()])
+// Van de vorm die de API terugstuurt naar een formulierregel. "Naar smaak" (null)
+// wordt een leeg veld; de eenheid krijgt dan de standaardwaarde, de server negeert hem.
+function ingredientFrom(row) {
+  return {
+    key: nextKey++,
+    id: row.id,
+    quantity: row.quantity ?? '',
+    unit: row.unit ?? 'g',
+    ingredient_name: row.name,
+    note: row.note ?? '',
+  }
+}
+
+function stepFrom(step) {
+  return { key: nextKey++, id: step.id, body: step.body }
+}
+
+// Een ouder recept zonder regels begint, net als een nieuw recept, met één lege regel.
+const ingredients = ref(
+  props.initial.ingredients?.length
+    ? props.initial.ingredients.map(ingredientFrom)
+    : [newIngredient()],
+)
+const steps = ref(props.initial.steps?.length ? props.initial.steps.map(stepFrom) : [newStep()])
+const lists = { recipe_ingredients: ingredients, steps }
+
+// Ids van bestaande regels die je hebt weggehaald. Die gaan bij versturen mee als
+// { id, _destroy: true }, zodat de server ze verwijdert.
+const removedIds = reactive({ recipe_ingredients: [], steps: [] })
 
 // Helemaal niets ingevuld? De eenheid telt niet mee, die heeft altijd een standaardwaarde.
 function ingredientIsEmpty(row) {
@@ -64,8 +86,10 @@ function addStep() {
   steps.value.push(newStep())
 }
 
-function remove(list, index) {
-  list.splice(index, 1)
+// kind: 'recipe_ingredients' of 'steps'.
+function remove(kind, index) {
+  const [row] = lists[kind].value.splice(index, 1)
+  if (row.id) removedIds[kind].push(row.id)
 }
 
 // Verplaatst een regel één plek omhoog (-1) of omlaag (+1).
@@ -74,14 +98,54 @@ function move(list, index, delta) {
   list.splice(index + delta, 0, row)
 }
 
-// Is er iets veranderd ten opzichte van de beginwaarden?
-const dirty = computed(
-  () =>
-    Object.keys(start).some((key) => form[key] !== start[key]) ||
-    (props.rows &&
-      (ingredients.value.some((row) => !ingredientIsEmpty(row)) ||
-        steps.value.some((step) => !stepIsEmpty(step)))),
-)
+// Alleen bestaande regels sturen hun id mee; zonder id maakt de server een nieuwe regel.
+function withId(row, attributes) {
+  return row.id ? { id: row.id, ...attributes } : attributes
+}
+
+// Bouwt de request-body, plus welke regel (key) op welke plek in de request staat.
+// - Lege nieuwe regels zijn "nog niet gebruikt" en gaan niet mee. Half ingevulde en
+//   bestaande regels wel: of die geldig zijn, beslist de server.
+// - De volgorde is die van het formulier; de server nummert de stappen zelf.
+// - Verwijderde regels komen achteraan, zodat de plek van de overige regels in de
+//   request (en dus in foutmeldingen als "steps[1].body") niet verschuift.
+// - Een lijst zonder één regel gaat niet mee, zodat bewerken van een ouder recept
+//   zonder ingrediënten of stappen gewoon kan. Bij insturen meldt de server dan
+//   dat ze verplicht zijn.
+function buildRequest() {
+  const sent = {
+    recipe_ingredients: ingredients.value.filter((row) => row.id || !ingredientIsEmpty(row)),
+    steps: steps.value.filter((step) => step.id || !stepIsEmpty(step)),
+  }
+  const attributes = {
+    recipe_ingredients: sent.recipe_ingredients.map((row) =>
+      withId(row, {
+        ingredient_name: row.ingredient_name,
+        quantity: row.quantity === '' ? null : row.quantity,
+        unit: row.unit,
+        note: row.note,
+      }),
+    ),
+    steps: sent.steps.map((step) => withId(step, { body: step.body })),
+  }
+
+  const body = { ...form }
+  const keys = {}
+  for (const kind of ['recipe_ingredients', 'steps']) {
+    const removed = removedIds[kind].map((id) => ({ id, _destroy: true }))
+    const list = [...attributes[kind], ...removed]
+    if (list.length) body[`${kind}_attributes`] = list
+    keys[kind] = sent[kind].map((row) => row.key)
+  }
+
+  return { body, keys }
+}
+
+// Is er iets veranderd ten opzichte van de beginwaarden? We vergelijken de body die we
+// nu zouden versturen met die van het begin. Zo telt elke wijziging die de server zou
+// zien mee (ook herschikken en verwijderen), en een lege nieuwe regel niet.
+const startBody = JSON.stringify(buildRequest().body)
+const dirty = computed(() => JSON.stringify(buildRequest().body) !== startBody)
 watch(dirty, (value) => emit('dirty-change', value))
 
 // Welke regel (key) zat op welke plek in de laatst verstuurde request. De server meldt
@@ -90,30 +154,9 @@ watch(dirty, (value) => emit('dirty-change', value))
 const sentKeys = ref({ recipe_ingredients: [], steps: [] })
 
 function onSubmit() {
-  if (!props.rows) {
-    emit('submit', { ...form })
-    return
-  }
-
-  // Lege regels zijn "nog niet gebruikt", geen bedoelde invoer. Half ingevulde regels
-  // gaan wél mee: of die geldig zijn, beslist de server.
-  const sentIngredients = ingredients.value.filter((row) => !ingredientIsEmpty(row))
-  const sentSteps = steps.value.filter((step) => !stepIsEmpty(step))
-  sentKeys.value = {
-    recipe_ingredients: sentIngredients.map((row) => row.key),
-    steps: sentSteps.map((step) => step.key),
-  }
-
-  emit('submit', {
-    ...form,
-    recipe_ingredients_attributes: sentIngredients.map((row) => ({
-      ingredient_name: row.ingredient_name,
-      quantity: row.quantity === '' ? null : row.quantity,
-      unit: row.unit,
-      note: row.note,
-    })),
-    steps_attributes: sentSteps.map((step) => ({ body: step.body })),
-  })
+  const { body, keys } = buildRequest()
+  sentKeys.value = keys
+  emit('submit', body)
 }
 
 const FORM_FIELDS = ['title', 'description', 'servings']
@@ -188,110 +231,108 @@ const sortedErrors = computed(() => {
       <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
     </div>
 
-    <template v-if="rows">
-      <fieldset class="ingredients">
-        <legend>Ingrediënten</legend>
-        <p class="hint">Laat de hoeveelheid leeg voor "naar smaak".</p>
+    <fieldset class="ingredients">
+      <legend>Ingrediënten</legend>
+      <p class="hint">Laat de hoeveelheid leeg voor "naar smaak".</p>
 
-        <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
-        <div
-          v-for="(row, index) in ingredients"
-          :key="row.key"
-          class="row ingredient-row"
-          :data-key="row.key"
+      <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
+      <div
+        v-for="(row, index) in ingredients"
+        :key="row.key"
+        class="row ingredient-row"
+        :data-key="row.key"
+      >
+        <div class="inputs">
+          <input
+            v-model="row.quantity"
+            type="number"
+            step="any"
+            min="0"
+            class="quantity"
+            :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
+          />
+          <select v-model="row.unit" class="unit" :aria-label="`Eenheid ingrediënt ${index + 1}`">
+            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+          </select>
+          <input
+            v-model="row.ingredient_name"
+            type="text"
+            class="name"
+            placeholder="bijv. bloem"
+            :aria-label="`Naam ingrediënt ${index + 1}`"
+          />
+          <input
+            v-model="row.note"
+            type="text"
+            class="note"
+            placeholder="notitie, bijv. fijngesneden"
+            :aria-label="`Notitie ingrediënt ${index + 1}`"
+          />
+          <button
+            type="button"
+            class="remove"
+            :disabled="ingredients.length === 1"
+            @click="remove('recipe_ingredients', index)"
+          >
+            verwijderen
+          </button>
+        </div>
+        <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
+          {{ message }}
+        </p>
+      </div>
+
+      <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
+    </fieldset>
+
+    <fieldset class="steps">
+      <legend>Bereiding</legend>
+
+      <ol>
+        <li
+          v-for="(step, index) in steps"
+          :key="step.key"
+          class="row step-row"
+          :data-key="step.key"
         >
-          <div class="inputs">
-            <input
-              v-model="row.quantity"
-              type="number"
-              step="any"
-              min="0"
-              class="quantity"
-              :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
-            />
-            <select v-model="row.unit" class="unit" :aria-label="`Eenheid ingrediënt ${index + 1}`">
-              <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
-            </select>
-            <input
-              v-model="row.ingredient_name"
-              type="text"
-              class="name"
-              placeholder="bijv. bloem"
-              :aria-label="`Naam ingrediënt ${index + 1}`"
-            />
-            <input
-              v-model="row.note"
-              type="text"
-              class="note"
-              placeholder="notitie, bijv. fijngesneden"
-              :aria-label="`Notitie ingrediënt ${index + 1}`"
-            />
+          <label :for="`step-${step.key}`">Stap {{ index + 1 }}</label>
+          <textarea :id="`step-${step.key}`" v-model="step.body" rows="3"></textarea>
+          <div class="step-actions">
+            <button
+              type="button"
+              class="up"
+              :disabled="index === 0"
+              :aria-label="`Stap ${index + 1} omhoog`"
+              @click="move(steps, index, -1)"
+            >
+              ↑ omhoog
+            </button>
+            <button
+              type="button"
+              class="down"
+              :disabled="index === steps.length - 1"
+              :aria-label="`Stap ${index + 1} omlaag`"
+              @click="move(steps, index, 1)"
+            >
+              ↓ omlaag
+            </button>
             <button
               type="button"
               class="remove"
-              :disabled="ingredients.length === 1"
-              @click="remove(ingredients, index)"
+              :disabled="steps.length === 1"
+              @click="remove('steps', index)"
             >
               verwijderen
             </button>
           </div>
-          <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
+          <p v-for="message in sortedErrors.byRow[step.key]" :key="message" class="error">
             {{ message }}
           </p>
-        </div>
+        </li>
+      </ol>
 
-        <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
-      </fieldset>
-
-      <fieldset class="steps">
-        <legend>Bereiding</legend>
-
-        <ol>
-          <li
-            v-for="(step, index) in steps"
-            :key="step.key"
-            class="row step-row"
-            :data-key="step.key"
-          >
-            <label :for="`step-${step.key}`">Stap {{ index + 1 }}</label>
-            <textarea :id="`step-${step.key}`" v-model="step.body" rows="3"></textarea>
-            <div class="step-actions">
-              <button
-                type="button"
-                class="up"
-                :disabled="index === 0"
-                :aria-label="`Stap ${index + 1} omhoog`"
-                @click="move(steps, index, -1)"
-              >
-                ↑ omhoog
-              </button>
-              <button
-                type="button"
-                class="down"
-                :disabled="index === steps.length - 1"
-                :aria-label="`Stap ${index + 1} omlaag`"
-                @click="move(steps, index, 1)"
-              >
-                ↓ omlaag
-              </button>
-              <button
-                type="button"
-                class="remove"
-                :disabled="steps.length === 1"
-                @click="remove(steps, index)"
-              >
-                verwijderen
-              </button>
-            </div>
-            <p v-for="message in sortedErrors.byRow[step.key]" :key="message" class="error">
-              {{ message }}
-            </p>
-          </li>
-        </ol>
-
-        <button type="button" class="add" @click="addStep">+ stap</button>
-      </fieldset>
-    </template>
+      <button type="button" class="add" @click="addStep">+ stap</button>
+    </fieldset>
 
     <button type="submit" :disabled="submitting">
       {{ submitting ? 'Versturen…' : submitLabel }}

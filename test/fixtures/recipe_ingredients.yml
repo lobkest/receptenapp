@@ -1,0 +1,23 @@
+# Only pannenkoeken has ingredients; erwtensoep and stamppot are older recipes without them.
+pannenkoeken_bloem:
+  recipe: pannenkoeken
+  ingredient: bloem
+  quantity: 250
+  unit: g
+
+pannenkoeken_melk:
+  recipe: pannenkoeken
+  ingredient: melk
+  quantity: 500
+  unit: ml
+
+pannenkoeken_ei:
+  recipe: pannenkoeken
+  ingredient: ei
+  quantity: 2
+  unit: stuks
+  note: op kamertemperatuur
+
+pannenkoeken_zout:
+  recipe: pannenkoeken
+  ingredient: zout

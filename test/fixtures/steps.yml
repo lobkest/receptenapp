@@ -1,0 +1,14 @@
+pannenkoeken_beslag:
+  recipe: pannenkoeken
+  position: 1
+  body: Meng bloem, zout en de helft van de melk tot een glad beslag.
+
+pannenkoeken_melk:
+  recipe: pannenkoeken
+  position: 2
+  body: Klop de eieren en de rest van de melk erdoor.
+
+pannenkoeken_bakken:
+  recipe: pannenkoeken
+  position: 3
+  body: Bak dunne pannenkoeken in een hete pan met boter.

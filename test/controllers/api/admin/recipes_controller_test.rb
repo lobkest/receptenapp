@@ -137,6 +137,61 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert response.parsed_body["errors"].key?("servings")
   end
 
+  test "show includes ingredients and steps, also for an older recipe without them" do
+    get api_admin_recipe_url(recipes(:pannenkoeken)), headers: auth_headers, as: :json
+    assert_equal 3, response.parsed_body["steps"].size
+    assert_equal 4, response.parsed_body["ingredients"].size
+
+    get api_admin_recipe_url(@pending), headers: auth_headers, as: :json
+    assert_equal [], response.parsed_body["steps"]
+    assert_equal [], response.parsed_body["ingredients"]
+  end
+
+  test "update of an older recipe without ingredients or steps stays possible" do
+    patch api_admin_recipe_url(@pending), params: { recipe: { description: "Dikke soep" } },
+      headers: auth_headers, as: :json
+
+    assert_response :ok
+    assert_equal "Dikke soep", @pending.reload.description
+  end
+
+  test "update can add ingredients and steps to an older recipe" do
+    patch api_admin_recipe_url(@pending), params: { recipe: {
+      recipe_ingredients_attributes: [ { ingredient_name: "spliterwten", quantity: 500, unit: "g" } ],
+      steps_attributes: [ { body: "Erwten wassen." }, { body: "Twee uur koken." } ]
+    } }, headers: auth_headers, as: :json
+
+    assert_response :ok
+    assert_equal [ "Erwten wassen.", "Twee uur koken." ], response.parsed_body["steps"].map { |s| s["body"] }
+  end
+
+  test "update reorders, edits and removes rows" do
+    recipe = recipes(:pannenkoeken)
+    beslag, melk, bakken = recipe.steps.to_a
+
+    patch api_admin_recipe_url(recipe), params: { recipe: {
+      steps_attributes: [ { id: bakken.id, body: "Bakken in boter." }, { id: melk.id, _destroy: "1" }, { id: beslag.id } ],
+      recipe_ingredients_attributes: [ { id: recipe_ingredients(:pannenkoeken_zout).id, _destroy: "1" } ]
+    } }, headers: auth_headers, as: :json
+
+    assert_response :ok
+    assert_equal [ [ 1, "Bakken in boter." ], [ 2, beslag.body ] ],
+      response.parsed_body["steps"].map { |s| [ s["position"], s["body"] ] }
+    assert_not_includes response.parsed_body["ingredients"].map { |i| i["name"] }, "zout"
+  end
+
+  test "update cannot remove the last step" do
+    recipe = recipes(:pannenkoeken)
+
+    patch api_admin_recipe_url(recipe), params: { recipe: {
+      steps_attributes: recipe.steps.map { |step| { id: step.id, _destroy: "1" } }
+    } }, headers: auth_headers, as: :json
+
+    assert_response :unprocessable_content
+    assert_equal [ "can't be blank" ], response.parsed_body["errors"]["steps"]
+    assert_equal 3, recipe.steps.count
+  end
+
   test "destroy removes the recipe" do
     assert_difference("Recipe.count", -1) do
       delete api_admin_recipe_url(@pending), headers: auth_headers, as: :json

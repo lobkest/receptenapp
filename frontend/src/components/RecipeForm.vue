@@ -1,29 +1,163 @@
 <script setup>
-import { reactive } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
-// Props: data die de ouder (RecipeNewView) naar dit component stuurt.
-defineProps({
+// Props: data die de ouder (RecipeNewView of AdminRecipeEditView) naar dit component stuurt.
+const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
+  // Beginwaarden, bijv. een bestaand recept bij bewerken. Leeg bij insturen.
+  initial: { type: Object, default: () => ({}) },
+  submitLabel: { type: String, default: 'Recept insturen' },
+  // Ingrediënten en stappen tonen en meesturen. Uit bij bewerken in beheer, dat kan nog niet.
+  rows: { type: Boolean, default: true },
 })
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
-const emit = defineEmits(['submit'])
+const emit = defineEmits(['submit', 'dirty-change'])
 
+// Bewust geen eetlepels of cups: alleen eenheden die je kunt optellen en schalen.
+const UNITS = ['g', 'ml', 'stuks']
+
+// Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
+// het formulier past alleen zijn eigen kopie aan.
 // Geen eigen validatie: de server beslist wat geldig is.
-const form = reactive({
-  title: '',
-  description: '',
-  servings: 4,
-})
+function startValues() {
+  return {
+    title: props.initial.title ?? '',
+    description: props.initial.description ?? '',
+    servings: props.initial.servings ?? 4,
+  }
+}
+
+const start = startValues()
+const form = reactive({ ...start })
+
+// Elke regel krijgt bij het aanmaken een eigen, vaste key. Die blijft bij de regel,
+// ook als regels erboven verdwijnen of de volgorde verandert (de index doet dat niet).
+let nextKey = 1
+
+function newIngredient() {
+  return { key: nextKey++, quantity: '', unit: 'g', ingredient_name: '', note: '' }
+}
+
+function newStep() {
+  return { key: nextKey++, body: '' }
+}
+
+const ingredients = ref([newIngredient()])
+const steps = ref([newStep()])
+
+// Helemaal niets ingevuld? De eenheid telt niet mee, die heeft altijd een standaardwaarde.
+function ingredientIsEmpty(row) {
+  return row.quantity === '' && !row.ingredient_name.trim() && !row.note.trim()
+}
+
+function stepIsEmpty(step) {
+  return !step.body.trim()
+}
+
+function addIngredient() {
+  ingredients.value.push(newIngredient())
+}
+
+function addStep() {
+  steps.value.push(newStep())
+}
+
+function remove(list, index) {
+  list.splice(index, 1)
+}
+
+// Verplaatst een regel één plek omhoog (-1) of omlaag (+1).
+function move(list, index, delta) {
+  const [row] = list.splice(index, 1)
+  list.splice(index + delta, 0, row)
+}
+
+// Is er iets veranderd ten opzichte van de beginwaarden?
+const dirty = computed(
+  () =>
+    Object.keys(start).some((key) => form[key] !== start[key]) ||
+    (props.rows &&
+      (ingredients.value.some((row) => !ingredientIsEmpty(row)) ||
+        steps.value.some((step) => !stepIsEmpty(step)))),
+)
+watch(dirty, (value) => emit('dirty-change', value))
+
+// Welke regel (key) zat op welke plek in de laatst verstuurde request. De server meldt
+// fouten als "steps[1].body", waarbij 1 de plek in de request is, niet in het formulier:
+// lege regels zijn niet meegestuurd en regels kunnen daarna nog verschoven zijn.
+const sentKeys = ref({ recipe_ingredients: [], steps: [] })
 
 function onSubmit() {
-  emit('submit', { ...form })
+  if (!props.rows) {
+    emit('submit', { ...form })
+    return
+  }
+
+  // Lege regels zijn "nog niet gebruikt", geen bedoelde invoer. Half ingevulde regels
+  // gaan wél mee: of die geldig zijn, beslist de server.
+  const sentIngredients = ingredients.value.filter((row) => !ingredientIsEmpty(row))
+  const sentSteps = steps.value.filter((step) => !stepIsEmpty(step))
+  sentKeys.value = {
+    recipe_ingredients: sentIngredients.map((row) => row.key),
+    steps: sentSteps.map((step) => step.key),
+  }
+
+  emit('submit', {
+    ...form,
+    recipe_ingredients_attributes: sentIngredients.map((row) => ({
+      ingredient_name: row.ingredient_name,
+      quantity: row.quantity === '' ? null : row.quantity,
+      unit: row.unit,
+      note: row.note,
+    })),
+    steps_attributes: sentSteps.map((step) => ({ body: step.body })),
+  })
 }
+
+const FORM_FIELDS = ['title', 'description', 'servings']
+const LABELS = {
+  recipe_ingredients: 'Ingrediënten',
+  steps: 'Stappen',
+  ingredient_name: 'Naam',
+  quantity: 'Hoeveelheid',
+  unit: 'Eenheid',
+  note: 'Notitie',
+  body: 'Stap',
+}
+const ROW_ERROR = /^(recipe_ingredients|steps)\[(\d+)\]\.(\w+)$/
+
+// Verdeelt de serverfouten: per regel (op key) en algemeen (bovenaan het formulier).
+const sortedErrors = computed(() => {
+  const byRow = {}
+  const general = []
+
+  for (const [attribute, messages] of Object.entries(props.errors)) {
+    if (FORM_FIELDS.includes(attribute)) continue
+
+    const match = attribute.match(ROW_ERROR)
+    const key = match && sentKeys.value[match[1]][Number(match[2])]
+    if (key) {
+      byRow[key] ??= []
+      byRow[key].push(`${LABELS[match[3]] ?? match[3]} ${messages.join(', ')}`)
+    } else if (attribute === 'base') {
+      general.push(...messages)
+    } else {
+      general.push(`${LABELS[attribute] ?? attribute} ${messages.join(', ')}`)
+    }
+  }
+
+  return { byRow, general }
+})
 </script>
 
 <template>
   <form @submit.prevent="onSubmit">
+    <ul v-if="sortedErrors.general.length" class="general-errors" role="alert">
+      <li v-for="message in sortedErrors.general" :key="message">{{ message }}</li>
+    </ul>
+
     <div class="field">
       <label for="title">Titel</label>
       <input id="title" v-model="form.title" type="text" :aria-invalid="!!errors.title" />
@@ -54,8 +188,113 @@ function onSubmit() {
       <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
     </div>
 
+    <template v-if="rows">
+      <fieldset class="ingredients">
+        <legend>Ingrediënten</legend>
+        <p class="hint">Laat de hoeveelheid leeg voor "naar smaak".</p>
+
+        <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
+        <div
+          v-for="(row, index) in ingredients"
+          :key="row.key"
+          class="row ingredient-row"
+          :data-key="row.key"
+        >
+          <div class="inputs">
+            <input
+              v-model="row.quantity"
+              type="number"
+              step="any"
+              min="0"
+              class="quantity"
+              :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
+            />
+            <select v-model="row.unit" class="unit" :aria-label="`Eenheid ingrediënt ${index + 1}`">
+              <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+            </select>
+            <input
+              v-model="row.ingredient_name"
+              type="text"
+              class="name"
+              placeholder="bijv. bloem"
+              :aria-label="`Naam ingrediënt ${index + 1}`"
+            />
+            <input
+              v-model="row.note"
+              type="text"
+              class="note"
+              placeholder="notitie, bijv. fijngesneden"
+              :aria-label="`Notitie ingrediënt ${index + 1}`"
+            />
+            <button
+              type="button"
+              class="remove"
+              :disabled="ingredients.length === 1"
+              @click="remove(ingredients, index)"
+            >
+              verwijderen
+            </button>
+          </div>
+          <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
+            {{ message }}
+          </p>
+        </div>
+
+        <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
+      </fieldset>
+
+      <fieldset class="steps">
+        <legend>Bereiding</legend>
+
+        <ol>
+          <li
+            v-for="(step, index) in steps"
+            :key="step.key"
+            class="row step-row"
+            :data-key="step.key"
+          >
+            <label :for="`step-${step.key}`">Stap {{ index + 1 }}</label>
+            <textarea :id="`step-${step.key}`" v-model="step.body" rows="3"></textarea>
+            <div class="step-actions">
+              <button
+                type="button"
+                class="up"
+                :disabled="index === 0"
+                :aria-label="`Stap ${index + 1} omhoog`"
+                @click="move(steps, index, -1)"
+              >
+                ↑ omhoog
+              </button>
+              <button
+                type="button"
+                class="down"
+                :disabled="index === steps.length - 1"
+                :aria-label="`Stap ${index + 1} omlaag`"
+                @click="move(steps, index, 1)"
+              >
+                ↓ omlaag
+              </button>
+              <button
+                type="button"
+                class="remove"
+                :disabled="steps.length === 1"
+                @click="remove(steps, index)"
+              >
+                verwijderen
+              </button>
+            </div>
+            <p v-for="message in sortedErrors.byRow[step.key]" :key="message" class="error">
+              {{ message }}
+            </p>
+          </li>
+        </ol>
+
+        <button type="button" class="add" @click="addStep">+ stap</button>
+      </fieldset>
+    </template>
+
     <button type="submit" :disabled="submitting">
-      {{ submitting ? 'Versturen…' : 'Recept insturen' }}
+      {{ submitting ? 'Versturen…' : submitLabel }}
     </button>
   </form>
 </template>
@@ -69,6 +308,7 @@ function onSubmit() {
 }
 
 input,
+select,
 textarea {
   font: inherit;
   padding: 0.5rem;
@@ -88,8 +328,82 @@ textarea[aria-invalid='true'] {
   font-size: 0.9rem;
 }
 
+.general-errors {
+  padding: 0.75rem 0.75rem 0.75rem 2rem;
+  background: #fdecea;
+  color: #900;
+  border-radius: 4px;
+}
+
 button {
   font: inherit;
   padding: 0.5rem 1rem;
+}
+
+fieldset {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+}
+
+.hint {
+  margin: 0 0 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.row {
+  margin-bottom: 0.75rem;
+}
+
+.inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.quantity {
+  flex: 0 0 6rem;
+}
+
+.unit {
+  flex: 0 0 6rem;
+}
+
+.name {
+  flex: 1 1 10rem;
+}
+
+.note {
+  flex: 1 1 10rem;
+}
+
+.inputs .remove {
+  flex: 0 0 auto;
+}
+
+.steps ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.step-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.step-actions button,
+.inputs button,
+.add {
+  padding: 0.25rem 0.75rem;
 }
 </style>

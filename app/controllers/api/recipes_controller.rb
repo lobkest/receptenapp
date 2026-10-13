@@ -10,12 +10,12 @@ class Api::RecipesController < ApplicationController
   def index
     @recipes = Recipe.approved.order(:id)
 
-    render json: @recipes
+    render json: @recipes.map { |recipe| RecipeSerializer.summary(recipe) }
   end
 
   # GET /api/recipes/1
   def show
-    render json: @recipe
+    render json: RecipeSerializer.detail(@recipe)
   end
 
   # POST /api/recipes
@@ -23,7 +23,7 @@ class Api::RecipesController < ApplicationController
     @recipe = Recipe.new(recipe_params)
 
     if @recipe.save
-      render json: @recipe, status: :created
+      render json: RecipeSerializer.detail(@recipe), status: :created
     else
       render json: { errors: @recipe.errors }, status: :unprocessable_content
     end
@@ -32,12 +32,16 @@ class Api::RecipesController < ApplicationController
   private
     # Unapproved recipes are reported as not found, so guessing ids reveals nothing.
     def set_recipe
-      @recipe = Recipe.approved.find(params[:id])
+      @recipe = Recipe.approved.with_details.find(params[:id])
     end
 
-    # Only allow a list of trusted parameters through. Status is never accepted from the public.
+    # Only allow a list of trusted parameters through. Status is never accepted from the public,
+    # and neither are ids, _destroy or positions: a submission only ever creates new rows.
+    # [ [ ... ] ] means "an array of hashes with these keys".
     def recipe_params
-      params.expect(recipe: [ :title, :description, :servings ])
+      params.expect(recipe: [ :title, :description, :servings,
+        steps_attributes: [ [ :body ] ],
+        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :note ] ] ])
     end
 
     def render_not_found

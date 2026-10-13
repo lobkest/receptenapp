@@ -10,9 +10,31 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_115613) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_140003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "ingredients", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_ingredients_on_name", unique: true
+  end
+
+  create_table "recipe_ingredients", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.bigint "ingredient_id", null: false
+    t.decimal "quantity", precision: 10, scale: 2
+    t.string "unit"
+    t.string "note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ingredient_id"], name: "index_recipe_ingredients_on_ingredient_id"
+    t.index ["recipe_id", "ingredient_id"], name: "index_recipe_ingredients_on_recipe_id_and_ingredient_id", unique: true
+    t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "recipe_ingredients_quantity_has_unit"
+    t.check_constraint "quantity > 0::numeric", name: "recipe_ingredients_quantity_positive"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying]::text[])", name: "recipe_ingredients_unit_known"
+  end
 
   create_table "recipes", force: :cascade do |t|
     t.string "title", null: false
@@ -23,4 +45,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_115613) do
     t.string "status", default: "pending", null: false
     t.index ["status"], name: "index_recipes_on_status"
   end
+
+  create_table "steps", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.integer "position", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+
+    t.check_constraint "\"position\" > 0", name: "steps_position_positive"
+    t.unique_constraint ["recipe_id", "position"], deferrable: :deferred, name: "steps_recipe_id_position_unique"
+  end
+
+  add_foreign_key "recipe_ingredients", "ingredients"
+  add_foreign_key "recipe_ingredients", "recipes"
+  add_foreign_key "steps", "recipes"
 end

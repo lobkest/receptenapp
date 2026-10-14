@@ -47,6 +47,13 @@ export function scaleQuantity(quantity, factor, unit) {
   return roundQuantity(Number(quantity) * factor, unit)
 }
 
+// Voor een invoerveld: getallen staan in formulieren als tekst, precies zoals je ze typt
+// ("1,5"), en gaan zo naar de server. Die zet de komma om en meldt "abc" als fout;
+// type="number" zou "1,5" in sommige browsers stilletjes leeg laten. Van de API: 0.5 → "0,5".
+export function numberText(value) {
+  return value == null ? '' : String(value).replace('.', ',')
+}
+
 // Nederlandse notatie: 0,5 in plaats van 0.5, en 1.250 voor duizendtallen.
 const numberFormat = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 })
 

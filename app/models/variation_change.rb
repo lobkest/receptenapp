@@ -4,29 +4,22 @@
 # - add: an extra ingredient with its own name and amount, the same rules as RecipeIngredient.
 # The database checks that each kind has exactly its own fields (variation_changes_fields_match_kind).
 class VariationChange < ApplicationRecord
-  include DecimalComma
+  include HasQuantity
 
   belongs_to :recipe_variation
   belongs_to :recipe_ingredient, optional: true
 
   # prefix: kind_add? and VariationChange.kind_remove, not add? and remove.
   enum :kind, { add: "add", remove: "remove" }, prefix: true, validate: true
-  enum :unit, { g: "g", ml: "ml", stuks: "stuks" }, prefix: true, validate: { allow_nil: true }
-
-  # "1,5" → 1.5 (see DecimalComma). Empty stays nil: "naar smaak".
-  decimal_comma :quantity
+  unit_enum
 
   # Like Ingredient#name: "  Rode  UI " is "rode ui".
   normalizes :name, with: ->(name) { name.squish.downcase }
 
-  before_validation :clear_unit_without_quantity, if: :kind_add?
-
-  with_options if: :kind_add? do
-    validates :name, presence: true, length: { maximum: Ingredient::MAX_NAME_LENGTH }
-    validates :quantity, numericality: { greater_than: 0, less_than: RecipeIngredient::MAX_QUANTITY }, allow_nil: true
-    validates :unit, presence: true, if: -> { quantity.present? }
-    validates :recipe_ingredient_id, absence: true
-  end
+  validates :name, presence: true, length: { maximum: Ingredient::MAX_NAME_LENGTH }, if: :kind_add?
+  # Only an added ingredient has its own amount.
+  has_quantity if: :kind_add?
+  validates :recipe_ingredient_id, absence: true, if: :kind_add?
 
   with_options if: :kind_remove? do
     validates :recipe_ingredient_id, presence: true
@@ -40,11 +33,6 @@ class VariationChange < ApplicationRecord
   end
 
   private
-    # A unit means nothing without an amount ("zout — naar smaak").
-    def clear_unit_without_quantity
-      self.unit = nil if quantity.nil?
-    end
-
     # Looked up among the recipe's own rows, in memory: that also catches a row that is
     # being removed in the same save (a recipe edit that adds this variation).
     def row_of_the_same_recipe

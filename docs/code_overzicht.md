@@ -51,7 +51,8 @@ flowchart LR
 | `app/controllers/api/admin/` | Alles met de beheercode; `base_controller.rb` controleert het Bearer-token |
 | `app/controllers/concerns/public_write_rate_limit.rb` | Gedeelde limiet op schrijfacties per IP |
 | `app/models/` | ActiveRecord-modellen: de tabellen plus hun regels (validaties, callbacks) |
-| `app/models/concerns/` | Gedeelde stukjes modelgedrag: `DeletionRequestable`, `DecimalComma` |
+| `app/models/concerns/` | Gedeelde stukjes modelgedrag: `DeletionRequestable` (verwijderverzoeken), `DecimalComma` ("1,5"), `TagNames` (tagnamen normaliseren en controleren), `HasQuantity` (hoeveelheid met eenheid) |
+| `app/controllers/concerns/` | Gedeeld controllergedrag: `ApiErrors` (foutformaat), `PublicWriteRateLimit`, `AddsToShoppingList` |
 | `app/models/quantity.rb` | Hoeveelheden schalen en afronden voor de boodschappenlijst (gespiegeld in `frontend/src/utils/quantity.js` voor het scherm; beide getest met `test/fixtures/files/quantity_cases.json`) |
 | `app/models/shopping_list_addition.rb` | "Op lijst" voor een recept of variatie: valideren, schalen, alles-of-niets opslaan |
 | `app/controllers/concerns/api_errors.rb` | Eén foutformaat voor de hele API (`rescue_from`) |
@@ -71,7 +72,8 @@ flowchart LR
 | `src/App.vue` | De schil: menubalk, `<RouterView/>` en de footer |
 | `src/router/index.js` | Welke URL welke view toont, en de guard voor beheer |
 | `src/views/` | Eén component per pagina (`RecipeListView`, `RecipeDetailView`, …) |
-| `src/components/` | Herbruikbare stukken (`RecipeForm`, `VariationForm`, `TagPicker`, `ConfirmDialog`, …) |
+| `src/components/` | Herbruikbare stukken (`RecipeForm`, `VariationForm`, `TagPicker`, `ConfirmDialog`, …) en de delen van de receptpagina (`RecipeDetailServings`, `-Ingredients`, `-Steps`, `-Variations`, `-Actions`) |
+| `src/composables/` | Herbruikbare functies met reactieve staat: `useServerErrors` (veldfouten van de server in een formulier), `useConfirmDialog` (één bevestigingsvenster per pagina, via provide/inject) |
 | `src/stores/` | Pinia-stores: gedeelde staat (`recipes`, `shoppingList`, `standardItems`, `admin`) |
 | `src/api/` | Alle HTTP-aanroepen; `client.js` is de basis (`fetch` plus foutvertaling) |
 | `src/utils/` | Pure functies: `quantity.js` (schalen en notatie), `grouping.js` |
@@ -316,7 +318,7 @@ Eén pad voor beide: de browser zegt alleen **wat** (recept, of één ingrediën
 ```mermaid
 sequenceDiagram
   actor U as Gebruiker
-  participant DV as RecipeDetailView.vue
+  participant DV as RecipeDetailIngredients.vue of -Variations.vue
   participant VC as VariationCard.vue
   participant SL as stores/shoppingList.js
   participant API as api/recipes.js of api/variations.js
@@ -350,7 +352,7 @@ sequenceDiagram
 ```
 
 Bestanden in volgorde:
-1. `frontend/src/views/RecipeDetailView.vue`: `scaledIngredients` voor het scherm (regel 102), `addToShoppingList`, `addToList` en `addAllToList` (regels 134-160), `addVariationToList` (regel 252).
+1. `frontend/src/views/RecipeDetailView.vue` houdt het gekozen aantal porties (`RecipeDetailServings`) en geeft het door. `frontend/src/components/RecipeDetailIngredients.vue`: `scaledIngredients` voor het scherm, `addToShoppingList`, `addToList` en `addAllToList`. `frontend/src/components/RecipeDetailVariations.vue`: `addVariationToList`.
 2. `frontend/src/components/VariationCard.vue`: de knop emit `add-to-list`.
 3. `frontend/src/stores/shoppingList.js`: `addRecipe` en `addVariation` (regels 65-75).
 4. `frontend/src/api/recipes.js#addRecipeToShoppingList` en `frontend/src/api/variations.js#addVariationToShoppingList`.
@@ -369,7 +371,7 @@ De standaardlijst ("op lijst" zonder hoeveelheid) gebruikt nog de gewone bulk-in
 sequenceDiagram
   actor U as Bezoeker
   actor A as Beheerder
-  participant DV as RecipeDetailView.vue
+  participant DV as RecipeDetailActions.vue
   participant CD as ConfirmDialog.vue
   participant RC as Api::RecipesController
   participant R as Recipe + DeletionRequestable
@@ -411,7 +413,7 @@ sequenceDiagram
 ```
 
 Bestanden in volgorde:
-1. `frontend/src/views/RecipeDetailView.vue#askDeletion` (regels 37-58) met `frontend/src/components/ConfirmDialog.vue#askWithInput`.
+1. `frontend/src/components/RecipeDetailActions.vue#askDeletion`, met het ene bevestigingsvenster van de pagina (`ConfirmDialog.vue#askWithInput`, gedeeld via `src/composables/useConfirmDialog.js`).
 2. `frontend/src/api/recipes.js#requestDeletion`.
 3. `config/routes.rb`: `post :request_deletion, on: :member`.
 4. `app/controllers/api/recipes_controller.rb#request_deletion`.
@@ -429,7 +431,7 @@ Bestanden in volgorde:
 
 | Ik wil… | Bestanden, in deze volgorde |
 |---|---|
-| **Een nieuw veld aan een recept toevoegen** (bv. `prep_minutes`) | 1. `bin/rails g migration AddPrepMinutesToRecipes prep_minutes:integer` → `db/migrate/…` → `bin/rails db:migrate` (werkt `db/schema.rb` bij). 2. Validatie in `app/models/recipe.rb`. 3. `config/locales/nl.yml` (attribuutnaam). 4. Toestaan in `create_params` en `update_params` in `app/controllers/api/recipes_controller.rb`. 5. Toevoegen aan `SUMMARY_FIELDS` of `detail` in `app/serializers/recipe_serializer.rb`. 6. Is het onderdeel van de geschiedenis, dan ook in `RecipeVersion.snapshot_of`, `PARTS` en `Recipe#restore_version!`. 7. Het formulierveld in `frontend/src/components/RecipeForm.vue` (`form` en de template). 8. Tonen in `frontend/src/views/RecipeDetailView.vue` en/of `components/RecipeCard.vue`. 9. Tests: `test/models/recipe_test.rb`, `test/controllers/api/recipes_controller_test.rb`, `src/__tests__/RecipeForm.spec.js` |
+| **Een nieuw veld aan een recept toevoegen** (bv. `prep_minutes`) | 1. `bin/rails g migration AddPrepMinutesToRecipes prep_minutes:integer` → `db/migrate/…` → `bin/rails db:migrate` (werkt `db/schema.rb` bij). 2. Validatie in `app/models/recipe.rb`. 3. `config/locales/nl.yml` (attribuutnaam). 4. Toestaan in `create_params` en `update_params` in `app/controllers/api/recipes_controller.rb`. 5. Toevoegen aan `SUMMARY_FIELDS` of `detail` in `app/serializers/recipe_serializer.rb`. 6. Is het onderdeel van de geschiedenis, dan ook in `RecipeVersion.snapshot_of`, `PARTS` en `Recipe#restore_version!`. 7. Het formulierveld in `frontend/src/components/RecipeForm.vue` (`form` en de template). 8. Tonen in `frontend/src/views/RecipeDetailView.vue` (kop), het passende `components/RecipeDetail*.vue`-deel en/of `components/RecipeCard.vue`. 9. Tests: `test/models/recipe_test.rb`, `test/controllers/api/recipes_controller_test.rb`, `src/__tests__/RecipeForm.spec.js` |
 | Een nieuwe pagina | `frontend/src/views/NieuwView.vue` → route in `src/router/index.js` → link in `src/App.vue` |
 | Een nieuw API-endpoint | `config/routes.rb` → controller in `app/controllers/api/` → functie in `frontend/src/api/*.js` → store of view |
 | Een Nederlandse foutmelding aanpassen | `config/locales/nl.yml` (server) of `frontend/src/api/client.js` (algemene meldingen) |

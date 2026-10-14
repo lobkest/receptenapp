@@ -5,9 +5,11 @@ Stand van 14 oktober 2026 (commit `5fd7d55`). Alleen gelezen en gemeten, niets g
 > **Bijgewerkt na refactorblok 1** (bugs, veiligheid, opruimen). Afgerond: ✅ B1, ✅ B5, ✅ D1/I9, ✅ F6, ✅ T1; deels: 🟡 B3, 🟡 B8, 🟡 T4. Vervallen: ⛔ B2 en stap 10 (geen wijzigingen aan de productieconfiguratie). Zie de markeringen bij elk punt en in de top 10.
 >
 > **Bijgewerkt na refactorblok 2** (één bron van waarheid). Afgerond: ✅ I1, ✅ B3, ✅ B4, ✅ T2, ✅ top-10 stap 2 en 3; deels: 🟡 B11, 🟡 T5. Nieuw: ⚠️ B17 (rate limit en X-Forwarded-For op Render, nog open, wacht op jouw keuze). Correctie: T3 was al gedekt.
+>
+> **Bijgewerkt na refactorblok 3** (dubbele code, puur refactoren). Afgerond: ✅ B6, ✅ B8, ✅ F1, ✅ F2, ✅ I5, ✅ top-10 stap 7; deels: 🟡 F3, 🟡 top-10 stap 5 en 6. Gedrag gelijk: alle bestaande tests groen zonder aangepaste verwachtingen; screenshots vóór en na zijn pixel voor pixel gelijk (op tijdstempels na).
 
 **Legenda** – prioriteit: **hoog** / **middel** / **laag**; moeite: **klein** (< 1 uur), **middel** (een dagdeel), **groot** (meer dan een dag).
-Regelnummers verwijzen naar de bestanden zoals ze nu zijn.
+Regelnummers in de oorspronkelijke bevindingen verwijzen naar de stand van commit `5fd7d55`; door de refactorblokken kunnen ze nu verschoven zijn.
 
 ---
 
@@ -68,7 +70,8 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Waarom**: een snapshot die niet meer door de huidige validaties komt (een regel die later is aangescherpt), of een gelijktijdige bewerking (`StaleObjectError`), levert een 500 op in plaats van een 422 of 409.
 - **Voorstel**: `rescue_from ActiveRecord::RecordInvalid` en `StaleObjectError` in de admin-basecontroller, plus een test.
 
-### B6. Tagnamen normaliseren en controleren staat er drie keer – **middel**, moeite **middel**
+### B6. Tagnamen normaliseren en controleren staat er drie keer – **middel**, moeite **middel** – ✅ afgerond (backend)
+> Concern `app/models/concerns/tag_names.rb` (`normalize_tag_names`, `validate_tag_names`) in Recipe en RecipeVariation. De frontend (`TagPicker.vue`) normaliseert nog apart, om direct te laten zien dat een tag dubbel is.
 - **Wat/waar**:
   - normaliseren: `app/models/recipe.rb:41` (`tagged_with_all`), `recipe.rb:91` (`tag_names=`), `app/models/recipe_variation.rb:115-117` (`normalize_tag_names`);
   - te lang of met komma: `recipe.rb:182-189` en `recipe_variation.rb:145-157`;
@@ -79,7 +82,8 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Wat/waar**: `touch_for_locking` in `recipe.rb:152-154` en `recipe_variation.rb:183-185`; "Oorspronkelijke versie" in `recipe.rb:156-158` en `recipe_variation.rb:188-190`.
 - **Voorstel**: een concern `TouchesForLocking` (één `before_save`). Het versiebeheer zou als concern `Versioned` kunnen, al is het verschil tussen recept en variatie zo groot dat dat niet per se winst oplevert.
 
-### B8. Hoeveelheid plus eenheid is drie keer apart geïmplementeerd – **middel**, moeite **middel** – 🟡 deels (de databasekant is af, de concern `HasQuantity` nog niet)
+### B8. Hoeveelheid plus eenheid is drie keer apart geïmplementeerd – **middel**, moeite **middel** – ✅ afgerond
+> Concern `app/models/concerns/has_quantity.rb` met de macro's `unit_enum` en `has_quantity` (komma, eenheid wissen zonder hoeveelheid, validaties, `UNITS`, `MAX_QUANTITY`). Twee macro's, zodat elk model zijn foutmeldingen in dezelfde volgorde houdt; `ShoppingListItem` houdt zijn `inclusion`-controle (`unit_inclusion: true`). Vóór en na vergeleken op 14 soorten ongeldige invoer: identieke fouten, ook in volgorde.
 - **Wat/waar**:
   - `enum :unit` met dezelfde drie waarden: `app/models/recipe_ingredient.rb:11` en `app/models/variation_change.rb:14`. `ShoppingListItem` gebruikt een `inclusion`-validatie (`shopping_list_item.rb:20`).
   - "eenheid leegmaken zonder hoeveelheid": `recipe_ingredient.rb:37-39`, `variation_change.rb:44-46` en in `shopping_list_item.rb:29-34`.
@@ -135,15 +139,17 @@ Code, tabellen en routes zijn Engels; UI, frontend-routes (`/recepten`, `/boodsc
 
 ## 2. Frontend
 
-### F1. `RecipeDetailView.vue` doet te veel – **middel**, moeite **middel**
+### F1. `RecipeDetailView.vue` doet te veel – **middel**, moeite **middel** – ✅ afgerond
+> Van 620 naar 146 regels. De view laadt het recept en houdt recept en porties; de delen zijn `RecipeDetailServings`, `RecipeDetailIngredients`, `RecipeDetailSteps`, `RecipeDetailVariations` (v-model:variations, event `reload`) en `RecipeDetailActions`. Eén `ConfirmDialog` per pagina, gedeeld via `src/composables/useConfirmDialog.js` (provide/inject).
 - **Wat/waar**: `frontend/src/views/RecipeDetailView.vue` (620 regels) regelt laden, porties schalen, een of alle ingrediënten op de lijst, een verwijderverzoek en alle variatie-acties (toevoegen, bewerken, conflict, op lijst, verwijderen; regels 161-285). Dat zijn negen `ref`s alleen voor variaties (regels 169-178).
 - **Voorstel**: een component `RecipeVariations.vue` (krijgt `recipe`, `servings` en `factor`, en emit `changed`) en een composable `useServings(recipe)` (regels 85-108). Daarmee wordt de view ongeveer de helft kleiner, en is elk deel los te testen.
 
-### F2. Foutverwerking van formulieren staat dubbel – **middel**, moeite **klein**
+### F2. Foutverwerking van formulieren staat dubbel – **middel**, moeite **klein** – ✅ afgerond
+> `src/composables/useServerErrors.js` (`useServerErrors`, `errorsUnder`), gebruikt door RecipeForm en VariationForm, met een eigen spec. `numberText` staat nu in `src/utils/quantity.js`.
 - **Wat/waar**: `sortedErrors` met `ROW_ERROR` en `LABELS` in `components/RecipeForm.vue:209-249` en bijna gelijk in `components/VariationForm.vue:131-168`. Ook `numberText` staat er twee keer (`RecipeForm.vue:25-27`, `VariationForm.vue:34-36`).
 - **Voorstel**: composable `useServerErrors(errorsRef, { rowPattern, labels, sentKeys })` in `src/composables/`, en `numberText` naar `src/utils/quantity.js`.
 
-### F3. Kleine dubbele hulpfuncties – **laag**, moeite **klein**
+### F3. Kleine dubbele hulpfuncties – **laag**, moeite **klein** – 🟡 deels (`numberText` gedeeld; `formatDate`, `useTimedMessage`, `useResource` en `attempt()` nog niet)
 - `formatDate` is identiek in `views/AdminView.vue:119-127` en `views/AdminRecipeVersionsView.vue:45-53`. Kan naar `src/utils/format.js`.
 - Naam normaliseren: `normalizeName` in `stores/shoppingList.js:20-22` en `normalize` in `components/TagPicker.vue:31-33`.
 - Een melding die na 3 seconden verdwijnt (timer plus `onUnmounted`) staat er drie keer: `RecipeDetailView.vue:120-130`, `ShoppingListView.vue:54-69` en `StandardItemsView.vue:52-61`. Kan worden: composable `useTimedMessage()`.
@@ -225,7 +231,7 @@ Alle kleuren, afstanden en lettergroottes zijn tokens in `src/assets/main.css:19
 | I2 ✅ | Foutvorm | `{ errors: {} }` (validatie) | `{ error: "" }` in het Engels, of `{ index, errors }` (B3) |
 | I3 ✅ | Not found | 5 eigen `rescue_from`'s (B4) | – |
 | I4 | Normaliseren | `normalizes` (Ingredient, Tag, VariationChange) | `before_validation` (ShoppingListItem, StandardItem) (B9) |
-| I5 | Tags | regels in `Recipe` | dezelfde regels in `RecipeVariation` (B6) |
+| I5 ✅ | Tags | regels in `Recipe` | dezelfde regels in `RecipeVariation` (B6) |
 | I6 | Melding na paginawissel | `recipes.notice` | `admin.flash` (F4) |
 | I7 | Ingrediëntnaam | FK naar `ingredients` | losse string (D2) |
 | I8 | Cascade | database (`on_delete`) | Rails (`dependent:`) (D3) |
@@ -244,9 +250,9 @@ Elke stap staat op zichzelf, laat de API voor de gebruiker gelijk (tenzij vermel
 | 2 ✅ | **Uniforme foutafhandeling** (blok 1 en 2): `rescue_from` voor NotFound, RecordInvalid en Stale in `ApplicationController` en de admin-basecontroller; alle `error`-teksten via `nl.yml`; `client.js` toont `body.error` als die er is | B3, B4, B5, T4, I2, I3 | **hoog** | middel | bestaande controllertests aanpassen op de Nederlandse tekst; nieuwe test voor terugzetten met een ongeldig snapshot; Vitest voor `client.js` |
 | 3 ✅ | **Eén pad naar de boodschappenlijst**: `Recipe#shopping_list_items(servings:)` en `POST /api/recipes/:id/add_to_shopping_list`, door `RecipeVariation` hergebruikt; de frontend roept voor "Alles op lijst" dat endpoint aan. `quantity.js` blijft alleen voor de weergave | I1, T2, B11 | **hoog** | middel | modeltest dat recept en variatie dezelfde regels geven; de e2e "variatie op lijst" en "Alles op lijst" blijven groen |
 | 4 🟡 | **Database-constraints op `shopping_list_items`** (✅ af) + concern `HasQuantity` voor de drie modellen (open) | D1, B8, I9 | middel | middel | migratie draaien; de bestaande modeltests van alle drie blijven groen; een test dat een onbekende eenheid ook in SQL faalt |
-| 5 | **Tagregels op één plek** (`Tag.normalize_names` en `Tag.name_errors`) en `normalizes` overal | B6, B9, I4, I5 | middel | middel | `recipe_test`, `recipe_variation_test` en `tag_test` blijven groen; test voor `StandardItem.find_by(name: " Melk ")` |
-| 6 | **Frontend-composables**: `useServerErrors`, `useTimedMessage`, `useResource` en `utils/format.js` | F2, F3 | middel | klein | de bestaande Vitest-specs van RecipeForm, VariationForm en de views blijven groen; nieuwe specs voor de composables |
-| 7 | **`RecipeDetailView` opsplitsen** in `RecipeVariations.vue` + `useServings` | F1 | middel | middel | `RecipeDetailView.spec.js` en `RecipeDetailVariations.spec.js` blijven groen, en e2e `variations.spec.js` ook |
+| 5 🟡 (tags ✅ via concern `TagNames`; `normalizes` overal nog niet) | **Tagregels op één plek** (`Tag.normalize_names` en `Tag.name_errors`) en `normalizes` overal | B6, B9, I4, I5 | middel | middel | `recipe_test`, `recipe_variation_test` en `tag_test` blijven groen; test voor `StandardItem.find_by(name: " Melk ")` |
+| 6 🟡 (`useServerErrors` ✅; `useTimedMessage`, `useResource`, `utils/format.js` nog niet) | **Frontend-composables**: `useServerErrors`, `useTimedMessage`, `useResource` en `utils/format.js` | F2, F3 | middel | klein | de bestaande Vitest-specs van RecipeForm, VariationForm en de views blijven groen; nieuwe specs voor de composables |
+| 7 ✅ (in vijf `RecipeDetail*`-componenten) | **`RecipeDetailView` opsplitsen** in `RecipeVariations.vue` + `useServings` | F1 | middel | middel | `RecipeDetailView.spec.js` en `RecipeDetailVariations.spec.js` blijven groen, en e2e `variations.spec.js` ook |
 | 8 | **Kleine opschoonronde**: `RecipeCard` (image_url, tagName, named route), het commentaar in `DeletionRequestable`, de UI-teksten "is verwijderd" en "terugzetten", `window.confirm` → `ConfirmDialog`, één flash-store | F4, F7, F9, F10, B14 (alleen code) | laag | klein | Vitest en e2e; de screenshots bekijken |
 | 9 ✅ | **Legacy localStorage-import verwijderen** (alleen als jij zegt dat alle apparaten zijn overgezet) | F6 | laag | klein | de e2e-importtest gaat mee weg; de rest blijft groen |
 | 10 ⛔ | **Productie- en gem-opruiming** (vervallen) (alleen met jouw toestemming): `solid_cache` voor de rate limit, `rails/all` vervangen door alleen de gebruikte frameworks, Kamal en `image_processing` weg | B2, B14 | laag/middel | middel | alle CI-commando's; een deploy op Render controleren |

@@ -8,6 +8,7 @@
 # Every change is part of the recipe's history: it makes a new RecipeVersion.
 class RecipeVariation < ApplicationRecord
   include DeletionRequestable
+  include TagNames
 
   MAX_PER_RECIPE = 10
   MAX_NAME_LENGTH = 60
@@ -111,10 +112,6 @@ class RecipeVariation < ApplicationRecord
   end
 
   private
-    def normalize_tag_names(names)
-      Array.wrap(names).map { |name| Tag.normalize_value_for(:name, name.to_s) }.compact_blank.uniq
-    end
-
     def stored_tag_names(kind)
       tag_changes.select { |change| change.kind == kind && !change.marked_for_destruction? }.map { |change| change.tag.name }.sort
     end
@@ -144,11 +141,8 @@ class RecipeVariation < ApplicationRecord
     def tag_names_allowed
       base = recipe&.tag_names || []
 
-      errors.add(:added_tag_names, :too_many_tags, count: MAX_ADDED_TAGS) if added_tag_names.size > MAX_ADDED_TAGS
-      added_tag_names.each do |name|
+      validate_tag_names(:added_tag_names, added_tag_names, max: MAX_ADDED_TAGS) do |name|
         errors.add(:added_tag_names, :tag_on_recipe, name: name) if base.include?(name)
-        errors.add(:added_tag_names, :tag_too_long, name: name, count: Tag::MAX_NAME_LENGTH) if name.length > Tag::MAX_NAME_LENGTH
-        errors.add(:added_tag_names, :tag_with_comma, name: name) if name.include?(",")
       end
       removed_tag_names.each do |name|
         errors.add(:removed_tag_names, :tag_not_on_recipe, name: name) unless base.include?(name)

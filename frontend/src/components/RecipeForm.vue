@@ -2,7 +2,8 @@
 import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
-import { UNITS } from '@/utils/quantity'
+import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
+import { numberText, UNITS } from '@/utils/quantity'
 
 // Props: data die de ouder (RecipeNewView of RecipeEditView) naar dit component stuurt.
 const props = defineProps({
@@ -18,13 +19,6 @@ const props = defineProps({
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
 const emit = defineEmits(['submit', 'dirty-change'])
-
-// Getallen staan in het formulier als tekst, precies zoals je ze typt ("1,5"), en gaan
-// zo naar de server. Die zet de komma om en meldt "abc" als fout; type="number" zou
-// "1,5" in sommige browsers stilletjes leeg laten. Van de API: 0.5 → "0,5".
-function numberText(value) {
-  return value == null ? '' : String(value).replace('.', ',')
-}
 
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.
@@ -199,54 +193,23 @@ const VARIATION_PREFIX = 'variations[0].'
 
 // De fouten van de variatie ("variations[0].name") gaan, zonder dat voorvoegsel, naar
 // het variatieformulier zelf.
-const variationErrors = computed(() =>
-  Object.fromEntries(
-    Object.entries(props.errors)
-      .filter(([attribute]) => attribute.startsWith(VARIATION_PREFIX))
-      .map(([attribute, messages]) => [attribute.slice(VARIATION_PREFIX.length), messages]),
-  ),
-)
-const LABELS = {
-  recipe_ingredients: 'Ingrediënten',
-  steps: 'Stappen',
-  variations: 'Variaties',
-  ingredient_name: 'Naam',
-  quantity: 'Hoeveelheid',
-  unit: 'Eenheid',
-  body: 'Stap',
-}
-const ROW_ERROR = /^(recipe_ingredients|steps)\[(\d+)\]\.(\w+)$/
+const variationErrors = computed(() => errorsUnder(props.errors, VARIATION_PREFIX))
 
-// Verdeelt de serverfouten: per regel (op key) en algemeen (bovenaan het formulier).
-// invalid onthoudt per regel welke velden fout zijn, voor de rode rand (aria-invalid).
-const sortedErrors = computed(() => {
-  const byRow = {}
-  const invalid = {}
-  const general = []
-
-  for (const [attribute, messages] of Object.entries(props.errors)) {
-    if (FORM_FIELDS.includes(attribute) || attribute.startsWith(VARIATION_PREFIX)) continue
-
-    const match = attribute.match(ROW_ERROR)
-    const key = match && sentKeys.value[match[1]][Number(match[2])]
-    if (key) {
-      byRow[key] ??= []
-      byRow[key].push(`${LABELS[match[3]] ?? match[3]} ${messages.join(', ')}`)
-      invalid[key] ??= {}
-      invalid[key][match[3]] = true
-    } else if (attribute === 'base') {
-      general.push(...messages)
-    } else {
-      general.push(`${LABELS[attribute] ?? attribute} ${messages.join(', ')}`)
-    }
-  }
-
-  return { byRow, invalid, general }
+// De overige serverfouten: per regel (op key) en algemeen (bovenaan het formulier).
+const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
+  skip: (attribute) => FORM_FIELDS.includes(attribute) || attribute.startsWith(VARIATION_PREFIX),
+  rowPattern: /^(?<list>recipe_ingredients|steps)\[(?<index>\d+)\]\.(?<field>\w+)$/,
+  keyOf: ({ list, index }) => sentKeys.value[list][Number(index)],
+  labels: {
+    recipe_ingredients: 'Ingrediënten',
+    steps: 'Stappen',
+    variations: 'Variaties',
+    ingredient_name: 'Naam',
+    quantity: 'Hoeveelheid',
+    unit: 'Eenheid',
+    body: 'Stap',
+  },
 })
-
-function isInvalid(row, field) {
-  return !!sortedErrors.value.invalid[row.key]?.[field]
-}
 
 // Stappen groeien mee met de tekst. CSS doet dat met field-sizing: content; browsers
 // die dat (nog) niet kennen, krijgen de hoogte hier: eerst 'auto' zodat hij ook kan

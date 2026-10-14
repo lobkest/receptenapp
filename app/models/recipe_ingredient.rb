@@ -1,29 +1,21 @@
 class RecipeIngredient < ApplicationRecord
-  include DecimalComma
-
-  MAX_QUANTITY = 100_000
+  include HasQuantity
 
   belongs_to :recipe
   # Optional here because ingredient_name is validated instead; the column is NOT NULL.
   belongs_to :ingredient, optional: true
 
-  # prefix: unit_g? instead of g?, and no scope called RecipeIngredient.g.
-  enum :unit, { g: "g", ml: "ml", stuks: "stuks" }, prefix: true, validate: { allow_nil: true }
+  unit_enum
 
-  before_validation :clear_unit_without_quantity
   before_validation :link_ingredient
   # prepend: runs before the belongs_to autosave would insert the new ingredient itself.
   before_save :save_new_ingredient, prepend: true
 
   validates :ingredient_name, presence: true, length: { maximum: Ingredient::MAX_NAME_LENGTH }
-  validates :quantity, numericality: { greater_than: 0, less_than: MAX_QUANTITY }, allow_nil: true
-  validates :unit, presence: true, if: -> { quantity.present? }
+  has_quantity
   validate :ingredient_not_repeated
 
   attr_writer :ingredient_name
-
-  # "1,5" → 1.5 (see DecimalComma). Empty stays nil: "naar smaak".
-  decimal_comma :quantity
 
   # The submitted name, normalized like Ingredient#name, or the linked ingredient's name.
   def ingredient_name
@@ -33,11 +25,6 @@ class RecipeIngredient < ApplicationRecord
   end
 
   private
-    # A unit means nothing without an amount ("zout — naar smaak").
-    def clear_unit_without_quantity
-      self.unit = nil if quantity.nil?
-    end
-
     # Looks up the ingredient, but only builds a new one in memory: nothing is written
     # unless the whole recipe turns out valid.
     def link_ingredient

@@ -1,7 +1,8 @@
 <script setup>
 import { computed, reactive, ref, useId } from 'vue'
 import TagPicker from '@/components/TagPicker.vue'
-import { formatQuantity, UNITS } from '@/utils/quantity'
+import { useServerErrors } from '@/composables/useServerErrors'
+import { formatQuantity, numberText, UNITS } from '@/utils/quantity'
 
 // Een variatie toevoegen of bewerken: naam, notities, ingrediënten eraf (uit het
 // basisrecept) en erbij, en tags erbij of eraf.
@@ -29,11 +30,6 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'cancel'])
 
 const uid = useId()
-
-// Zie RecipeForm: getallen blijven tekst, zoals je ze typt ("1,5").
-function numberText(value) {
-  return value == null ? '' : String(value).replace('.', ',')
-}
 
 const changes = props.initial.changes ?? []
 const tagChanges = props.initial.tag_changes ?? []
@@ -129,43 +125,22 @@ function onSubmit() {
 defineExpose({ buildRequest, submitted })
 
 const OWN_FIELDS = ['name', 'notes', 'added_tag_names', 'removed_tag_names']
-const LABELS = {
-  name: 'Naam',
-  quantity: 'Hoeveelheid',
-  unit: 'Eenheid',
-  additions: 'Extra ingrediënten',
-  'removals.recipe_ingredient': 'Weggelaten ingrediënt',
-  'removals.recipe_ingredient_id': 'Weggelaten ingrediënt',
-  lock_version: 'Versie',
-}
-const ROW_ERROR = /^additions\[(\d+)\]\.(\w+)$/
 
 // Fouten per extra regel (op key) en algemeen (bovenaan).
-const sortedErrors = computed(() => {
-  const byRow = {}
-  const invalid = {}
-  const general = []
-  for (const [attribute, messages] of Object.entries(props.errors)) {
-    if (OWN_FIELDS.includes(attribute)) continue
-    const match = attribute.match(ROW_ERROR)
-    const key = match && sentKeys.value[Number(match[1])]
-    if (key) {
-      byRow[key] ??= []
-      byRow[key].push(`${LABELS[match[2]] ?? match[2]} ${messages.join(', ')}`)
-      invalid[key] ??= {}
-      invalid[key][match[2]] = true
-    } else if (attribute === 'base') {
-      general.push(...messages)
-    } else {
-      general.push(`${LABELS[attribute] ?? attribute} ${messages.join(', ')}`)
-    }
-  }
-  return { byRow, invalid, general }
+const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
+  skip: (attribute) => OWN_FIELDS.includes(attribute),
+  rowPattern: /^additions\[(?<index>\d+)\]\.(?<field>\w+)$/,
+  keyOf: ({ index }) => sentKeys.value[Number(index)],
+  labels: {
+    name: 'Naam',
+    quantity: 'Hoeveelheid',
+    unit: 'Eenheid',
+    additions: 'Extra ingrediënten',
+    'removals.recipe_ingredient': 'Weggelaten ingrediënt',
+    'removals.recipe_ingredient_id': 'Weggelaten ingrediënt',
+    lock_version: 'Versie',
+  },
 })
-
-function isInvalid(row, field) {
-  return !!sortedErrors.value.invalid[row.key]?.[field]
-}
 
 function amount(row) {
   return row.quantity == null ? 'naar smaak' : `${formatQuantity(row.quantity)} ${row.unit}`

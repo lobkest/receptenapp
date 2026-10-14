@@ -1,5 +1,6 @@
 class Recipe < ApplicationRecord
   include DeletionRequestable
+  include TagNames
 
   MAX_INGREDIENTS = 50
   MAX_STEPS = 30
@@ -38,7 +39,7 @@ class Recipe < ApplicationRecord
   # tag is one of the names, group them per recipe, and keep the recipes with as many
   # rows as there are names. A recipe with 1 of 2 tags has 1 row and drops out.
   scope :tagged_with_all, ->(names) {
-    names = names.map { |name| Tag.normalize_value_for(:name, name.to_s) }.compact_blank.uniq
+    names = normalize_tag_names(names)
     next all if names.empty?
 
     matching = RecipeTag.joins(:tag).where(tags: { name: names })
@@ -88,7 +89,7 @@ class Recipe < ApplicationRecord
   # tag_names: ["Vega", "snel"]. Replaces all tags of the recipe. Normalized like Tag#name,
   # empty names and doubles left out. Without tag_names in a request, tags stay as they are.
   def tag_names=(names)
-    @tag_names = Array.wrap(names).map { |name| Tag.normalize_value_for(:name, name.to_s) }.compact_blank.uniq
+    @tag_names = normalize_tag_names(names)
   end
 
   def tag_names
@@ -190,15 +191,9 @@ class Recipe < ApplicationRecord
       association(:steps).target.each { |step| step.request_order = nil }
     end
 
-    # The same rules as Tag#name, checked here so the errors land on the recipe ("tag_names")
-    # before any tag is created.
+    # The same rules as Tag#name (see TagNames), with the errors on "tag_names".
     def tag_names_allowed
-      errors.add(:tag_names, :too_many_tags, count: MAX_TAGS) if @tag_names.size > MAX_TAGS
-
-      @tag_names.each do |name|
-        errors.add(:tag_names, :tag_too_long, name: name, count: Tag::MAX_NAME_LENGTH) if name.length > Tag::MAX_NAME_LENGTH
-        errors.add(:tag_names, :tag_with_comma, name: name) if name.include?(",")
-      end
+      validate_tag_names(:tag_names, @tag_names, max: MAX_TAGS)
     end
 
     # Existing tags are reused; new ones created (see Tag.named). Variations that added a

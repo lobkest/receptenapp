@@ -64,7 +64,6 @@ describe('RecipeDetailView: tags en variaties', () => {
 
   beforeEach(() => {
     sessionStorage.clear()
-    localStorage.clear()
   })
 
   afterEach(() => {

@@ -154,37 +154,12 @@ watch(
   () => standard.items.length,
   (length) => length === 0 && stopSelecting(),
 )
-
-// ---------- Import van de oude lijst ----------
-
-const importing = ref(false)
-
-async function importLegacy() {
-  importing.value = true
-  let result
-  const ok = await attempt(async () => (result = await standard.importLegacy()))
-  importing.value = false
-  if (!ok) return
-  const skipped = result.skipped ? `, ${result.skipped} overgeslagen (stonden er al)` : ''
-  confirm(`${countText(result.imported)} geïmporteerd${skipped}.`)
-}
 </script>
 
 <template>
   <h1 class="page-title">Standaardboodschappen</h1>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
-
-  <div v-if="standard.legacyItems.length && standard.loaded" class="import card">
-    <p>
-      In deze browser staat nog een oude standaardlijst ({{
-        countText(standard.legacyItems.length)
-      }}). Zet hem op de server; wat er al staat, wordt overgeslagen.
-    </p>
-    <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
-      Lijst uit deze browser importeren
-    </button>
-  </div>
 
   <section class="card add-card">
     <h2>Item toevoegen</h2>
@@ -328,7 +303,6 @@ async function importLegacy() {
   font-size: var(--text-sm);
 }
 
-.import,
 .add-card {
   margin-bottom: var(--space-5);
 }

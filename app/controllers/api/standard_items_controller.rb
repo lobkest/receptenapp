@@ -43,7 +43,7 @@ class Api::StandardItemsController < ApplicationController
 
     render json: { deleted_ids: deleted.map(&:id) }
   rescue ActiveRecord::RecordNotDestroyed
-    render json: { error: "Not all items could be deleted; nothing was deleted" }, status: :unprocessable_content
+    render json: { error: I18n.t("api.bulk_destroy_failed") }, status: :unprocessable_content
   end
 
   private

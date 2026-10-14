@@ -7,6 +7,7 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @original_admin_token = ENV["ADMIN_TOKEN"]
     ENV["ADMIN_TOKEN"] = TEST_TOKEN
+    Rails.cache.clear # reset rate_limit counters
     @requested = recipes(:erwtensoep) # deletion requested
     @visible = recipes(:pannenkoeken)
   end
@@ -39,6 +40,31 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
       end
       assert @requested.reload.deletion_requested?
     end
+  end
+
+  # Rate limit: guessing the code. One counter per IP for all admin endpoints together.
+
+  test "the 11th admin request within a minute gets a Dutch 429, whatever the code" do
+    assert_equal 10, Api::Admin::BaseController::REQUESTS_PER_MINUTE, "default without ADMIN_REQUESTS_PER_MINUTE"
+
+    5.times { get api_admin_deletion_requests_url, headers: auth_headers("guess"), as: :json }
+    5.times { get api_admin_recipe_versions_url(@visible), headers: auth_headers("guess"), as: :json }
+    assert_response :unauthorized
+
+    # The 11th try is refused before the code is even checked, so the right code is
+    # refused too: otherwise a guesser could keep trying until one does not get a 429.
+    get api_admin_deletion_requests_url, headers: auth_headers, as: :json
+
+    assert_response :too_many_requests
+    assert_equal "Te veel pogingen. Wacht een minuut en probeer het opnieuw.", response.parsed_body["error"]
+  end
+
+  test "the admin limit is per IP" do
+    10.times { get api_admin_deletion_requests_url, headers: auth_headers("guess"), as: :json }
+
+    get api_admin_deletion_requests_url, headers: auth_headers, env: { "REMOTE_ADDR" => "203.0.113.7" }, as: :json
+
+    assert_response :ok
   end
 
   test "without ADMIN_TOKEN configured everything is refused" do
@@ -130,6 +156,31 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal %w[ bloem ei melk zout ], body["ingredients"].pluck("name").sort
     assert_equal 3, body["steps"].size
     assert_match "Teruggezet naar de versie van", @visible.versions.newest_first.first.summary
+  end
+
+  test "restoring a version from before variations, whose tags a variation no longer fits, works" do
+    old = RecipeVersion.record!(@visible)
+    old.update_columns(snapshot: old.snapshot.except("variations").merge("tag_names" => [ "zoet" ]))
+
+    post restore_api_admin_recipe_version_url(@visible, old), headers: auth_headers, as: :json
+
+    assert_response :ok
+    assert_equal [ "zoet" ], response.parsed_body["tags"]
+    assert_equal [], response.parsed_body["variations"].find { |v| v["name"] == "Met spek" }["tag_changes"]
+  end
+
+  test "a version that the current rules refuse gives a Dutch 422, and nothing changes" do
+    old = RecipeVersion.record!(@visible)
+    old.update_columns(snapshot: old.snapshot.merge("title" => ""))
+
+    assert_no_difference("RecipeVersion.count") do
+      post restore_api_admin_recipe_version_url(@visible, old), headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_content
+    assert_equal "Deze versie kan niet worden teruggezet: Titel moet opgegeven zijn",
+      response.parsed_body["error"]
+    assert_equal "Pannenkoeken", @visible.reload.title
   end
 
   test "a version of another recipe is not found" do

@@ -4,7 +4,6 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
-import { LEGACY_STORAGE_KEY } from '../stores/shoppingList'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
 
 const ITEMS = [
@@ -46,7 +45,6 @@ describe('ShoppingListView', () => {
   let server
 
   beforeEach(() => {
-    localStorage.clear()
     server = fakeServer({ shopping: ITEMS })
   })
 
@@ -232,62 +230,6 @@ describe('ShoppingListView', () => {
     await flushPromises()
     expect(wrapper.find('.empty').exists()).toBe(true)
     expect(server.shoppingDb).toEqual([])
-  })
-
-  describe('import uit deze browser', () => {
-    const LEGACY = {
-      version: 1,
-      items: [
-        {
-          key: 'bloem|g',
-          name: 'bloem',
-          unit: 'g',
-          quantity: 200,
-          checked: false,
-          sources: [{ id: 7, title: 'Taart' }],
-        },
-        { key: 'ei|stuks', name: 'ei', unit: 'stuks', quantity: 2, checked: false, sources: [] },
-      ],
-    }
-
-    it('toont geen importknop zonder oude lijst', async () => {
-      ;({ wrapper } = await mountApp())
-
-      expect(buttonWithText(wrapper, 'Lijst uit deze browser importeren')).toBeUndefined()
-    })
-
-    it('importeert de oude lijst als nieuwe regels, en de knop verdwijnt', async () => {
-      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(LEGACY))
-      ;({ wrapper } = await mountApp())
-
-      expect(wrapper.find('.import').text()).toContain('oude boodschappenlijst (2 regels)')
-      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
-      await flushPromises()
-
-      expect(lines(wrapper)).toEqual([
-        '300 g bloem',
-        'zout',
-        'wc-papier',
-        '200 g bloem',
-        '2 stuks ei',
-      ])
-      expect(wrapper.find('[role="status"]').text()).toBe('2 regels geïmporteerd.')
-      expect(wrapper.find('.import').exists()).toBe(false)
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
-    })
-
-    it('houdt de knop en de oude lijst als de import mislukt', async () => {
-      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(LEGACY))
-      ;({ wrapper } = await mountApp())
-      mockFetch(() => jsonResponse({}, 500))
-
-      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
-      await flushPromises()
-
-      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
-      expect(wrapper.find('.import').exists()).toBe(true)
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).not.toBeNull()
-    })
   })
 
   it('toont de beheerlink in de voettekst en niet in het menu', async () => {

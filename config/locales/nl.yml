@@ -116,6 +116,16 @@ nl:
     conflict: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
   variations:
     conflict: "Deze variatie is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
+  # Messages the frontend shows as they are (body.error), next to the ones in client.js.
+  api:
+    too_many_requests: "Te veel verzoeken. Probeer het over een minuut opnieuw."
+    too_many_submissions: "Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw."
+    too_many_items: "Maximaal %{count} regels tegelijk."
+    servings_out_of_range: "Kies tussen 1 en %{max} porties."
+    bulk_destroy_failed: "Niet alle items konden worden verwijderd, dus er is niets verwijderd."
+  admin:
+    rate_limited: "Te veel pogingen. Wacht een minuut en probeer het opnieuw."
+    restore_failed: "Deze versie kan niet worden teruggezet: %{reasons}"
   errors:
     messages:
       too_many: "heeft te veel regels (maximaal %{count})"

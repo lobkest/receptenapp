@@ -16,7 +16,7 @@ module PublicWriteRateLimit
     # Explicit actions: Rails refuses an except: list that names actions a controller lacks.
     def limit_public_writes(only:)
       rate_limit to: WRITES_PER_MINUTE, within: 1.minute, scope: "public-writes", only: only,
-        with: -> { render json: { error: "Too many requests, try again later" }, status: :too_many_requests }
+        with: -> { render json: { error: I18n.t("api.too_many_requests") }, status: :too_many_requests }
     end
   end
 end

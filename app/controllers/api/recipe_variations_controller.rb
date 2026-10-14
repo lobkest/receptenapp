@@ -58,7 +58,7 @@ class Api::RecipeVariationsController < ApplicationController
   def add_to_shopping_list
     servings = Integer(params.fetch(:servings, @recipe.servings).to_s, exception: false)
     unless servings&.between?(1, Recipe::MAX_SERVINGS)
-      return render json: { error: "Servings must be between 1 and #{Recipe::MAX_SERVINGS}" }, status: :unprocessable_content
+      return render json: { error: I18n.t("api.servings_out_of_range", max: Recipe::MAX_SERVINGS) }, status: :unprocessable_content
     end
 
     items = ShoppingListItem.transaction do

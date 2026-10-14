@@ -231,7 +231,7 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
 
       public_send(method, url, params: params, as: :json)
       assert_response :too_many_requests
-      assert_equal "Too many requests, try again later", response.parsed_body["error"]
+      assert_equal "Te veel verzoeken. Probeer het over een minuut opnieuw.", response.parsed_body["error"]
 
       # Reading still works, and another IP has its own counter.
       get api_shopping_list_items_url, as: :json

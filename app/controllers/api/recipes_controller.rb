@@ -10,7 +10,7 @@ class Api::RecipesController < ApplicationController
   SUBMISSIONS_PER_HOUR = Integer(ENV.fetch("RECIPE_SUBMISSIONS_PER_HOUR", 5))
 
   rate_limit to: SUBMISSIONS_PER_HOUR, within: 1.hour, only: :create,
-    with: -> { render json: { error: "Too many submissions, try again later" }, status: :too_many_requests }
+    with: -> { render json: { error: I18n.t("api.too_many_submissions") }, status: :too_many_requests }
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::StaleObjectError, with: :render_conflict

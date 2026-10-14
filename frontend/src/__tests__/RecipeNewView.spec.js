@@ -151,12 +151,20 @@ describe('RecipeNewView', () => {
   })
 
   it('toont een melding bij te veel inzendingen (429)', async () => {
-    fakeApi(() => jsonResponse({ error: 'Too many submissions' }, 429))
+    fakeApi(() =>
+      jsonResponse(
+        {
+          error:
+            'Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw.',
+        },
+        429,
+      ),
+    )
     const wrapper = await mountView()
     await fillAndSubmit(wrapper)
 
     expect(wrapper.find('[role="alert"]').text()).toBe(
-      'Te veel verzoeken. Probeer het later opnieuw.',
+      'Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw.',
     )
     expect(wrapper.find('form').exists()).toBe(true)
   })

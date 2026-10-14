@@ -111,6 +111,31 @@ describe('AdminView', () => {
     expect(sessionStorage.getItem('adminCode')).toBeNull()
   })
 
+  it('toont de melding van de server bij te veel pogingen (429), zonder in te loggen', async () => {
+    const message = 'Te veel pogingen. Wacht een minuut en probeer het opnieuw.'
+    mockFetch(() => jsonResponse({ error: message }, 429))
+    wrapper = mountView()
+    await logIn(wrapper)
+
+    expect(wrapper.find('[role="alert"]').text()).toBe(message)
+    expect(wrapper.find('#admin-code').exists()).toBe(true)
+    expect(sessionStorage.getItem('adminCode')).toBeNull()
+  })
+
+  it('blijft ingelogd bij een 429 tijdens het werken, en toont de melding', async () => {
+    const message = 'Te veel pogingen. Wacht een minuut en probeer het opnieuw.'
+    const { fetch } = fakeAdminApi()
+    wrapper = mountView()
+    await logIn(wrapper)
+    fetch.mockImplementation(async () => jsonResponse({ error: message }, 429))
+
+    await buttonWithText(cardOf(wrapper, 'Tomatensoep'), 'Terugzetten').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').text()).toBe(message)
+    expect(sessionStorage.getItem('adminCode')).toBe(CODE)
+  })
+
   it('toont na inloggen de verwijderverzoeken met datum en reden, code alleen in de header', async () => {
     const { fetch } = fakeAdminApi()
     wrapper = mountView()

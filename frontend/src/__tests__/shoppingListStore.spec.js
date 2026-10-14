@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { LEGACY_STORAGE_KEY, normalizeName, useShoppingListStore } from '../stores/shoppingList'
+import { useShoppingListStore } from '../stores/shoppingList'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
 
 const PANCAKES = { label: 'Pannenkoeken', recipeId: 1 }
@@ -90,10 +90,6 @@ describe('boodschappenlijst-store', () => {
     expect(list.loaded).toBe(false)
   })
 
-  it('normaliseert namen', () => {
-    expect(normalizeName('  Rode   Ui ')).toBe('rode ui')
-  })
-
   describe('toevoegen', () => {
     it('stuurt een heel recept in één request, met herkomst en recept-id', async () => {
       const { fetch } = fakeServer()
@@ -145,7 +141,9 @@ describe('boodschappenlijst-store', () => {
     it('gooit een fout door en laat de lijst ongemoeid', async () => {
       fakeServer({ shopping: [BLOEM] })
       const list = await loadedStore()
-      mockFetch(() => jsonResponse({ error: 'Too many requests' }, 429))
+      mockFetch(() =>
+        jsonResponse({ error: 'Te veel verzoeken. Probeer het over een minuut opnieuw.' }, 429),
+      )
 
       await expect(
         list.add({ name: 'ei', quantity: 1, unit: 'stuks' }, WAFFLES),
@@ -264,105 +262,6 @@ describe('boodschappenlijst-store', () => {
 
       await expect(list.clearAll()).rejects.toMatchObject({ kind: 'server' })
       expect(list.items).toHaveLength(2)
-    })
-  })
-
-  describe('import van de oude lijst uit localStorage', () => {
-    const LEGACY = [
-      {
-        key: 'bloem|g',
-        name: 'bloem',
-        unit: 'g',
-        quantity: 200,
-        checked: false,
-        sources: [
-          { id: 1, title: 'Pannenkoeken' },
-          { id: 'standaard', title: 'standaard' },
-        ],
-      },
-      { key: 'zout|', name: 'zout', unit: null, quantity: null, checked: true, sources: [] },
-    ]
-
-    function storeLegacy(items, version = 1) {
-      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ version, items }))
-    }
-
-    it('leest de oude lijst bij het starten', () => {
-      storeLegacy(LEGACY)
-
-      expect(freshStore().legacyItems).toEqual([
-        {
-          name: 'bloem',
-          quantity: 200,
-          unit: 'g',
-          source_label: 'Pannenkoeken, standaard',
-          checked: false,
-        },
-        { name: 'zout', quantity: null, unit: null, source_label: null, checked: true },
-      ])
-    })
-
-    it('negeert kapotte, onbekende of lege data', () => {
-      for (const raw of [
-        '{kapot',
-        JSON.stringify({ version: 99, items: LEGACY }),
-        JSON.stringify({ version: 1, items: 'nee' }),
-        JSON.stringify(['bloem']),
-      ]) {
-        localStorage.setItem(LEGACY_STORAGE_KEY, raw)
-        expect(freshStore().legacyItems).toEqual([])
-      }
-    })
-
-    it('slaat losse ongeldige regels over en houdt de rest', () => {
-      storeLegacy([LEGACY[0], null, { name: '' }, { name: 'x'.repeat(101) }, 'tekst'])
-
-      expect(freshStore().legacyItems.map((i) => i.name)).toEqual(['bloem'])
-    })
-
-    it('zet alles in één request op de server, zonder recept-id, en wist daarna de sleutel', async () => {
-      storeLegacy(LEGACY)
-      const { fetch, shoppingDb } = fakeServer({ shopping: [BLOEM] })
-      const list = await loadedStore()
-
-      expect(await list.importLegacy()).toBe(2)
-
-      const [post] = requestsOf(fetch, 'POST')
-      expect(bodyOf(post).shopping_list_items.every((i) => !('recipe_id' in i))).toBe(true)
-      // Bloem stond er al: de oude bloem komt er als eigen regel bij. Zout blijft afgevinkt.
-      expect(shoppingDb.map((i) => [i.name, i.quantity, i.checked])).toEqual([
-        ['bloem', 250, false],
-        ['bloem', 200, false],
-        ['zout', null, true],
-      ])
-      expect(list.items).toHaveLength(3)
-      expect(list.legacyItems).toEqual([])
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
-    })
-
-    it('stuurt een lange lijst in delen van 100', async () => {
-      storeLegacy(
-        Array.from({ length: 150 }, (_, i) => ({ ...LEGACY[1], key: `${i}`, name: `item ${i}` })),
-      )
-      const { fetch } = fakeServer()
-      const list = await loadedStore()
-
-      expect(await list.importLegacy()).toBe(150)
-
-      const posts = requestsOf(fetch, 'POST').map((call) => bodyOf(call).shopping_list_items.length)
-      expect(posts).toEqual([100, 50])
-    })
-
-    it('houdt de sleutel als de import mislukt, zodat je het opnieuw kunt proberen', async () => {
-      storeLegacy(LEGACY)
-      fakeServer()
-      const list = await loadedStore()
-      mockFetch(() => jsonResponse({}, 500))
-
-      await expect(list.importLegacy()).rejects.toMatchObject({ kind: 'server' })
-
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).not.toBeNull()
-      expect(list.legacyItems).toHaveLength(2)
     })
   })
 })

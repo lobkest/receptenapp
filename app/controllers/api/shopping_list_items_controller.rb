@@ -80,7 +80,7 @@ class Api::ShoppingListItemsController < ApplicationController
     # says which one (index, counting from 0) and why.
     def create_many(attributes_list)
       if attributes_list.size > MAX_ITEMS_PER_REQUEST
-        return render json: { error: "At most #{MAX_ITEMS_PER_REQUEST} items per request" }, status: :unprocessable_content
+        return render json: { error: I18n.t("api.too_many_items", count: MAX_ITEMS_PER_REQUEST) }, status: :unprocessable_content
       end
 
       failed_index = failed_item = nil

@@ -233,6 +233,23 @@ class RecipeVariationTest < ActiveSupport::TestCase
     assert_equal 2, @recipe.variations.count
   end
 
+  # Such a version has no variations of its own, so the current ones are kept. Their tag
+  # changes may not fit the old tags: "Met spek" takes off vega, the old version has no vega.
+  test "restoring a version from before variations existed drops tag changes that no longer fit" do
+    old = RecipeVersion.record!(@recipe)
+    old.update_columns(snapshot: old.snapshot.except("variations").merge("tag_names" => [ "zoet" ]))
+    @recipe.reload.update!(tag_names: [ "vega" ])
+    @spek.reload.update!(added_tag_names: [ "zoet" ], removed_tag_names: [ "vega" ])
+
+    @recipe.reload.restore_version!(old)
+
+    assert_equal [ "zoet" ], @recipe.reload.tag_names
+    @spek.reload
+    assert_empty @spek.added_tag_names, "zoet is on the recipe again, so adding it means nothing"
+    assert_empty @spek.removed_tag_names, "vega is not on the recipe, so taking it off means nothing"
+    assert_equal [ "melk" ], @spek.removals.map(&:ingredient_name)
+  end
+
   test "the version label says om, like the heading of the versions list" do
     version = RecipeVersion.record!(@recipe)
     version.update_columns(created_at: Time.utc(2026, 10, 14, 18, 30))

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ADMIN_TOKEN, RAILS_URL } from './env.js'
+import { ADMIN_TOKEN, RAILS_URL, useOwnIp } from './env.js'
 
 // Variaties op een recept, op een iPhone-scherm: toevoegen op de receptpagina, de kaart,
 // het recept bewerken (de variatie blijft kloppen), "Variatie op lijst", een
@@ -153,6 +153,7 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await expect(page.locator('.variation-card')).toHaveCount(0)
 
   // ---- Beheer: het verzoek staat erbij als variatie; terugzetten maakt het weer zichtbaar.
+  await useOwnIp(page, 11)
   await page.addInitScript((code) => sessionStorage.setItem('adminCode', code), ADMIN_TOKEN)
   await page.goto('/beheer')
   const request = page.locator('.requests li.variation', { hasText: 'Met kip' })

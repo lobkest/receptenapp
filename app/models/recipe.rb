@@ -132,6 +132,9 @@ class Recipe < ApplicationRecord
 
     # Variations that still exist are updated in place (same id, deletion request kept);
     # deleted ones come back; ones made after the version go.
+    # Tag changes that do not fit the restored tags are left out, as link_tags does on an
+    # edit. That matters for a version from before variations existed: it keeps the current
+    # variations, whose tag changes were made against today's tags, not the restored ones.
     def restore_variations!(list)
       row_ids = recipe_ingredients.reload.to_h { |row| [ row.ingredient_name, row.id ] }
       current = variations.reload.index_by(&:id)
@@ -143,7 +146,7 @@ class Recipe < ApplicationRecord
         variation.update!(name: data["name"], notes: data["notes"], position: data["position"],
           removed_ingredient_ids: data["removed"].filter_map { |name| row_ids[name] },
           added_ingredients: data["added"],
-          added_tag_names: data["tags_added"], removed_tag_names: data["tags_removed"])
+          added_tag_names: data["tags_added"] - tag_names, removed_tag_names: data["tags_removed"] & tag_names)
       end
       variations.reset
     end

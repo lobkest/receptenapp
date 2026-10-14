@@ -49,15 +49,22 @@ export async function request(path, options = {}) {
           'Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.',
         { status: 409 },
       )
+    // Veldfouten (errors) toont het formulier zelf bij elk veld. Zonder veldfouten stuurt
+    // de server een Nederlandse melding (error), bijv. als een versie niet terug kan.
     case 422:
-      throw new ApiError('validation', 'Controleer de ingevulde velden.', {
+      throw new ApiError('validation', body.error ?? 'Controleer de ingevulde velden.', {
         status: 422,
         errors: body.errors ?? {},
       })
+    // De server zegt hoe lang je moet wachten (bij beheer: een minuut).
     case 429:
-      throw new ApiError('rate_limited', 'Te veel verzoeken. Probeer het later opnieuw.', {
-        status: 429,
-      })
+      throw new ApiError(
+        'rate_limited',
+        body.error ?? 'Te veel verzoeken. Probeer het later opnieuw.',
+        {
+          status: 429,
+        },
+      )
     default:
       throw new ApiError('server', 'Er ging iets mis op de server.', { status: response.status })
   }

@@ -77,4 +77,25 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_equal [ [ 250, "Pannenkoeken" ], [ BigDecimal("100.5"), "Wafels" ] ],
       ShoppingListItem.where(name: "bloem").order(:id).pluck(:quantity, :source_label)
   end
+  # The same rules as recipe_ingredients and variation_changes, also in the database:
+  # update_columns skips the validations, so only the check constraints stop these.
+  {
+    "een hoeveelheid van 0" => { quantity: 0 },
+    "een negatieve hoeveelheid" => { quantity: -1 },
+    "een onbekende eenheid" => { unit: "el" },
+    "een hoeveelheid zonder eenheid" => { unit: nil },
+    "een eenheid zonder hoeveelheid" => { quantity: nil }
+  }.each do |description, columns|
+    test "de database weigert #{description}, ook zonder validaties" do
+      assert_raises(ActiveRecord::CheckViolation) do
+        shopping_list_items(:bloem).update_columns(columns)
+      end
+    end
+  end
+
+  test "de database laat naar smaak (geen hoeveelheid, geen eenheid) toe" do
+    shopping_list_items(:bloem).update_columns(quantity: nil, unit: nil)
+
+    assert_nil shopping_list_items(:bloem).reload.quantity
+  end
 end

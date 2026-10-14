@@ -24,7 +24,6 @@ async function mountAt(path, { attach = false } = {}) {
 describe('RecipeDetailView', () => {
   beforeEach(() => {
     sessionStorage.clear()
-    localStorage.clear()
   })
 
   afterEach(() => {
@@ -318,13 +317,15 @@ describe('RecipeDetailView', () => {
 
     it('toont een melding als de lijst op de server niet bijgewerkt kan worden', async () => {
       const wrapper = await mountPancakes()
-      mockFetch(() => jsonResponse({ error: 'Too many requests' }, 429))
+      mockFetch(() =>
+        jsonResponse({ error: 'Te veel verzoeken. Probeer het over een minuut opnieuw.' }, 429),
+      )
 
       await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
       await flushPromises()
 
       expect(wrapper.find('[role="alert"]').text()).toBe(
-        'Te veel verzoeken. Probeer het later opnieuw.',
+        'Te veel verzoeken. Probeer het over een minuut opnieuw.',
       )
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })

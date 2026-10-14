@@ -4,7 +4,6 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
-import { LEGACY_STORAGE_KEY } from '../stores/standardItems'
 import { fakeStandardServer, jsonResponse, mockFetch } from './helpers'
 
 const ITEMS = [
@@ -56,7 +55,6 @@ describe('StandardItemsView', () => {
   let wrapper
 
   beforeEach(() => {
-    localStorage.clear()
     sessionStorage.clear()
     server = fakeStandardServer(ITEMS)
   })
@@ -318,37 +316,6 @@ describe('StandardItemsView', () => {
 
       await buttonWithText(wrapper, 'Selecteren').trigger('click')
       expect(buttonWithText(wrapper, 'Op lijst (0)')).toBeDefined()
-    })
-  })
-
-  describe('import uit deze browser', () => {
-    function storeLegacy(items) {
-      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ version: 1, items }))
-    }
-
-    it('toont geen importknop zonder oude lijst', async () => {
-      ;({ wrapper } = await mountApp())
-
-      expect(buttonWithText(wrapper, 'Lijst uit deze browser importeren')).toBeUndefined()
-    })
-
-    it('importeert de oude lijst, slaat dubbele over, en de knop verdwijnt', async () => {
-      storeLegacy([
-        { id: 1, name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' },
-        { id: 2, name: 'koffie', quantity: 500, unit: 'g', category: 'voorraad' },
-      ])
-      ;({ wrapper } = await mountApp())
-
-      expect(wrapper.find('.import').text()).toContain('2 items')
-      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
-      await flushPromises()
-
-      expect(lines(wrapper)).toContain('koffie')
-      expect(wrapper.find('[role="status"]').text()).toContain(
-        '1 item geïmporteerd, 1 overgeslagen (stonden er al).',
-      )
-      expect(wrapper.find('.import').exists()).toBe(false)
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
     })
   })
 })

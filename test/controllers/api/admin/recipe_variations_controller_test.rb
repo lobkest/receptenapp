@@ -7,6 +7,7 @@ class Api::Admin::RecipeVariationsControllerTest < ActionDispatch::IntegrationTe
   setup do
     @original_admin_token = ENV["ADMIN_TOKEN"]
     ENV["ADMIN_TOKEN"] = TEST_TOKEN
+    Rails.cache.clear # reset rate_limit counters
     @requested = recipe_variations(:glutenvrij) # deletion requested
     @visible = recipe_variations(:spek)
   end

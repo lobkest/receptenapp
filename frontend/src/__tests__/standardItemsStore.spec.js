@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { LEGACY_STORAGE_KEY, useStandardItemsStore } from '../stores/standardItems'
+import { useStandardItemsStore } from '../stores/standardItems'
 import { useShoppingListStore } from '../stores/shoppingList'
 import { fakeServer, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
 
@@ -11,7 +11,7 @@ const ITEMS = [
   { id: 4, name: 'appels', category: 'groente & fruit' },
 ]
 
-// Een nieuwe Pinia is als een herladen pagina: de stores lezen opnieuw uit de opslag.
+// Een nieuwe Pinia is als een herladen pagina: de store begint leeg en haalt de lijst op.
 function freshStore() {
   setActivePinia(createPinia())
   return useStandardItemsStore()
@@ -21,10 +21,6 @@ async function loadedStore() {
   const standard = freshStore()
   await standard.load()
   return standard
-}
-
-function storeLegacy(items) {
-  localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ version: 1, items }))
 }
 
 function requestsOf(fetch, method) {
@@ -212,74 +208,6 @@ describe('standaardboodschappen-store', () => {
       mockFetch(() => jsonResponse({}, 429))
 
       await expect(standard.addToShoppingList([1])).rejects.toMatchObject({ kind: 'rate_limited' })
-    })
-  })
-
-  describe('import van de oude lijst uit localStorage', () => {
-    const LEGACY = [
-      { id: 1, name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' },
-      { id: 2, name: 'Bananen', quantity: 6, unit: 'stuks', category: 'groente & fruit' },
-      { id: 3, name: 'bananen ', quantity: null, unit: null, category: null },
-      { id: 4, name: 'afwasmiddel', quantity: null, unit: null, category: null },
-    ]
-
-    it('leest naam en categorie uit de oude sleutel; hoeveelheid en eenheid vervallen', () => {
-      storeLegacy(LEGACY)
-
-      expect(freshStore().legacyItems).toEqual([
-        { name: 'melk', category: 'zuivel' },
-        { name: 'Bananen', category: 'groente & fruit' },
-        { name: 'bananen ', category: null },
-        { name: 'afwasmiddel', category: null },
-      ])
-    })
-
-    it('negeert kapotte of lege oude data', () => {
-      localStorage.setItem(LEGACY_STORAGE_KEY, '{kapot')
-      expect(freshStore().legacyItems).toEqual([])
-
-      storeLegacy([{ name: '  ' }, null, { name: 42 }])
-      expect(freshStore().legacyItems).toEqual([])
-    })
-
-    it('importeert naar de API, slaat dubbele over en wist daarna de oude sleutel', async () => {
-      storeLegacy(LEGACY)
-      const { fetch, db } = fakeStandardServer(ITEMS)
-      const standard = await loadedStore()
-
-      const result = await standard.importLegacy()
-
-      // melk staat al op de server; "bananen " is dezelfde als "Bananen".
-      expect(result).toEqual({ imported: 2, skipped: 2 })
-      expect(requestsOf(fetch, 'POST')).toHaveLength(2)
-      expect(db.map((i) => i.name)).toEqual(
-        expect.arrayContaining(['bananen', 'afwasmiddel', 'melk']),
-      )
-      expect(db).toHaveLength(6)
-      expect(standard.items).toHaveLength(6)
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
-      expect(standard.legacyItems).toEqual([])
-    })
-
-    it('telt een weigering van de server als overgeslagen', async () => {
-      storeLegacy([{ name: 'kaas' }, { name: 'brood' }])
-      // De server kent "kaas" al, maar de store weet dat nog niet (lijst niet geladen).
-      fakeStandardServer([{ id: 1, name: 'kaas' }])
-      const standard = freshStore()
-
-      expect(await standard.importLegacy()).toEqual({ imported: 1, skipped: 1 })
-    })
-
-    it('houdt de oude sleutel als het halverwege misgaat', async () => {
-      storeLegacy(LEGACY)
-      mockFetch((method) =>
-        method === 'POST' ? Promise.reject(new TypeError('offline')) : jsonResponse([]),
-      )
-      const standard = await loadedStore()
-
-      await expect(standard.importLegacy()).rejects.toMatchObject({ kind: 'network' })
-      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).not.toBeNull()
-      expect(standard.legacyItems).toHaveLength(4)
     })
   })
 })

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
+import { onMounted, ref, useTemplateRef } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useShoppingListStore } from '@/stores/shoppingList'
@@ -48,43 +48,12 @@ async function clearAll() {
   })
   if (sure) attempt(() => list.clearAll())
 }
-
-// ---------- Import van de oude lijst uit deze browser ----------
-
-const importing = ref(false)
-const message = ref(null)
-let messageTimer = null
-
-onUnmounted(() => clearTimeout(messageTimer))
-
-async function importLegacy() {
-  importing.value = true
-  let count = 0
-  const ok = await attempt(async () => (count = await list.importLegacy()))
-  importing.value = false
-  if (!ok) return
-  message.value = `${count === 1 ? '1 regel' : `${count} regels`} geïmporteerd.`
-  clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => (message.value = null), 3000)
-}
 </script>
 
 <template>
   <h1>Boodschappen</h1>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
-  <p v-if="message" class="notice notice-success" role="status">{{ message }}</p>
-
-  <div v-if="list.legacyItems.length && list.loaded" class="import card">
-    <p>
-      In deze browser staat nog een oude boodschappenlijst ({{
-        list.legacyItems.length === 1 ? '1 regel' : `${list.legacyItems.length} regels`
-      }}). Zet hem op de gedeelde lijst; de regels komen erbij.
-    </p>
-    <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
-      Lijst uit deze browser importeren
-    </button>
-  </div>
 
   <p v-if="loading" class="muted">Boodschappenlijst laden…</p>
 
@@ -208,9 +177,5 @@ async function importLegacy() {
   .actions button {
     flex: 0 0 auto;
   }
-}
-
-.import {
-  margin-bottom: var(--space-5);
 }
 </style>

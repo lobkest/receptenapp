@@ -1,5 +1,5 @@
 import { test, expect, devices } from '@playwright/test'
-import { ADMIN_TOKEN, APP_URL, RAILS_URL } from './env.js'
+import { ADMIN_TOKEN, APP_URL, RAILS_URL, useOwnIp } from './env.js'
 
 // Controleert per hoofdpagina op een iPhone-scherm: geen console-errors, niets
 // breder dan het scherm, en een screenshot in e2e/screenshots/ om zelf te bekijken.
@@ -301,6 +301,7 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
 
 // De beheercode in sessionStorage, net als na inloggen op /beheer.
 async function loginAsAdmin(page) {
+  await useOwnIp(page, 10)
   await page.addInitScript((code) => sessionStorage.setItem('adminCode', code), ADMIN_TOKEN)
 }
 
@@ -631,49 +632,33 @@ test('boodschappen: gedeeld tussen twee telefoons', async ({ browser }) => {
   await phoneB.context.close()
 })
 
-test('boodschappen: oude lijst uit deze browser importeren', async ({ page }) => {
+// Raden naar de beheercode: na 10 pogingen per minuut weigert de server alles van dit
+// adres, ook de goede code, met een Nederlandse melding.
+test('beheer: te veel pogingen geeft een 429 met melding', async ({ page }) => {
   const errors = collectErrors(page)
-  // Een lijst zoals de app hem vroeger in localStorage bewaarde.
-  await page.addInitScript(() => {
-    if (sessionStorage.getItem('e2e-seeded')) return
-    sessionStorage.setItem('e2e-seeded', '1')
-    localStorage.setItem(
-      'shoppingList',
-      JSON.stringify({
-        version: 1,
-        items: [
-          {
-            key: 'appels|stuks',
-            name: 'appels',
-            unit: 'stuks',
-            quantity: 4,
-            checked: false,
-            sources: [{ id: 999, title: 'Appeltaart' }],
-          },
-          { key: 'peper|', name: 'peper', unit: null, quantity: null, checked: false, sources: [] },
-        ],
-      }),
-    )
-  })
-  await page.goto('/boodschappen')
+  await useOwnIp(page, 12)
+  await page.goto('/beheer')
+  const code = page.getByLabel('Beheercode')
+  const submit = page.getByRole('button', { name: 'Inloggen' })
 
-  await expect(page.locator('.import')).toContainText('oude boodschappenlijst (2 regels)')
-  await page.screenshot({
-    path: 'e2e/screenshots/boodschappen-import.png',
-    fullPage: true,
-    animations: 'disabled',
-  })
-  await page.getByRole('button', { name: 'Lijst uit deze browser importeren' }).click()
-  await expect(page.getByRole('status')).toHaveText('2 regels geïmporteerd.')
-  await expect(page.locator('.items .line')).toHaveText(['4 stuks appels', 'peper'])
-  await expect(page.locator('.import')).toHaveCount(0)
-  expect(await page.evaluate(() => localStorage.getItem('shoppingList'))).toBeNull()
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    await code.fill(`fout-${attempt}`)
+    await submit.click()
+    await expect(page.getByRole('alert')).toHaveText('Deze code is onjuist.')
+  }
 
-  // Na herladen komt de knop niet terug; de lijst staat op de server.
-  await page.reload()
-  await expect(page.locator('.items .line')).toHaveText(['4 stuks appels', 'peper'])
-  await expect(page.locator('.import')).toHaveCount(0)
-  await checkLayout(page, errors, 'boodschappen-na-import')
+  // Poging 11, nu met de goede code: toch geweigerd.
+  await code.fill(ADMIN_TOKEN)
+  await submit.click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'Te veel pogingen. Wacht een minuut en probeer het opnieuw.',
+  )
+  await expect(page.getByLabel('Beheercode')).toBeVisible()
+  // De browser logt elk 4xx-antwoord als console-fout; deze 401's en 429 zijn de bedoeling.
+  expect(errors).toHaveLength(11)
+  expect(errors.at(-1)).toContain('429 (Too Many Requests)')
+  errors.length = 0
+  await checkLayout(page, errors, 'beheer-te-veel-pogingen')
 })
 
 test('niet vindbaar voor zoekmachines', async ({ page }) => {

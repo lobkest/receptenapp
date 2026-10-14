@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
@@ -8,7 +9,8 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 export default defineConfig({
   plugins: [
     vue(),
-    vueDevTools(),
+    // Niet tijdens de e2e-tests: de zwevende DevTools-knop staat anders in elke screenshot.
+    ...(process.env.E2E ? [] : [vueDevTools()]),
   ],
   resolve: {
     alias: {
@@ -19,7 +21,8 @@ export default defineConfig({
     // Tijdens development stuurt Vite alle /api-verzoeken door naar Rails.
     // De browser praat zo met één origin, dus CORS is niet nodig.
     proxy: {
-      '/api': 'http://localhost:3000',
+      // API_TARGET: de e2e-tests laten Vite naar hun eigen Rails-server wijzen.
+      '/api': process.env.API_TARGET ?? 'http://localhost:3000',
     },
   },
 })

@@ -33,12 +33,12 @@ describe('RecipeCard', () => {
     expect(wrapper.find('img').exists()).toBe(false)
   })
 
-  it('toont een afbeelding met de titel als alt-tekst als er een image_url is', () => {
+  it('toont een decoratieve afbeelding (lege alt) als er een image_url is', () => {
     const wrapper = mountCard({ image_url: 'https://example.com/pannenkoek.jpg' })
 
     const img = wrapper.find('img')
     expect(img.attributes('src')).toBe('https://example.com/pannenkoek.jpg')
-    expect(img.attributes('alt')).toBe('Pannenkoeken')
+    expect(img.attributes('alt')).toBe('')
     expect(img.attributes('loading')).toBe('lazy')
     expect(wrapper.find('[data-test="placeholder"]').exists()).toBe(false)
   })

@@ -104,16 +104,6 @@ describe('standaardboodschappen-store', () => {
     ])
   })
 
-  it('zoekt de categorie op naam, ongeacht de eenheid', () => {
-    const standard = freshStore()
-    standard.add({ name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' })
-    standard.add({ name: 'kaars' })
-
-    expect(standard.categoryFor('Melk ')).toBe('zuivel')
-    expect(standard.categoryFor('kaars')).toBeNull()
-    expect(standard.categoryFor('onbekend')).toBeNull()
-  })
-
   describe('voorbeeldlijst', () => {
     it('laadt de voorbeelditems in een lege lijst', () => {
       const standard = freshStore()

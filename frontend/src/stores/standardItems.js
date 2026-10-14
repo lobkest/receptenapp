@@ -105,16 +105,6 @@ export const useStandardItemsStore = defineStore('standardItems', {
   getters: {
     // Per categorie op alfabet, "overig" (null) achteraan; binnen een groep op naam.
     groups: (state) => groupByCategory(state.items.toSorted(byName), (item) => item.category),
-
-    // Categorie bij een naam, ongeacht de eenheid, of null. Zo komt ook melk uit
-    // een recept onder "zuivel" als melk in de standaardlijst onder zuivel staat.
-    categoryFor: (state) => {
-      const categories = new Map()
-      for (const item of state.items) {
-        if (item.category && !categories.has(item.name)) categories.set(item.name, item.category)
-      }
-      return (name) => categories.get(normalizeName(name)) ?? null
-    },
   },
 
   actions: {

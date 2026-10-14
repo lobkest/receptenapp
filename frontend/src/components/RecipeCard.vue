@@ -23,7 +23,8 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
 <template>
   <RouterLink :to="`/recepten/${recipe.id}`" class="card recipe-card">
     <div class="media">
-      <img v-if="recipe.image_url" :src="recipe.image_url" :alt="recipe.title" loading="lazy" />
+      <!-- alt="": de foto is decoratief, de titel staat eronder al als tekst. -->
+      <img v-if="recipe.image_url" :src="recipe.image_url" alt="" loading="lazy" />
       <div v-else class="placeholder" data-test="placeholder" aria-hidden="true">
         <!-- Een kom met stoom: rustig, en past bij elk recept. -->
         <svg viewBox="0 0 24 24" focusable="false">

@@ -4,97 +4,216 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
-import { useShoppingListStore } from '../stores/shoppingList'
+import { LEGACY_STORAGE_KEY } from '../stores/shoppingList'
+import { fakeServer, jsonResponse, mockFetch } from './helpers'
 
-const PANCAKES = { id: 1, title: 'Pannenkoeken' }
-const WAFFLES = { id: 2, title: 'Wafels' }
+const ITEMS = [
+  { id: 1, name: 'bloem', quantity: 300, unit: 'g', source_label: 'Wafels' },
+  { id: 2, name: 'zout', source_label: 'Pannenkoeken' },
+  { id: 3, name: 'wc-papier' },
+]
 
-// Monteert de hele App, zodat we ook het menu (met het aantal) kunnen testen.
-async function mountApp(fill = () => {}) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  fill(useShoppingListStore())
+// Monteert de hele App, zodat we ook het menu (met het aantal) en het verversen testen.
+async function mountApp(path = '/boodschappen') {
+  setActivePinia(createPinia())
   const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push('/boodschappen')
-  const wrapper = mount(App, { global: { plugins: [pinia, router] } })
+  await router.push(path)
+  const wrapper = mount(App, { global: { plugins: [router] } })
   await flushPromises()
-  return wrapper
-}
-
-function fillTwo(list) {
-  list.add({ name: 'bloem', quantity: 200, unit: 'g' }, PANCAKES)
-  list.add({ name: 'bloem', quantity: 100, unit: 'g' }, WAFFLES)
-  list.add({ name: 'zout', quantity: null, unit: null }, PANCAKES)
+  return { wrapper, router }
 }
 
 function buttonWithText(wrapper, text) {
   return wrapper.findAll('button').find((b) => b.text() === text)
 }
 
+function lines(wrapper) {
+  return wrapper.findAll('.items .line').map((l) => l.text())
+}
+
+function getRequests(fetch) {
+  return fetch.mock.calls.filter(([url, o]) => url === '/api/shopping_list_items' && !o.method)
+}
+
+// Zoals de browser het doet bij terugschakelen naar de app (of wegschakelen).
+function setVisibility(state) {
+  Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+
 describe('ShoppingListView', () => {
+  let wrapper
+  let server
+
   beforeEach(() => {
     localStorage.clear()
+    server = fakeServer({ shopping: ITEMS })
   })
 
   afterEach(() => {
+    wrapper?.unmount()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    setVisibility('visible')
   })
 
   it('toont een lege lijst', async () => {
-    const wrapper = await mountApp()
+    server = fakeServer()
+    ;({ wrapper } = await mountApp())
 
     expect(wrapper.find('.empty').text()).toContain('leeg')
     expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen')
   })
 
-  it('toont regels met hoeveelheid en herkomst', async () => {
-    const wrapper = await mountApp(fillTwo)
+  it('toont regels van de server met hoeveelheid en herkomst, met één request bij het openen', async () => {
+    ;({ wrapper } = await mountApp())
 
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['300 g bloem', 'zout'])
+    expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     expect(wrapper.findAll('.items .sources').map((s) => s.text())).toEqual([
-      'uit: Pannenkoeken, Wafels',
+      'uit: Wafels',
       'uit: Pannenkoeken',
     ])
+    // App en pagina laden tegelijk; de store maakt daar één request van.
+    expect(getRequests(server.fetch)).toHaveLength(1)
   })
 
-  it('toont het aantal open regels in het menu', async () => {
-    const wrapper = await mountApp(fillTwo)
+  it('zegt niet meer dat de lijst alleen in deze browser staat', async () => {
+    ;({ wrapper } = await mountApp())
 
-    expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (2)')
+    expect(wrapper.text()).not.toContain('alleen in deze browser')
+    expect(wrapper.text()).not.toContain('dit apparaat')
   })
 
-  it('vinkt af (doorgestreept) en werkt het menu-aantal bij', async () => {
-    const wrapper = await mountApp(fillTwo)
+  it('toont het aantal open regels uit de API in het menu, ook op een andere pagina', async () => {
+    server = fakeServer({ shopping: [...ITEMS, { id: 4, name: 'kaas', checked: true }] })
+    mockFetch((method, url, options) =>
+      url.startsWith('/api/recipes') ? jsonResponse([]) : server.fetch(url, options),
+    )
+    ;({ wrapper } = await mountApp('/'))
 
-    await wrapper.find('.items input[type="checkbox"]').setValue(true)
+    expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (3)')
+  })
 
-    expect(wrapper.findAll('.items li')[0].classes()).toContain('checked')
-    expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (1)')
-    expect(JSON.parse(localStorage.getItem('shoppingList')).items[0].checked).toBe(true)
+  it('toont een melding als de lijst niet geladen kan worden', async () => {
+    mockFetch(() => jsonResponse({}, 500))
+    ;({ wrapper } = await mountApp())
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('Er ging iets mis op de server.')
+    expect(wrapper.find('.empty').exists()).toBe(false)
+  })
+
+  describe('verversen', () => {
+    it('haalt de lijst opnieuw op als je naar de app terugschakelt', async () => {
+      ;({ wrapper } = await mountApp())
+      // Intussen vinkt iemand op een andere telefoon de bloem af en zet er kaas bij.
+      server.shoppingDb[0].checked = true
+      server.shoppingDb.push({ id: 9, name: 'kaas', quantity: null, unit: null, checked: false })
+
+      setVisibility('hidden')
+      await flushPromises()
+      expect(getRequests(server.fetch)).toHaveLength(1)
+
+      setVisibility('visible')
+      await flushPromises()
+
+      expect(getRequests(server.fetch)).toHaveLength(2)
+      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier', 'kaas'])
+      expect(wrapper.findAll('.items li')[0].classes()).toContain('checked')
+      expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (3)')
+    })
+
+    it('haalt de lijst opnieuw op als je de pagina opnieuw opent', async () => {
+      let router
+      ;({ wrapper, router } = await mountApp())
+      server.shoppingDb.splice(0, 1)
+
+      await router.push('/standaard')
+      await flushPromises()
+      await router.push('/boodschappen')
+      await flushPromises()
+
+      expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    })
+
+    it('stopt met luisteren als de App weg is', async () => {
+      ;({ wrapper } = await mountApp())
+      wrapper.unmount()
+      wrapper = null
+
+      setVisibility('visible')
+      await flushPromises()
+
+      expect(getRequests(server.fetch)).toHaveLength(1)
+    })
+  })
+
+  describe('afvinken', () => {
+    it('vinkt af (doorgestreept), werkt het menu-aantal bij en slaat op de server op', async () => {
+      ;({ wrapper } = await mountApp())
+
+      await wrapper.find('.items input[type="checkbox"]').setValue(true)
+
+      expect(wrapper.findAll('.items li')[0].classes()).toContain('checked')
+      expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (2)')
+      await flushPromises()
+      expect(server.shoppingDb[0].checked).toBe(true)
+    })
+
+    it('draait het vinkje terug met een melding als opslaan mislukt', async () => {
+      ;({ wrapper } = await mountApp())
+      mockFetch(() => jsonResponse({}, 500))
+
+      await wrapper.find('.items input[type="checkbox"]').setValue(true)
+      // Meteen zichtbaar…
+      expect(wrapper.findAll('.items li')[0].classes()).toContain('checked')
+      await flushPromises()
+
+      // …en na de fout weer terug, met een melding.
+      expect(wrapper.findAll('.items li')[0].classes()).not.toContain('checked')
+      expect(wrapper.find('.items input[type="checkbox"]').element.checked).toBe(false)
+      expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (3)')
+      expect(wrapper.find('[role="alert"]').text()).toBe('Er ging iets mis op de server.')
+    })
+
+    it('meldt het als een andere telefoon de regel al verwijderde', async () => {
+      ;({ wrapper } = await mountApp())
+      server.shoppingDb.splice(0, 1)
+
+      await wrapper.find('.items input[type="checkbox"]').setValue(true)
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').text()).toBe('Deze regel bestaat niet meer.')
+      expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    })
   })
 
   it('verwijdert één regel', async () => {
-    const wrapper = await mountApp(fillTwo)
+    ;({ wrapper } = await mountApp())
 
     await wrapper.find('.items .remove').trigger('click')
+    await flushPromises()
 
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout'])
+    expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    expect(server.shoppingDb.map((i) => i.name)).toEqual(['zout', 'wc-papier'])
   })
 
   it('wist afgevinkte regels zonder te vragen', async () => {
     const confirm = vi.spyOn(window, 'confirm')
-    const wrapper = await mountApp(fillTwo)
+    ;({ wrapper } = await mountApp())
 
     expect(buttonWithText(wrapper, 'Afgevinkte wissen').attributes('disabled')).toBeDefined()
     await wrapper.find('.items input[type="checkbox"]').setValue(true)
+    await flushPromises()
     await buttonWithText(wrapper, 'Afgevinkte wissen').trigger('click')
+    await flushPromises()
 
     expect(confirm).not.toHaveBeenCalled()
-    expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout'])
+    expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    expect(server.shoppingDb).toHaveLength(2)
   })
 
   it('wist alles alleen na bevestiging in het venster', async () => {
-    const wrapper = await mountApp(fillTwo)
+    ;({ wrapper } = await mountApp())
     const dialog = () => wrapper.find('dialog')
 
     await buttonWithText(wrapper, 'Alles wissen').trigger('click')
@@ -105,17 +224,74 @@ describe('ShoppingListView', () => {
     await dialog().find('.cancel').trigger('click')
     await flushPromises()
     expect(dialog().attributes('open')).toBeUndefined()
-    expect(wrapper.findAll('.items li')).toHaveLength(2)
+    expect(wrapper.findAll('.items li')).toHaveLength(3)
 
     await buttonWithText(wrapper, 'Alles wissen').trigger('click')
     await flushPromises()
     await dialog().find('.confirm').trigger('click')
     await flushPromises()
     expect(wrapper.find('.empty').exists()).toBe(true)
+    expect(server.shoppingDb).toEqual([])
+  })
+
+  describe('import uit deze browser', () => {
+    const LEGACY = {
+      version: 1,
+      items: [
+        {
+          key: 'bloem|g',
+          name: 'bloem',
+          unit: 'g',
+          quantity: 200,
+          checked: false,
+          sources: [{ id: 7, title: 'Taart' }],
+        },
+        { key: 'ei|stuks', name: 'ei', unit: 'stuks', quantity: 2, checked: false, sources: [] },
+      ],
+    }
+
+    it('toont geen importknop zonder oude lijst', async () => {
+      ;({ wrapper } = await mountApp())
+
+      expect(buttonWithText(wrapper, 'Lijst uit deze browser importeren')).toBeUndefined()
+    })
+
+    it('importeert de oude lijst als nieuwe regels, en de knop verdwijnt', async () => {
+      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(LEGACY))
+      ;({ wrapper } = await mountApp())
+
+      expect(wrapper.find('.import').text()).toContain('oude boodschappenlijst (2 regels)')
+      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
+      await flushPromises()
+
+      expect(lines(wrapper)).toEqual([
+        '300 g bloem',
+        'zout',
+        'wc-papier',
+        '200 g bloem',
+        '2 stuks ei',
+      ])
+      expect(wrapper.find('[role="status"]').text()).toBe('2 regels geïmporteerd.')
+      expect(wrapper.find('.import').exists()).toBe(false)
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
+    })
+
+    it('houdt de knop en de oude lijst als de import mislukt', async () => {
+      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(LEGACY))
+      ;({ wrapper } = await mountApp())
+      mockFetch(() => jsonResponse({}, 500))
+
+      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+      expect(wrapper.find('.import').exists()).toBe(true)
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).not.toBeNull()
+    })
   })
 
   it('toont de beheerlink in de voettekst en niet in het menu', async () => {
-    const wrapper = await mountApp()
+    ;({ wrapper } = await mountApp())
 
     expect(wrapper.find('footer a').attributes('href')).toBe('/beheer')
     expect(wrapper.find('nav').text()).not.toContain('Beheer')

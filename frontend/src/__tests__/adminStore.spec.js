@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAdminStore } from '../stores/admin'
-import { fetchAdminRecipes } from '../api/admin'
+import { fetchDeletionRequests } from '../api/admin'
 import { jsonResponse, mockFetch, authHeaderOf } from './helpers'
 
 const CODE = 'geheime-code-123'
@@ -18,25 +18,19 @@ describe('admin-API en admin-store', () => {
 
   it('stuurt de code als Bearer-token in de Authorization-header, niet in de URL', async () => {
     const fetch = mockFetch(() => jsonResponse([]))
-    await fetchAdminRecipes(CODE, 'pending')
+    await fetchDeletionRequests(CODE)
 
     const [url] = fetch.mock.calls[0]
-    expect(url).toBe('/api/admin/recipes?status=pending')
+    expect(url).toBe('/api/admin/deletion_requests')
     expect(authHeaderOf(fetch.mock.calls[0])).toBe(`Bearer ${CODE}`)
   })
 
-  it('laat ?status= weg voor alle recepten', async () => {
+  it('logt in met een geldige code (gecontroleerd via de verwijderverzoeken) en bewaart die', async () => {
     const fetch = mockFetch(() => jsonResponse([]))
-    await fetchAdminRecipes(CODE, '')
-
-    expect(fetch.mock.calls[0][0]).toBe('/api/admin/recipes')
-  })
-
-  it('logt in met een geldige code en bewaart die in sessionStorage', async () => {
-    mockFetch(() => jsonResponse([]))
     const admin = useAdminStore()
     await admin.login(CODE)
 
+    expect(fetch.mock.calls[0][0]).toBe('/api/admin/deletion_requests')
     expect(admin.isLoggedIn).toBe(true)
     expect(sessionStorage.getItem('adminCode')).toBe(CODE)
     expect(localStorage.getItem('adminCode')).toBeNull()
@@ -61,23 +55,34 @@ describe('admin-API en admin-store', () => {
     sessionStorage.setItem('adminCode', CODE)
     const admin = useAdminStore()
 
-    await expect(admin.approve(1)).rejects.toMatchObject({ kind: 'unauthorized' })
+    await expect(admin.restore(1)).rejects.toMatchObject({ kind: 'unauthorized' })
     expect(admin.isLoggedIn).toBe(false)
     expect(sessionStorage.getItem('adminCode')).toBeNull()
   })
 
-  it('ververst de openbare receptenlijst na goedkeuren', async () => {
-    const fetch = mockFetch((method, url) =>
-      url === '/api/recipes'
-        ? jsonResponse([{ id: 1, title: 'Soep', servings: 2 }])
-        : jsonResponse({ id: 1, status: 'approved' }),
+  it('gebruikt de juiste endpoints en ververst daarna de openbare lijst en tags', async () => {
+    const fetch = mockFetch((method) =>
+      method === 'DELETE' ? new Response(null, { status: 204 }) : jsonResponse({ id: 1 }),
     )
     const admin = useAdminStore()
     admin.code = CODE
-    await admin.approve(1)
 
-    expect(fetch).toHaveBeenCalledWith('/api/admin/recipes/1/approve', expect.anything())
-    expect(fetch).toHaveBeenCalledWith('/api/recipes', expect.anything())
+    await admin.destroy(1)
+    await admin.restore(2)
+    await admin.fetchVersions(3)
+    await admin.restoreVersion(3, 7)
+
+    const calls = fetch.mock.calls.map(([url, options]) => `${options.method ?? 'GET'} ${url}`)
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'DELETE /api/admin/recipes/1',
+        'PATCH /api/admin/recipes/2/restore',
+        'GET /api/admin/recipes/3/versions',
+        'POST /api/admin/recipes/3/versions/7/restore',
+        'GET /api/recipes',
+        'GET /api/tags',
+      ]),
+    )
   })
 
   it('zet de code nooit in een URL', async () => {
@@ -86,12 +91,11 @@ describe('admin-API en admin-store', () => {
     )
     const admin = useAdminStore()
     await admin.login(CODE)
-    await admin.fetchRecipes('approved')
-    await admin.fetchRecipe(1)
-    await admin.updateRecipe(1, { title: 'x' })
-    await admin.approve(1)
-    await admin.reject(1)
+    await admin.fetchDeletionRequests()
     await admin.destroy(1)
+    await admin.restore(1)
+    await admin.fetchVersions(1)
+    await admin.restoreVersion(1, 2)
 
     for (const [url] of fetch.mock.calls) {
       expect(url).not.toContain(CODE)

@@ -1,4 +1,6 @@
 class RecipeIngredient < ApplicationRecord
+  include DecimalComma
+
   MAX_QUANTITY = 100_000
 
   belongs_to :recipe
@@ -20,12 +22,8 @@ class RecipeIngredient < ApplicationRecord
 
   attr_writer :ingredient_name
 
-  # "1,5" from a Dutch keyboard means 1.5. Only the comma changes, before Rails casts the
-  # string to a decimal, so "abc" or "1,2,3" still fail the numericality validation
-  # instead of quietly becoming 0. Empty stays empty: nil, "naar smaak".
-  def quantity=(value)
-    super(value.is_a?(String) ? value.strip.tr(",", ".") : value)
-  end
+  # "1,5" → 1.5 (see DecimalComma). Empty stays nil: "naar smaak".
+  decimal_comma :quantity
 
   # The submitted name, normalized like Ingredient#name, or the linked ingredient's name.
   def ingredient_name

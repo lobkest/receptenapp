@@ -1,9 +1,28 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useShoppingListStore } from '@/stores/shoppingList'
 
 const shoppingList = useShoppingListStore()
+
+// De lijst is gedeeld: iemand anders kan hem intussen hebben aangepast. Daarom halen we
+// hem op bij het starten en elke keer dat je terugschakelt naar de app (tabblad of app
+// weer zichtbaar). Geen polling of websockets. Een mislukte verversing negeren we hier:
+// dan blijft de oude stand staan, en de boodschappenpagina toont zelf een melding.
+function refreshShoppingList() {
+  shoppingList.load().catch(() => {})
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') refreshShoppingList()
+}
+
+onMounted(() => {
+  refreshShoppingList()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+})
+
+onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityChange))
 
 // "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
 const shoppingLabel = computed(() =>
@@ -34,7 +53,7 @@ const shoppingLabel = computed(() =>
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          <span class="nav-label">Recept insturen</span>
+          <span class="nav-label">Recept toevoegen</span>
         </RouterLink>
         <RouterLink to="/boodschappen" class="nav-link shopping-link">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

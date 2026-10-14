@@ -1,0 +1,14 @@
+# vega and zoet are on the visible pannenkoeken; soep on erwtensoep (deletion requested)
+# and stamppot (visible).
+vega:
+  name: vega
+
+zoet:
+  name: zoet
+
+soep:
+  name: soep
+
+# Used by no recipe at all.
+ongebruikt:
+  name: ongebruikt

@@ -1,0 +1,19 @@
+pannenkoeken_vega:
+  recipe: pannenkoeken
+  tag: vega
+
+pannenkoeken_zoet:
+  recipe: pannenkoeken
+  tag: zoet
+
+erwtensoep_soep:
+  recipe: erwtensoep
+  tag: soep
+
+erwtensoep_vega:
+  recipe: erwtensoep
+  tag: vega
+
+stamppot_soep:
+  recipe: stamppot
+  tag: soep

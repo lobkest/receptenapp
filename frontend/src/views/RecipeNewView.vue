@@ -1,21 +1,28 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import RecipeForm from '@/components/RecipeForm.vue'
 import { createRecipe } from '@/api/recipes'
+import { useRecipesStore } from '@/stores/recipes'
+
+const router = useRouter()
+// De bestaande tags voor de tag-kiezer, en de melding op de receptpagina.
+const recipes = useRecipesStore()
+onMounted(() => recipes.loadTags())
 
 const errors = ref({})
 const message = ref(null)
 const submitting = ref(false)
-const submitted = ref(false)
 
-async function handleSubmit(recipe) {
+// Een nieuw recept is meteen zichtbaar: we gaan direct naar de receptpagina.
+async function handleSubmit(values) {
   submitting.value = true
   errors.value = {}
   message.value = null
   try {
-    await createRecipe(recipe)
-    submitted.value = true
+    const recipe = await createRecipe(values)
+    recipes.setNotice(`"${recipe.title}" is toegevoegd.`)
+    router.push({ name: 'recipe', params: { id: recipe.id } })
   } catch (e) {
     if (e.kind === 'validation') {
       errors.value = e.errors
@@ -27,25 +34,16 @@ async function handleSubmit(recipe) {
     submitting.value = false
   }
 }
-
-function reset() {
-  submitted.value = false
-}
 </script>
 
 <template>
-  <h1>Recept insturen</h1>
+  <h1>Recept toevoegen</h1>
 
-  <div v-if="submitted" class="card" role="status">
-    <p>Bedankt! Je recept wacht op goedkeuring.</p>
-    <p>
-      <button type="button" class="btn-primary" @click="reset">Nog een recept insturen</button>
-      of <RouterLink to="/">terug naar de recepten</RouterLink>.
-    </p>
-  </div>
-
-  <template v-else>
-    <p v-if="message" class="message notice notice-error" role="alert">{{ message }}</p>
-    <RecipeForm :errors="errors" :submitting="submitting" @submit="handleSubmit" />
-  </template>
+  <p v-if="message" class="message notice notice-error" role="alert">{{ message }}</p>
+  <RecipeForm
+    :errors="errors"
+    :submitting="submitting"
+    :available-tags="recipes.tagNames"
+    @submit="handleSubmit"
+  />
 </template>

@@ -16,20 +16,34 @@ describe('route guard voor beheer', () => {
     setActivePinia(createPinia())
   })
 
-  it('stuurt de bewerkpagina zonder code naar het inlogscherm', async () => {
+  it('stuurt de versiepagina zonder code naar het inlogscherm', async () => {
     const router = makeRouter()
-    await router.push('/beheer/recepten/5/bewerken')
+    await router.push('/beheer/recepten/5/versies')
 
     expect(router.currentRoute.value.name).toBe('admin')
   })
 
-  it('laat de bewerkpagina door met een code, zonder die in de URL te zetten', async () => {
+  it('laat de versiepagina door met een code, zonder die in de URL te zetten', async () => {
     useAdminStore().code = 'geheim'
+    const router = makeRouter()
+    await router.push('/beheer/recepten/5/versies')
+
+    expect(router.currentRoute.value.name).toBe('admin-recipe-versions')
+    expect(router.currentRoute.value.fullPath).not.toContain('geheim')
+  })
+
+  it('laat bewerken voor iedereen door, zonder code', async () => {
+    const router = makeRouter()
+    await router.push('/recepten/5/bewerken')
+
+    expect(router.currentRoute.value.name).toBe('recipe-edit')
+  })
+
+  it('stuurt een oude beheer-bewerklink door naar de openbare bewerkpagina', async () => {
     const router = makeRouter()
     await router.push('/beheer/recepten/5/bewerken')
 
-    expect(router.currentRoute.value.name).toBe('admin-recipe-edit')
-    expect(router.currentRoute.value.fullPath).not.toContain('geheim')
+    expect(router.currentRoute.value.fullPath).toBe('/recepten/5/bewerken')
   })
 
   it('laat openbare pagina’s altijd door', async () => {

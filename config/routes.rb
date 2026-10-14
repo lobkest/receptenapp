@@ -6,19 +6,34 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   namespace :api do
-    resources :recipes, only: %i[ index show create ]
+    # Public: anyone may add and edit. Deleting is only a request; see admin below.
+    resources :recipes, only: %i[ index show create update ] do
+      post :request_deletion, on: :member
+    end
+    resources :tags, only: :index
 
-    namespace :admin do
-      resources :recipes, only: %i[ index show update destroy ] do
-        member do
-          patch :approve
-          patch :reject
-        end
+    # Public, no code needed: anyone with the link shares these two lists.
+    resources :shopping_list_items, only: %i[ index create update destroy ] do
+      collection do
+        delete :clear_checked
+        delete :clear_all
       end
+    end
 
-      resources :standard_items, only: %i[ index create update destroy ] do
-        # POST, not DELETE: a DELETE request with a body is not reliably passed on.
-        post :bulk_destroy, on: :collection
+    resources :standard_items, only: %i[ index create update destroy ] do
+      # POST, not DELETE: a DELETE request with a body is not reliably passed on.
+      post :bulk_destroy, on: :collection
+    end
+
+    # Only with the admin code: deletion requests and versions.
+    namespace :admin do
+      resources :deletion_requests, only: :index
+
+      resources :recipes, only: :destroy do
+        patch :restore, on: :member
+        resources :versions, only: :index, controller: "recipe_versions" do
+          post :restore, on: :member
+        end
       end
     end
 

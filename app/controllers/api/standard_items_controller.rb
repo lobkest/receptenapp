@@ -1,31 +1,38 @@
-class Api::Admin::StandardItemsController < Api::Admin::BaseController
+# The standard list (things you buy often). Public, like the shopping list: anyone with the
+# link can see and change it. Writes are rate limited (PublicWriteRateLimit).
+class Api::StandardItemsController < ApplicationController
+  include PublicWriteRateLimit
+  limit_public_writes only: %i[ create update destroy bulk_destroy ]
+
   before_action :set_standard_item, only: %i[ update destroy ]
 
-  # GET /api/admin/standard_items
+  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
+
+  # GET /api/standard_items
   def index
     render json: StandardItem.order(:name).map { |item| serialize(item) }
   end
 
-  # POST /api/admin/standard_items
+  # POST /api/standard_items
   def create
     @standard_item = StandardItem.new(standard_item_params)
     save_and_render(status: :created)
   end
 
-  # PATCH/PUT /api/admin/standard_items/1
+  # PATCH/PUT /api/standard_items/1
   def update
     @standard_item.assign_attributes(standard_item_params)
     save_and_render(status: :ok)
   end
 
-  # DELETE /api/admin/standard_items/1
+  # DELETE /api/standard_items/1
   def destroy
     @standard_item.destroy!
 
     head :no_content
   end
 
-  # POST /api/admin/standard_items/bulk_destroy  { "ids": [1, 2, 3] }
+  # POST /api/standard_items/bulk_destroy  { "ids": [1, 2, 3] }
   # All or nothing: one transaction, and destroy! raises if an item cannot be deleted,
   # which rolls back the ones before it. Ids that do not exist are skipped; the response
   # lists the ids that were actually deleted.
@@ -66,5 +73,9 @@ class Api::Admin::StandardItemsController < Api::Admin::BaseController
 
     def serialize(item)
       item.slice("id", "name", "category")
+    end
+
+    def render_not_found
+      render json: { error: "Standard item not found" }, status: :not_found
     end
 end

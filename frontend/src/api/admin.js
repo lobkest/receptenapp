@@ -1,9 +1,9 @@
-// De beheer-API. Elke functie krijgt de beheercode mee en stuurt die
-// uitsluitend in de Authorization-header, nooit in de URL: URL's belanden
-// in browsergeschiedenis, serverlogs en Referer-headers.
+// De beheer-API: alleen nog verwijderverzoeken en versies. Elke functie krijgt de
+// beheercode mee en stuurt die uitsluitend in de Authorization-header, nooit in de URL:
+// URL's belanden in browsergeschiedenis, serverlogs en Referer-headers.
 import { request } from '@/api/client'
 
-const BASE = '/api/admin/recipes'
+const BASE = '/api/admin'
 
 function adminRequest(code, path, options = {}) {
   return request(path, {
@@ -13,72 +13,31 @@ function adminRequest(code, path, options = {}) {
 }
 
 function recipePath(id) {
-  return `${BASE}/${encodeURIComponent(id)}`
+  return `${BASE}/recipes/${encodeURIComponent(id)}`
 }
 
-// status: 'pending' | 'approved' | 'rejected', of leeg voor alle recepten.
-export function fetchAdminRecipes(code, status) {
-  const query = status ? `?status=${encodeURIComponent(status)}` : ''
-  return adminRequest(code, `${BASE}${query}`)
+// [{ id, title, deletion_requested_at, deletion_reason, type: 'recipe' }], nieuwste eerst.
+export function fetchDeletionRequests(code) {
+  return adminRequest(code, `${BASE}/deletion_requests`)
 }
 
-export function fetchAdminRecipe(code, id) {
-  return adminRequest(code, recipePath(id))
-}
-
-export function updateAdminRecipe(code, id, recipe) {
-  return adminRequest(code, recipePath(id), {
-    method: 'PATCH',
-    body: JSON.stringify({ recipe }),
-  })
-}
-
-export function approveRecipe(code, id) {
-  return adminRequest(code, `${recipePath(id)}/approve`, { method: 'PATCH' })
-}
-
-export function rejectRecipe(code, id) {
-  return adminRequest(code, `${recipePath(id)}/reject`, { method: 'PATCH' })
-}
-
+// Alleen voor een recept met een verwijderverzoek.
 export function deleteRecipe(code, id) {
   return adminRequest(code, recipePath(id), { method: 'DELETE' })
 }
 
-// Standaardboodschappen: ook achter de beheercode.
-const STANDARD_BASE = '/api/admin/standard_items'
-
-function standardItemPath(id) {
-  return `${STANDARD_BASE}/${encodeURIComponent(id)}`
+// Verwijderverzoek afwijzen: het recept is weer zichtbaar.
+export function restoreRecipe(code, id) {
+  return adminRequest(code, `${recipePath(id)}/restore`, { method: 'PATCH' })
 }
 
-export function fetchStandardItems(code) {
-  return adminRequest(code, STANDARD_BASE)
+// { recipe: { id, title, deletion_requested_at }, versions: [{ id, created_at, summary, current }] }
+export function fetchRecipeVersions(code, id) {
+  return adminRequest(code, `${recipePath(id)}/versions`)
 }
 
-// item: { name, category }; category null = geen categorie ("overig").
-export function createStandardItem(code, item) {
-  return adminRequest(code, STANDARD_BASE, {
+export function restoreRecipeVersion(code, id, versionId) {
+  return adminRequest(code, `${recipePath(id)}/versions/${encodeURIComponent(versionId)}/restore`, {
     method: 'POST',
-    body: JSON.stringify({ standard_item: item }),
-  })
-}
-
-export function updateStandardItem(code, id, item) {
-  return adminRequest(code, standardItemPath(id), {
-    method: 'PATCH',
-    body: JSON.stringify({ standard_item: item }),
-  })
-}
-
-export function deleteStandardItem(code, id) {
-  return adminRequest(code, standardItemPath(id), { method: 'DELETE' })
-}
-
-// Alles of niets, in één transactie. Geeft { deleted_ids } terug.
-export function bulkDeleteStandardItems(code, ids) {
-  return adminRequest(code, `${STANDARD_BASE}/bulk_destroy`, {
-    method: 'POST',
-    body: JSON.stringify({ ids }),
   })
 }

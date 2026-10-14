@@ -1,13 +1,36 @@
 <script setup>
-import { useTemplateRef } from 'vue'
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatQuantity } from '@/utils/quantity'
 
-// Alles staat in de store (en dus in localStorage); deze pagina toont en
-// wijzigt alleen.
+// De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
+// Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
+// doet App.vue dat (visibilitychange).
 const list = useShoppingListStore()
+
+const loading = ref(false)
+// Melding bij een mislukte actie (netwerk, server, te veel verzoeken).
+const error = ref(null)
+
+async function attempt(action) {
+  error.value = null
+  try {
+    await action()
+    return true
+  } catch (e) {
+    error.value = e.kind === 'not_found' ? 'Deze regel bestaat niet meer.' : e.message
+    return false
+  }
+}
+
+onMounted(async () => {
+  // Alleen de eerste keer "laden…"; daarna staat de oude lijst er al tijdens het verversen.
+  loading.value = !list.loaded
+  await attempt(() => list.load())
+  loading.value = false
+})
 
 // Zonder hoeveelheid ("naar smaak" uit een recept, of wc-papier uit de
 // standaardlijst) is alleen de naam genoeg: je moet het gewoon kopen.
@@ -16,42 +39,82 @@ function itemLine(item) {
   return `${formatQuantity(item.quantity)} ${item.unit} ${item.name}`
 }
 
-function sourcesLine(item) {
-  return `uit: ${item.sources.map((s) => s.title).join(', ')}`
-}
-
 const confirmDialog = useTemplateRef('confirmDialog')
 
 async function clearAll() {
   const sure = await confirmDialog.value.ask({
     title: 'De hele boodschappenlijst wissen?',
-    text: 'Alle regels verdwijnen, ook de afgevinkte.',
+    text: 'Alle regels verdwijnen, ook de afgevinkte. Ook voor iedereen met wie je de lijst deelt.',
   })
-  if (sure) list.clearAll()
+  if (sure) attempt(() => list.clearAll())
+}
+
+// ---------- Import van de oude lijst uit deze browser ----------
+
+const importing = ref(false)
+const message = ref(null)
+let messageTimer = null
+
+onUnmounted(() => clearTimeout(messageTimer))
+
+async function importLegacy() {
+  importing.value = true
+  let count = 0
+  const ok = await attempt(async () => (count = await list.importLegacy()))
+  importing.value = false
+  if (!ok) return
+  message.value = `${count === 1 ? '1 regel' : `${count} regels`} geïmporteerd.`
+  clearTimeout(messageTimer)
+  messageTimer = setTimeout(() => (message.value = null), 3000)
 }
 </script>
 
 <template>
   <h1>Boodschappen</h1>
 
-  <p v-if="list.items.length === 0" class="empty card">
+  <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+  <p v-if="message" class="notice notice-success" role="status">{{ message }}</p>
+
+  <div v-if="list.legacyItems.length && list.loaded" class="import card">
+    <p>
+      In deze browser staat nog een oude boodschappenlijst ({{
+        list.legacyItems.length === 1 ? '1 regel' : `${list.legacyItems.length} regels`
+      }}). Zet hem op de gedeelde lijst; de regels komen erbij.
+    </p>
+    <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
+      Lijst uit deze browser importeren
+    </button>
+  </div>
+
+  <p v-if="loading" class="muted">Boodschappenlijst laden…</p>
+
+  <p v-else-if="list.loaded && list.items.length === 0" class="empty card">
     Je boodschappenlijst is leeg. Voeg ingrediënten toe vanaf een
     <RouterLink to="/">recept</RouterLink>.
   </p>
 
-  <template v-else>
+  <template v-else-if="list.items.length">
     <ul class="items card">
-      <li v-for="item in list.items" :key="item.key" :class="{ checked: item.checked }">
+      <li
+        v-for="item in list.items"
+        :key="item.id"
+        :data-id="item.id"
+        :class="{ checked: item.checked }"
+      >
         <label>
-          <input type="checkbox" :checked="item.checked" @change="list.toggle(item.key)" />
+          <input
+            type="checkbox"
+            :checked="item.checked"
+            @change="attempt(() => list.toggle(item.id))"
+          />
           <span class="line">{{ itemLine(item) }}</span>
         </label>
-        <span class="sources">{{ sourcesLine(item) }}</span>
+        <span v-if="item.source_label" class="sources">uit: {{ item.source_label }}</span>
         <button
           type="button"
           class="remove"
           :aria-label="`${item.name} verwijderen`"
-          @click="list.remove(item.key)"
+          @click="attempt(() => list.remove(item.id))"
         >
           ✕
         </button>
@@ -63,14 +126,12 @@ async function clearAll() {
         type="button"
         class="clear-checked"
         :disabled="!list.hasChecked"
-        @click="list.clearChecked()"
+        @click="attempt(() => list.clearChecked())"
       >
         Afgevinkte wissen
       </button>
       <button type="button" class="clear-all btn-danger" @click="clearAll">Alles wissen</button>
     </div>
-
-    <p class="hint muted">Deze lijst staat alleen in deze browser op dit apparaat.</p>
   </template>
 
   <ConfirmDialog ref="confirmDialog" />
@@ -149,8 +210,7 @@ async function clearAll() {
   }
 }
 
-.hint {
-  margin-top: var(--space-4);
-  font-size: var(--text-sm);
+.import {
+  margin-bottom: var(--space-5);
 }
 </style>

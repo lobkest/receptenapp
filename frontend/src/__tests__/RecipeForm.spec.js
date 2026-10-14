@@ -171,6 +171,7 @@ describe('RecipeForm', () => {
       title: 'Pannenkoeken',
       description: 'Dun en goudbruin.',
       servings: '4',
+      tag_names: [],
       recipe_ingredients_attributes: [
         { ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
         // Leeg (ook alleen spaties) is "naar smaak": null.
@@ -259,13 +260,13 @@ describe('RecipeForm', () => {
   })
 })
 
-// Een bestaand recept zoals de admin-API het teruggeeft (GET /api/admin/recipes/:id).
+// Een bestaand recept zoals de API het teruggeeft (GET /api/recipes/:id).
 const PANCAKES = {
   id: 1,
   title: 'Pannenkoeken',
   description: 'Dun.',
   servings: 4,
-  status: 'approved',
+  lock_version: 2,
   ingredients: [
     { id: 21, name: 'bloem', quantity: 250, unit: 'g', optional: false },
     { id: 22, name: 'zout', quantity: null, unit: null, optional: true },
@@ -339,6 +340,7 @@ describe('RecipeForm bij bewerken', () => {
       title: 'Pannenkoeken',
       description: 'Dun.',
       servings: '4',
+      tag_names: [],
       recipe_ingredients_attributes: [
         { id: 21, ingredient_name: 'bloem', quantity: '300', unit: 'g', optional: false },
         { ingredient_name: 'suiker', quantity: '25', unit: 'g', optional: false },
@@ -394,7 +396,63 @@ describe('RecipeForm bij bewerken', () => {
     })
 
     expect(stepRows(wrapper)).toHaveLength(1)
-    expect(await submit(wrapper)).toEqual({ title: 'Soep', description: '', servings: '2' })
+    expect(await submit(wrapper)).toEqual({
+      title: 'Soep',
+      description: '',
+      servings: '2',
+      tag_names: [],
+    })
+  })
+})
+
+describe('RecipeForm: tags', () => {
+  function chips(wrapper) {
+    return wrapper.findAll('.chip-name').map((chip) => chip.text())
+  }
+
+  it('heeft een tag-kiezer met de bestaande tags, en stuurt de gekozen tags mee', async () => {
+    const wrapper = mount(RecipeForm, { props: { availableTags: ['snel', 'vega'] } })
+
+    await wrapper.find('.tag-select').setValue('snel')
+
+    expect(chips(wrapper)).toEqual(['snel'])
+    expect((await submit(wrapper)).tag_names).toEqual(['snel'])
+  })
+
+  it('zet bij bewerken de bestaande tags al klaar', async () => {
+    const wrapper = mount(RecipeForm, {
+      props: { initial: { ...PANCAKES, tags: ['zoet', 'ontbijt'] }, availableTags: ['vega'] },
+    })
+
+    expect(chips(wrapper)).toEqual(['zoet', 'ontbijt'])
+    expect((await submit(wrapper)).tag_names).toEqual(['zoet', 'ontbijt'])
+  })
+
+  it('stuurt een lege lijst als je alle tags weghaalt', async () => {
+    const wrapper = mount(RecipeForm, { props: { initial: { ...PANCAKES, tags: ['zoet'] } } })
+
+    await wrapper.find('button[aria-label="zoet verwijderen"]').trigger('click')
+
+    expect((await submit(wrapper)).tag_names).toEqual([])
+  })
+
+  it('telt een gewijzigde tag als niet-opgeslagen wijziging', async () => {
+    const wrapper = mount(RecipeForm, { props: { initial: { ...PANCAKES, tags: ['zoet'] } } })
+
+    await wrapper.find('button[aria-label="zoet verwijderen"]').trigger('click')
+
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
+  })
+
+  it('verstuurt het recept niet als je Enter drukt in het veld voor een nieuwe tag', async () => {
+    const wrapper = mount(RecipeForm)
+    await wrapper.find('.tag-select').setValue('NEW')
+    await wrapper.find('.new-tag-input').setValue('snel')
+
+    await wrapper.find('.new-tag-input').trigger('keydown', { key: 'Enter' })
+
+    expect(chips(wrapper)).toEqual(['snel'])
+    expect(wrapper.emitted('submit')).toBeUndefined()
   })
 })
 

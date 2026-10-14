@@ -92,4 +92,42 @@ describe('ConfirmDialog', () => {
 
     expect(wrapper.find('.confirm').text()).toBe('Wissen')
   })
+
+  describe('met een invulveld (askWithInput)', () => {
+    it('toont het veld met label, focus op Annuleren, en geeft de getrimde tekst', async () => {
+      wrapper = mountDialog()
+      const answer = wrapper.vm.askWithInput({ title: 'Weg?', inputLabel: 'Reden (optioneel)' })
+      await flushPromises()
+
+      expect(wrapper.find('label').text()).toBe('Reden (optioneel)')
+      expect(document.activeElement).toBe(wrapper.find('.cancel').element)
+      await wrapper.find('textarea').setValue('  dubbel  ')
+      await wrapper.find('.confirm').trigger('click')
+
+      expect(await answer).toBe('dubbel')
+    })
+
+    it('geeft null bij Annuleren of Escape, ook als er iets is ingevuld', async () => {
+      wrapper = mountDialog()
+      let answer = wrapper.vm.askWithInput({ title: 'Weg?', inputLabel: 'Reden' })
+      await flushPromises()
+      await wrapper.find('textarea').setValue('dubbel')
+      await wrapper.find('.cancel').trigger('click')
+      expect(await answer).toBeNull()
+
+      answer = wrapper.vm.askWithInput({ title: 'Weg?', inputLabel: 'Reden' })
+      await flushPromises()
+      expect(wrapper.find('textarea').element.value).toBe('')
+      await wrapper.find('dialog').trigger('keydown', { key: 'Escape' })
+      expect(await answer).toBeNull()
+    })
+
+    it('heeft geen veld bij een gewone ask()', async () => {
+      wrapper = mountDialog()
+      wrapper.vm.ask({ title: 'Zeker?' })
+      await flushPromises()
+
+      expect(wrapper.find('textarea').exists()).toBe(false)
+    })
+  })
 })

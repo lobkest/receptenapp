@@ -29,7 +29,18 @@
 
 en:
   hello: "Hello world"
+  recipes:
+    conflict: "Someone else changed this recipe in the meantime. Reload and try again."
   errors:
     messages:
       too_many: "has too many rows (maximum is %{count})"
       too_many_rows: "has too many rows"
+  activerecord:
+    errors:
+      models:
+        recipe:
+          attributes:
+            tag_names:
+              too_many_tags: "has too many tags (maximum is %{count})"
+              tag_too_long: "has a tag that is too long: \"%{name}\" (maximum is %{count} characters)"
+              tag_with_comma: "has a tag with a comma: \"%{name}\""

@@ -1,0 +1,16 @@
+bloem:
+  name: bloem
+  quantity: 250
+  unit: g
+  source_label: Pannenkoeken
+  recipe: pannenkoeken
+
+zout:
+  name: zout
+  source_label: Pannenkoeken
+  recipe: pannenkoeken
+
+melk:
+  name: melk
+  source_label: standaard
+  checked: true

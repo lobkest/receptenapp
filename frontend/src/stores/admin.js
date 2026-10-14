@@ -44,7 +44,7 @@ export const useAdminStore = defineStore('admin', {
     // Controleert de code met een echte request; slaat hem alleen op als die lukt.
     // Gooit de ApiError door, zodat het inlogscherm de melding kan tonen.
     async login(code) {
-      await api.fetchAdminRecipes(code, 'pending')
+      await api.fetchDeletionRequests(code)
       this.code = code
       storeCode(code)
     },
@@ -79,38 +79,34 @@ export const useAdminStore = defineStore('admin', {
     // Na elke wijziging de openbare lijst verversen. Bewust zonder await:
     // de beheeractie is al gelukt, en de store vangt zijn eigen fouten af.
     refreshPublicRecipes() {
-      useRecipesStore().load()
+      const recipes = useRecipesStore()
+      recipes.load()
+      recipes.loadTags()
     },
 
-    fetchRecipes(status) {
-      return this.call(api.fetchAdminRecipes, status)
-    },
-
-    fetchRecipe(id) {
-      return this.call(api.fetchAdminRecipe, id)
-    },
-
-    async updateRecipe(id, recipe) {
-      const updated = await this.call(api.updateAdminRecipe, id, recipe)
-      this.refreshPublicRecipes()
-      return updated
-    },
-
-    async approve(id) {
-      const updated = await this.call(api.approveRecipe, id)
-      this.refreshPublicRecipes()
-      return updated
-    },
-
-    async reject(id) {
-      const updated = await this.call(api.rejectRecipe, id)
-      this.refreshPublicRecipes()
-      return updated
+    fetchDeletionRequests() {
+      return this.call(api.fetchDeletionRequests)
     },
 
     async destroy(id) {
       await this.call(api.deleteRecipe, id)
       this.refreshPublicRecipes()
+    },
+
+    async restore(id) {
+      const recipe = await this.call(api.restoreRecipe, id)
+      this.refreshPublicRecipes()
+      return recipe
+    },
+
+    fetchVersions(id) {
+      return this.call(api.fetchRecipeVersions, id)
+    },
+
+    async restoreVersion(id, versionId) {
+      const recipe = await this.call(api.restoreRecipeVersion, id, versionId)
+      this.refreshPublicRecipes()
+      return recipe
     },
   },
 })

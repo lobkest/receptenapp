@@ -6,30 +6,62 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     Rails.cache.clear # reset rate_limit counters
   end
 
-  test "index returns only approved recipes" do
+  test "index returns every recipe, except those with a deletion request" do
     get api_recipes_url, as: :json
 
     assert_response :ok
     assert_kind_of Array, response.parsed_body
     titles = response.parsed_body.map { |r| r["title"] }
-    assert_includes titles, "Pannenkoeken"
-    assert_not_includes titles, "Erwtensoep"
-    assert_not_includes titles, "Stamppot"
+    assert_equal %w[ Pannenkoeken Stamppot ], titles.sort
   end
 
-  test "show returns an approved recipe" do
+  test "show returns a recipe, with its lock_version for editing" do
     get api_recipe_url(@recipe), as: :json
 
     assert_response :ok
     assert_equal @recipe.id, response.parsed_body["id"]
     assert_equal "Pannenkoeken", response.parsed_body["title"]
+    assert_equal 0, response.parsed_body["lock_version"]
   end
 
   test "index stays compact: no ingredients or steps" do
     get api_recipes_url, as: :json
 
     recipe = response.parsed_body.find { |r| r["title"] == "Pannenkoeken" }
-    assert_equal %w[ created_at description id servings status title updated_at ], recipe.keys.sort
+    assert_equal %w[ created_at description id servings tags title updated_at ], recipe.keys.sort
+    assert_equal %w[ vega zoet ], recipe["tags"]
+  end
+
+  test "index loads tags without one query per recipe" do
+    3.times { |i| create_recipe("Extra #{i}", tag_names: [ "vega", "tag #{i}" ]) }
+
+    queries = count_queries { get api_recipes_url, as: :json }
+
+    # recipes, recipe_tags and tags: the same for 1 or 100 recipes.
+    assert_operator queries, :<=, 3
+  end
+
+  test "index with tags returns only visible recipes with ALL of them" do
+    both = create_recipe("Groentetaart", tag_names: %w[ vega hartig ])
+    create_recipe("Kaasplank", tag_names: %w[ hartig ])
+    create_recipe("Weg ermee", tag_names: %w[ vega hartig ]).request_deletion!
+
+    get api_recipes_url(tags: "Vega,hartig"), as: :json
+
+    assert_response :ok
+    assert_equal [ both.id ], response.parsed_body.pluck("id")
+    assert_equal %w[ hartig vega ], response.parsed_body.first["tags"]
+  end
+
+  test "index with one tag, an unknown tag, or an empty filter" do
+    get api_recipes_url(tags: "vega"), as: :json
+    assert_equal [ "Pannenkoeken" ], response.parsed_body.pluck("title"), "erwtensoep has vega but is hidden"
+
+    get api_recipes_url(tags: "vega,bestaat-niet"), as: :json
+    assert_equal [], response.parsed_body
+
+    get api_recipes_url(tags: ",,"), as: :json
+    assert_equal Recipe.visible.count, response.parsed_body.size
   end
 
   test "show includes ingredients and steps in order" do
@@ -48,8 +80,8 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
   test "show loads ingredients without one query per row" do
     queries = count_queries { get api_recipe_url(@recipe), as: :json }
 
-    # recipe, steps, recipe_ingredients and ingredients: the same for 4 or 40 rows.
-    assert_operator queries, :<=, 4
+    # recipe, recipe_tags, tags, steps, recipe_ingredients and ingredients: the same for 4 or 40 rows.
+    assert_operator queries, :<=, 6
   end
 
   test "show with unknown id returns 404" do
@@ -59,35 +91,40 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Recipe not found", response.parsed_body["error"]
   end
 
-  test "show of a pending recipe returns 404" do
+  test "show of a recipe with a deletion request returns 404" do
     get api_recipe_url(recipes(:erwtensoep)), as: :json
 
     assert_response :not_found
     assert_equal "Recipe not found", response.parsed_body["error"]
   end
 
-  test "show of a rejected recipe returns 404" do
+  test "an older recipe without ingredients and steps is visible like any other" do
     get api_recipe_url(recipes(:stamppot)), as: :json
 
-    assert_response :not_found
+    assert_response :ok
+    assert_equal [], response.parsed_body["steps"]
   end
 
-  test "create with valid data creates a pending recipe" do
+  test "create makes a recipe that is visible right away" do
     assert_difference("Recipe.count", 1) do
       post api_recipes_url, params: { recipe: recipe_params(title: "Hutspot", description: "Wortel en ui", servings: 6) }, as: :json
     end
 
     assert_response :created
     assert_equal "Hutspot", response.parsed_body["title"]
-    assert_equal "pending", response.parsed_body["status"]
-    assert Recipe.last.pending?
+    assert_not response.parsed_body.key?("status")
+
+    get api_recipes_url, as: :json
+    assert_includes response.parsed_body.pluck("title"), "Hutspot"
+    get api_recipe_url(Recipe.last), as: :json
+    assert_response :ok
   end
 
-  test "create ignores a submitted status" do
-    post api_recipes_url, params: { recipe: recipe_params(title: "Sneaky", status: "approved") }, as: :json
+  test "create ignores a deletion request sent along" do
+    post api_recipes_url, params: { recipe: recipe_params(title: "Sneaky", deletion_requested_at: Time.current) }, as: :json
 
     assert_response :created
-    assert Recipe.find(response.parsed_body["id"]).pending?
+    assert_not Recipe.find(response.parsed_body["id"]).deletion_requested?
   end
 
   test "create with ingredients and steps keeps the submitted order" do
@@ -176,6 +213,31 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.parsed_body["errors"]["title"], "moet opgegeven zijn"
   end
 
+  test "create with tag_names reuses existing tags and creates new ones" do
+    assert_difference("Tag.count", 1) do
+      post api_recipes_url, params: { recipe: recipe_params(tag_names: [ "VEGA", "Winter", "winter " ]) }, as: :json
+    end
+
+    assert_response :created
+    assert_equal %w[ vega winter ], response.parsed_body["tags"]
+    recipe = Recipe.find(response.parsed_body["id"])
+    assert_includes recipe.tags, tags(:vega)
+  end
+
+  test "create refuses more than 10 tags or a tag over 30 characters, and creates no tags" do
+    too_many = (1..11).map { |i| "tag #{i}" }
+
+    assert_no_difference([ "Recipe.count", "Tag.count" ]) do
+      post api_recipes_url, params: { recipe: recipe_params(tag_names: too_many) }, as: :json
+    end
+    assert_response :unprocessable_content
+    assert_equal [ "heeft te veel tags (maximaal 10)" ], response.parsed_body["errors"]["tag_names"]
+
+    post api_recipes_url, params: { recipe: recipe_params(tag_names: [ "a" * 31 ]) }, as: :json
+    assert_response :unprocessable_content
+    assert_match "maximaal 30 tekens", response.parsed_body["errors"]["tag_names"].first
+  end
+
   test "create is rate limited per IP" do
     assert_equal 5, Api::RecipesController::SUBMISSIONS_PER_HOUR, "default without RECIPE_SUBMISSIONS_PER_HOUR"
 
@@ -195,10 +257,8 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
   end
 
   # Unknown API routes end up in Api::NotFoundController, so check behaviour instead of routing.
-  test "update and destroy are not publicly routed" do
-    patch api_recipe_url(@recipe), params: { recipe: { title: "Gehackt" } }, as: :json
-    assert_response :not_found
-
+  # Deleting is only a request (see deletion_requests_test.rb); editing is in recipes_update_test.rb.
+  test "destroy is not publicly routed" do
     assert_no_difference("Recipe.count") do
       delete api_recipe_url(@recipe), as: :json
     end
@@ -214,6 +274,10 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
         recipe_ingredients_attributes: [ { ingredient_name: "aardappel", quantity: 1000, unit: "g" } ],
         steps_attributes: [ { body: "Alles koken en stampen." } ]
       }.merge(overrides)
+    end
+
+    def create_recipe(title, **attributes)
+      Recipe.create!(recipe_params(title: title, **attributes))
     end
 
     def count_queries(&block)

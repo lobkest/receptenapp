@@ -1,30 +1,66 @@
 import { defineStore } from 'pinia'
-import { fetchRecipes } from '@/api/recipes'
+import { fetchRecipes, fetchTags } from '@/api/recipes'
 
-// De lijst met goedgekeurde recepten, gedeeld tussen pagina's.
+// Telt elke load(): alleen het antwoord op de laatste mag de lijst vullen. Tik je snel
+// twee filters aan, dan kan het antwoord op de eerste anders later binnenkomen.
+let latestLoad = 0
+
+// De lijst met zichtbare recepten (zonder verwijderverzoek), gedeeld tussen pagina's.
 // Blijft bewaard als je naar een detailpagina gaat en terugkomt.
 export const useRecipesStore = defineStore('recipes', {
   state: () => ({
     recipes: [],
     loading: false,
     error: null,
+    // Het filter van de laatste load(): de getoonde recepten hebben al deze tags.
+    filter: [],
+    // Alle tags van zichtbare recepten, met aantal: [{ name, count }].
+    tags: [],
+    // Korte melding die een paginawissel overleeft, bijv. "… is opgeslagen."
+    notice: null,
   }),
 
   getters: {
     hasRecipes: (state) => state.recipes.length > 0,
     isEmpty: (state) => !state.loading && !state.error && state.recipes.length === 0,
+    tagNames: (state) => state.tags.map((tag) => tag.name),
   },
 
   actions: {
-    async load() {
+    setNotice(message) {
+      this.notice = message
+    },
+
+    // Haalt de melding op en wist hem, zodat hij maar één keer getoond wordt.
+    takeNotice() {
+      const message = this.notice
+      this.notice = null
+      return message
+    },
+
+    // Zonder argument: opnieuw laden met het huidige filter (bijv. na een beheeractie).
+    async load(tags = this.filter) {
+      const current = ++latestLoad
+      this.filter = tags
       this.loading = true
       this.error = null
       try {
-        this.recipes = await fetchRecipes()
+        const recipes = await fetchRecipes(tags)
+        if (current === latestLoad) this.recipes = recipes
       } catch (e) {
-        this.error = e.message
+        if (current === latestLoad) this.error = e.message
       } finally {
-        this.loading = false
+        if (current === latestLoad) this.loading = false
+      }
+    },
+
+    // Fouten negeren we: zonder tags werken het overzicht en de tag-kiezer gewoon
+    // (je kunt dan alleen nieuwe tags typen en niet filteren).
+    async loadTags() {
+      try {
+        this.tags = await fetchTags()
+      } catch {
+        // De oude tags blijven staan.
       }
     },
   },

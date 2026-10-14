@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
-import * as api from '@/api/admin'
-import { useAdminStore } from '@/stores/admin'
+import * as api from '@/api/standardItems'
 import { normalizeName, useShoppingListStore } from '@/stores/shoppingList'
 import { byName, groupByCategory } from '@/utils/grouping'
 
@@ -8,9 +7,8 @@ import { byName, groupByCategory } from '@/utils/grouping'
 // de server; wat hier nog staat, kun je één keer importeren (importLegacy).
 export const LEGACY_STORAGE_KEY = 'standardItems'
 
-// Herkomst op de boodschappenlijst ("uit: standaard"). Recepten hebben een getal
-// als id, dus deze tekst kan nooit met een recept botsen.
-export const STANDARD_SOURCE = { id: 'standaard', title: 'standaard' }
+// Herkomst op de boodschappenlijst ("uit: standaard"), zonder recept.
+export const STANDARD_SOURCE = { label: 'standaard', recipeId: null }
 
 // De oude vorm was { version: 1, items: [{ id, name, quantity, unit, category }] }.
 // Alleen naam en categorie gaan mee: de server kent geen hoeveelheid meer.
@@ -38,9 +36,8 @@ function forgetLegacyItems() {
   }
 }
 
-// De vaste boodschappen, via de beheer-API. Elke actie gaat via admin.call, net als
-// goedkeuren: die stuurt de beheercode mee en logt uit bij een 401. Fouten (ApiError)
-// gooien we door, zodat de pagina de melding kan tonen.
+// De vaste boodschappen, via de openbare API: iedereen met de link ziet en wijzigt
+// dezelfde lijst. Fouten (ApiError) gooien we door, zodat de pagina de melding kan tonen.
 export const useStandardItemsStore = defineStore('standardItems', {
   state: () => ({
     items: [],
@@ -61,38 +58,38 @@ export const useStandardItemsStore = defineStore('standardItems', {
 
   actions: {
     async load() {
-      this.items = await useAdminStore().call(api.fetchStandardItems)
+      this.items = await api.fetchStandardItems()
       this.loaded = true
     },
 
     // fields: { name, category }. De server normaliseert en geeft het nette item terug.
     async add(fields) {
-      const item = await useAdminStore().call(api.createStandardItem, fields)
+      const item = await api.createStandardItem(fields)
       this.items.push(item)
       return item
     },
 
     async update(id, fields) {
-      const item = await useAdminStore().call(api.updateStandardItem, id, fields)
+      const item = await api.updateStandardItem(id, fields)
       this.items = this.items.map((i) => (i.id === id ? item : i))
       return item
     },
 
     async remove(id) {
-      await useAdminStore().call(api.deleteStandardItem, id)
+      await api.deleteStandardItem(id)
       this.items = this.items.filter((i) => i.id !== id)
     },
 
     // Geeft het aantal verwijderde items terug.
     async removeMany(ids) {
-      const { deleted_ids: deleted } = await useAdminStore().call(api.bulkDeleteStandardItems, ids)
+      const { deleted_ids: deleted } = await api.bulkDeleteStandardItems(ids)
       this.items = this.items.filter((i) => !deleted.includes(i.id))
       return deleted.length
     },
 
     // Zet de oude lijst uit localStorage op de server. Namen die er al staan (ook twee keer
     // dezelfde in de oude lijst) slaan we over; wat de server weigert (bijv. te lang) ook.
-    // Daarna is de oude sleutel weg. Gaat het halverwege mis (netwerk, 401), dan blijft de
+    // Daarna is de oude sleutel weg. Gaat het halverwege mis (netwerk), dan blijft de
     // sleutel staan: opnieuw proberen slaat wat al geïmporteerd is gewoon over.
     async importLegacy() {
       const existing = new Set(this.items.map((item) => item.name))
@@ -119,12 +116,12 @@ export const useStandardItemsStore = defineStore('standardItems', {
       return { imported, skipped }
     },
 
-    // Op de bestaande boodschappenlijst (localStorage), zonder hoeveelheid: je moet het
-    // gewoon kopen. Dezelfde naam uit een recept wordt één regel ("uit: …, standaard").
-    // Geeft het aantal toegevoegde items terug.
-    addToShoppingList(ids) {
+    // Op de gedeelde boodschappenlijst, in één request, zonder hoeveelheid: je moet het
+    // gewoon kopen. Elk item wordt een eigen regel met herkomst "standaard", ook als
+    // dezelfde naam er al staat. Geeft het aantal toegevoegde items terug.
+    async addToShoppingList(ids) {
       const chosen = this.items.filter((i) => ids.includes(i.id))
-      useShoppingListStore().addIngredients(
+      await useShoppingListStore().addIngredients(
         chosen.map(({ name }) => ({ name, quantity: null, unit: null })),
         STANDARD_SOURCE,
       )

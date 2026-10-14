@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { LEGACY_STORAGE_KEY, useStandardItemsStore } from '../stores/standardItems'
-import { useAdminStore } from '../stores/admin'
 import { useShoppingListStore } from '../stores/shoppingList'
-import { ADMIN_CODE, authHeaderOf, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
+import { fakeServer, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -36,7 +35,6 @@ describe('standaardboodschappen-store', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
-    sessionStorage.setItem('adminCode', ADMIN_CODE)
   })
 
   afterEach(() => {
@@ -51,23 +49,22 @@ describe('standaardboodschappen-store', () => {
     expect(standard.loaded).toBe(false)
   })
 
-  it('laadt de items met de beheercode in de Authorization-header', async () => {
+  it('laadt de items van de openbare API, zonder beheercode', async () => {
     const { fetch } = fakeStandardServer(ITEMS)
     const standard = await loadedStore()
 
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(fetch.mock.calls[0][0]).toBe('/api/admin/standard_items')
-    expect(authHeaderOf(fetch.mock.calls[0])).toBe(`Bearer ${ADMIN_CODE}`)
+    expect(fetch.mock.calls[0][0]).toBe('/api/standard_items')
+    expect(fetch.mock.calls[0][1].headers?.Authorization).toBeUndefined()
     expect(standard.items.map((i) => i.name)).toEqual(['appels', 'kaas', 'melk', 'wc-papier'])
     expect(standard.loaded).toBe(true)
   })
 
-  it('logt uit en gooit de fout door bij een 401', async () => {
-    mockFetch(() => jsonResponse({ error: 'Unauthorized' }, 401))
+  it('gooit een fout bij laden door en blijft dan niet-geladen', async () => {
+    mockFetch(() => jsonResponse({}, 500))
     const standard = freshStore()
 
-    await expect(standard.load()).rejects.toMatchObject({ kind: 'unauthorized' })
-    expect(useAdminStore().isLoggedIn).toBe(false)
+    await expect(standard.load()).rejects.toMatchObject({ kind: 'server' })
     expect(standard.loaded).toBe(false)
   })
 
@@ -103,7 +100,7 @@ describe('standaardboodschappen-store', () => {
 
     await standard.update(3, { name: 'WC-papier', category: 'huishouden' })
 
-    expect(requestsOf(fetch, 'PATCH')[0][0]).toBe('/api/admin/standard_items/3')
+    expect(requestsOf(fetch, 'PATCH')[0][0]).toBe('/api/standard_items/3')
     expect(standard.items.find((i) => i.id === 3)).toEqual({
       id: 3,
       name: 'wc-papier',
@@ -117,7 +114,7 @@ describe('standaardboodschappen-store', () => {
 
     await standard.remove(2)
 
-    expect(requestsOf(fetch, 'DELETE')[0][0]).toBe('/api/admin/standard_items/2')
+    expect(requestsOf(fetch, 'DELETE')[0][0]).toBe('/api/standard_items/2')
     expect(standard.items.map((i) => i.id)).not.toContain(2)
     expect(standard.items).toHaveLength(3)
   })
@@ -130,7 +127,7 @@ describe('standaardboodschappen-store', () => {
 
     const posts = requestsOf(fetch, 'POST')
     expect(posts).toHaveLength(1)
-    expect(posts[0][0]).toBe('/api/admin/standard_items/bulk_destroy')
+    expect(posts[0][0]).toBe('/api/standard_items/bulk_destroy')
     expect(JSON.parse(posts[0][1].body)).toEqual({ ids: [1, 3] })
     expect(count).toBe(2)
     expect(standard.items.map((i) => i.id).sort()).toEqual([2, 4])
@@ -166,35 +163,55 @@ describe('standaardboodschappen-store', () => {
   })
 
   describe('op de boodschappenlijst', () => {
-    it('zet items erop zonder hoeveelheid, met herkomst "standaard"', async () => {
-      fakeStandardServer(ITEMS)
+    it('zet items in één request op de gedeelde lijst, zonder hoeveelheid, met herkomst "standaard"', async () => {
+      const { fetch, shoppingDb } = fakeStandardServer(ITEMS)
       const standard = await loadedStore()
 
-      expect(standard.addToShoppingList([1, 3])).toBe(2)
+      expect(await standard.addToShoppingList([1, 3])).toBe(2)
 
-      const list = useShoppingListStore()
-      expect(list.items.map((i) => [i.name, i.quantity, i.unit])).toEqual([
-        ['melk', null, null],
-        ['wc-papier', null, null],
+      const posts = requestsOf(fetch, 'POST')
+      expect(posts.map(([url]) => url)).toEqual(['/api/shopping_list_items'])
+      expect(JSON.parse(posts[0][1].body).shopping_list_items).toEqual([
+        { name: 'melk', quantity: null, unit: null, source_label: 'standaard', recipe_id: null },
+        {
+          name: 'wc-papier',
+          quantity: null,
+          unit: null,
+          source_label: 'standaard',
+          recipe_id: null,
+        },
       ])
-      expect(list.items[0].sources).toEqual([{ id: 'standaard', title: 'standaard' }])
-      // Blijft in localStorage, net als de rest van de boodschappenlijst.
-      expect(JSON.parse(localStorage.getItem('shoppingList')).items).toHaveLength(2)
+      expect(shoppingDb.map((i) => i.name)).toEqual(['melk', 'wc-papier'])
+      expect(useShoppingListStore().items).toHaveLength(2)
+      // Niets meer in localStorage: de lijst staat op de server.
+      expect(localStorage.getItem('shoppingList')).toBeNull()
     })
 
-    it('voegt samen met een "naar smaak"-regel met dezelfde naam uit een recept', async () => {
+    it('zet een item als eigen regel naast dezelfde naam uit een recept', async () => {
+      const { shoppingDb } = fakeServer({
+        standard: ITEMS,
+        shopping: [{ id: 7, name: 'melk', source_label: 'Pap', recipe_id: 7 }],
+      })
+      const standard = await loadedStore()
+      await useShoppingListStore().load()
+
+      await standard.addToShoppingList([1])
+
+      expect(shoppingDb).toHaveLength(2)
+      expect(
+        useShoppingListStore().items.map((i) => [i.name, i.source_label, i.recipe_id]),
+      ).toEqual([
+        ['melk', 'Pap', 7],
+        ['melk', 'standaard', null],
+      ])
+    })
+
+    it('gooit een fout door als de server weigert', async () => {
       fakeStandardServer(ITEMS)
       const standard = await loadedStore()
-      useShoppingListStore().add(
-        { name: 'melk', quantity: null, unit: null },
-        { id: 7, title: 'Pap' },
-      )
+      mockFetch(() => jsonResponse({}, 429))
 
-      standard.addToShoppingList([1])
-
-      const [melk] = useShoppingListStore().items
-      expect(useShoppingListStore().items).toHaveLength(1)
-      expect(melk.sources.map((s) => s.title)).toEqual(['Pap', 'standaard'])
+      await expect(standard.addToShoppingList([1])).rejects.toMatchObject({ kind: 'rate_limited' })
     })
   })
 

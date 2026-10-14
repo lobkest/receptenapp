@@ -5,8 +5,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
 import { LEGACY_STORAGE_KEY } from '../stores/standardItems'
-import { useShoppingListStore } from '../stores/shoppingList'
-import { ADMIN_CODE, fakeStandardServer } from './helpers'
+import { fakeStandardServer, jsonResponse, mockFetch } from './helpers'
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -15,7 +14,7 @@ const ITEMS = [
   { id: 4, name: 'wc-papier', category: null },
 ]
 
-// Monteert de hele App, zodat ook het menu en de inloglink echt werken.
+// Monteert de hele App, zodat ook het menu echt werkt.
 // attachTo: anders kan de focus in jsdom niet naar een knop.
 async function mountApp() {
   setActivePinia(createPinia())
@@ -45,18 +44,20 @@ function dialog(wrapper) {
   return wrapper.find('dialog')
 }
 
+// De nep-server van de huidige test (zie beforeEach).
+let server
+
+// Wat er op de (gedeelde) boodschappenlijst op de server staat.
 function shoppingNames() {
-  return useShoppingListStore().items.map((i) => i.name)
+  return server.shoppingDb.map((i) => i.name)
 }
 
 describe('StandardItemsView', () => {
   let wrapper
-  let server
 
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
-    sessionStorage.setItem('adminCode', ADMIN_CODE)
     server = fakeStandardServer(ITEMS)
   })
 
@@ -73,23 +74,24 @@ describe('StandardItemsView', () => {
     expect(link.attributes('href')).toBe('/standaard')
   })
 
-  it('toont zonder beheercode een melding met een link naar Beheer, en laadt niets', async () => {
-    sessionStorage.clear()
+  it('werkt zonder beheercode: geen inlogmelding, en de lijst komt van de openbare API', async () => {
     ;({ wrapper } = await mountApp())
 
-    const notice = wrapper.find('.login-needed')
-    expect(notice.text()).toContain('alleen te zien met de beheercode')
-    expect(notice.find('a').attributes('href')).toBe('/beheer')
-    expect(server.fetch).not.toHaveBeenCalled()
-    expect(wrapper.find('.add-card').exists()).toBe(false)
-    expect(buttonWithText(wrapper, 'Selecteren')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('beheercode')
+    expect(wrapper.find('.login-needed').exists()).toBe(false)
+    expect(wrapper.find('.add-card').exists()).toBe(true)
+    expect(lines(wrapper)).toHaveLength(4)
+    const urls = server.fetch.mock.calls.map(([url]) => url)
+    expect(urls).toContain('/api/standard_items')
+    expect(urls.some((url) => url.includes('/admin/'))).toBe(false)
+    expect(server.fetch.mock.calls.every(([, o]) => !o.headers?.Authorization)).toBe(true)
   })
 
-  it('toont de inlogmelding als de code niet (meer) klopt', async () => {
-    sessionStorage.setItem('adminCode', 'verkeerd')
+  it('toont een melding als de lijst niet geladen kan worden', async () => {
+    mockFetch(() => jsonResponse({}, 500))
     ;({ wrapper } = await mountApp())
 
-    expect(wrapper.find('.login-needed').exists()).toBe(true)
+    expect(wrapper.find('[role="alert"]').text()).toBe('Er ging iets mis op de server.')
   })
 
   it('toont items per categorie, zonder categorie onder "overig", compact met drie icoonknoppen', async () => {
@@ -211,8 +213,11 @@ describe('StandardItemsView', () => {
     ;({ wrapper } = await mountApp())
 
     await rowOf(wrapper, 'melk').find('.add-one').trigger('click')
+    await flushPromises()
 
     expect(shoppingNames()).toEqual(['melk'])
+    expect(server.shoppingDb[0]).toMatchObject({ quantity: null, source_label: 'standaard' })
+    expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (1)')
     expect(wrapper.find('[role="status"]').text()).toContain('melk staat op je boodschappenlijst.')
     await vi.advanceTimersByTimeAsync(3000)
     expect(wrapper.find('.bottom-bar').exists()).toBe(false)
@@ -255,7 +260,13 @@ describe('StandardItemsView', () => {
       await select('melk', 'wc-papier')
 
       await buttonWithText(wrapper, 'Op lijst (2)').trigger('click')
+      await flushPromises()
 
+      // Eén request voor de hele selectie.
+      const posts = server.fetch.mock.calls.filter(
+        ([url, o]) => url === '/api/shopping_list_items' && o.method === 'POST',
+      )
+      expect(posts).toHaveLength(1)
       expect(shoppingNames()).toEqual(['melk', 'wc-papier'])
       expect(wrapper.find('[role="status"]').text()).toContain(
         '2 items op je boodschappenlijst gezet.',
@@ -274,7 +285,7 @@ describe('StandardItemsView', () => {
       await flushPromises()
 
       const posts = server.fetch.mock.calls.filter(([, o]) => o.method === 'POST')
-      expect(posts.map(([url]) => url)).toEqual(['/api/admin/standard_items/bulk_destroy'])
+      expect(posts.map(([url]) => url)).toEqual(['/api/standard_items/bulk_destroy'])
       expect(JSON.parse(posts[0][1].body).ids.sort()).toEqual([1, 2, 3])
       expect(lines(wrapper)).toEqual(['wc-papier'])
       expect(wrapper.find('[role="status"]').text()).toContain('3 items verwijderd.')

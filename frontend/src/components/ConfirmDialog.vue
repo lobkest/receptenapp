@@ -6,16 +6,31 @@ import { nextTick, ref, useId, useTemplateRef } from 'vue'
 //   if (await confirmDialog.value.ask({ title: 'banaan verwijderen?' })) { … }
 // ask() geeft een Promise die true wordt bij "Verwijderen" en false bij Annuleren of Escape.
 // Zo leest de aanroep als window.confirm, maar dan in de stijl van de app.
+//
+// Met een invulveld (bijv. een reden):
+//   const reason = await confirmDialog.value.askWithInput({ title, inputLabel: 'Reden (optioneel)' })
+// geeft null bij Annuleren of Escape, anders de ingevulde tekst (mag leeg zijn).
 
 const uid = useId()
 const dialog = useTemplateRef('dialog')
 const cancelButton = useTemplateRef('cancelButton')
 
-const content = ref({ title: '', text: '', confirmLabel: 'Verwijderen' })
+const content = ref({ title: '', text: '', confirmLabel: 'Verwijderen', inputLabel: null })
+const input = ref('')
 let answer = null
 
 async function ask({ title, text = '', confirmLabel = 'Verwijderen' }) {
-  content.value = { title, text, confirmLabel }
+  return open({ title, text, confirmLabel, inputLabel: null })
+}
+
+async function askWithInput({ title, text = '', confirmLabel = 'Verwijderen', inputLabel }) {
+  const confirmed = await open({ title, text, confirmLabel, inputLabel })
+  return confirmed ? input.value.trim() : null
+}
+
+async function open(options) {
+  content.value = options
+  input.value = ''
   await nextTick()
   // showModal: venster boven alles, rest van de pagina niet aan te klikken. Oudere browsers
   // (en jsdom in de tests) kennen het niet; dan tonen we hem gewoon met het open-attribuut.
@@ -39,7 +54,7 @@ function close(confirmed) {
   answer = null
 }
 
-defineExpose({ ask })
+defineExpose({ ask, askWithInput })
 </script>
 
 <template>
@@ -55,6 +70,10 @@ defineExpose({ ask })
   >
     <h2 :id="`${uid}-title`">{{ content.title }}</h2>
     <p v-if="content.text" :id="`${uid}-text`" class="text">{{ content.text }}</p>
+    <div v-if="content.inputLabel" class="field">
+      <label :for="`${uid}-input`">{{ content.inputLabel }}</label>
+      <textarea :id="`${uid}-input`" v-model="input" class="dialog-input" rows="2"></textarea>
+    </div>
     <div class="actions">
       <button ref="cancelButton" type="button" class="cancel" @click="close(false)">
         Annuleren

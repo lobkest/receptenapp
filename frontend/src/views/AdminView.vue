@@ -1,18 +1,13 @@
 <script setup>
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAdminStore } from '@/stores/admin'
 
+// Beheer is er nog voor twee dingen: verwijderverzoeken afhandelen en versies terugzetten
+// (via de receptpagina of de link hieronder). Toevoegen en bewerken kan iedereen.
 const admin = useAdminStore()
-
-const TABS = [
-  { status: 'pending', label: 'Wachtend' },
-  { status: 'approved', label: 'Goedgekeurd' },
-  { status: 'rejected', label: 'Afgewezen' },
-  { status: '', label: 'Alles' },
-]
-
-const STATUS_LABELS = { pending: 'Wachtend', approved: 'Goedgekeurd', rejected: 'Afgewezen' }
+const confirmDialog = useTemplateRef('confirmDialog')
 
 // --- Inloggen ---
 const codeInput = ref('')
@@ -46,9 +41,8 @@ async function focusCodeField() {
   codeField.value?.focus()
 }
 
-// --- Overzicht ---
-const status = ref('pending')
-const recipes = ref([])
+// --- Verwijderverzoeken ---
+const requests = ref([])
 const loading = ref(false)
 const error = ref(null)
 // id van het recept waarvoor een request loopt; die knoppen zijn dan uitgeschakeld.
@@ -63,7 +57,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    recipes.value = await admin.fetchRecipes(status.value)
+    requests.value = await admin.fetchDeletionRequests()
   } catch (e) {
     error.value = e.message
   } finally {
@@ -71,19 +65,13 @@ async function load() {
   }
 }
 
-function selectTab(tabStatus) {
-  status.value = tabStatus
-  message.value = null
-  load()
-}
-
-// Voert een actie uit op één recept, toont een bevestiging en laadt de lijst opnieuw.
-async function act(recipe, action, successMessage) {
-  busyId.value = recipe.id
+// Voert een actie uit op één verzoek, toont een bevestiging en laadt de lijst opnieuw.
+async function act(request, action, successMessage) {
+  busyId.value = request.id
   message.value = null
   error.value = null
   try {
-    await action(recipe.id)
+    await action(request.id)
     message.value = successMessage
     await load()
   } catch (e) {
@@ -93,31 +81,26 @@ async function act(recipe, action, successMessage) {
   }
 }
 
-function approve(recipe) {
-  act(recipe, admin.approve, `"${recipe.title}" is goedgekeurd.`)
+function restore(request) {
+  act(request, admin.restore, `"${request.title}" is teruggezet en weer zichtbaar.`)
 }
 
-function reject(recipe) {
-  act(recipe, admin.reject, `"${recipe.title}" is afgewezen.`)
-}
-
-function destroy(recipe) {
-  const sure = window.confirm(
-    `"${recipe.title}" definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`,
-  )
-  if (sure) act(recipe, admin.destroy, `"${recipe.title}" is verwijderd.`)
-}
-
-function shorten(text, max = 120) {
-  if (!text) return ''
-  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text
+async function destroy(request) {
+  const sure = await confirmDialog.value.ask({
+    title: `"${request.title}" definitief verwijderen?`,
+    text: 'Het recept en al zijn versies verdwijnen. Dit kan niet ongedaan worden gemaakt.',
+    confirmLabel: 'Definitief verwijderen',
+  })
+  if (sure) act(request, admin.destroy, `"${request.title}" is definitief verwijderd.`)
 }
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('nl-NL', {
+  return new Date(iso).toLocaleString('nl-NL', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -128,7 +111,7 @@ watch(
     if (loggedIn) {
       load()
     } else {
-      recipes.value = []
+      requests.value = []
       message.value = null
       error.value = null
       loginError.value = loggedOutByUser ? null : 'Je code is niet (meer) geldig. Log opnieuw in.'
@@ -177,74 +160,62 @@ onMounted(() => {
       <button type="button" @click="logout">Uitloggen</button>
     </p>
 
-    <div class="tabs" role="group" aria-label="Filter op status">
-      <button
-        v-for="tab in TABS"
-        :key="tab.label"
-        type="button"
-        :aria-pressed="status === tab.status"
-        @click="selectTab(tab.status)"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
+    <h2>Verwijderverzoeken</h2>
+    <p class="muted intro">
+      Deze recepten zijn verborgen omdat iemand ze wil verwijderen. Verwijder ze definitief, of zet
+      ze terug.
+    </p>
 
     <p v-if="message" class="message notice notice-success" role="status">{{ message }}</p>
     <p v-if="error" class="error notice notice-error" role="alert">{{ error }}</p>
 
-    <p v-if="loading && recipes.length === 0" class="muted">Recepten laden…</p>
+    <p v-if="loading && requests.length === 0" class="muted">Verzoeken laden…</p>
 
-    <p v-else-if="!error && recipes.length === 0" class="muted">
-      {{
-        status === 'pending'
-          ? 'Geen recepten om te beoordelen.'
-          : 'Geen recepten in deze categorie.'
-      }}
-    </p>
+    <p v-else-if="!error && requests.length === 0" class="empty card">Geen verwijderverzoeken.</p>
 
-    <ul v-else class="recipes">
-      <li v-for="recipe in recipes" :key="recipe.id" class="card">
-        <h2>{{ recipe.title }}</h2>
+    <ul v-else class="requests">
+      <li v-for="request in requests" :key="request.id" class="card" :data-id="request.id">
+        <h3>{{ request.title }}</h3>
         <p class="meta">
-          {{ recipe.servings }} {{ recipe.servings === 1 ? 'portie' : 'porties' }} ·
-          {{ STATUS_LABELS[recipe.status] ?? recipe.status }} · ingestuurd op
-          <time :datetime="recipe.created_at">{{ formatDate(recipe.created_at) }}</time>
+          Aangevraagd op
+          <time :datetime="request.deletion_requested_at">
+            {{ formatDate(request.deletion_requested_at) }}
+          </time>
         </p>
-        <p v-if="recipe.description" class="description">{{ shorten(recipe.description) }}</p>
+        <p class="reason">
+          <template v-if="request.deletion_reason">Reden: {{ request.deletion_reason }}</template>
+          <span v-else class="muted">Geen reden opgegeven.</span>
+        </p>
 
         <div class="actions">
           <button
-            v-if="recipe.status !== 'approved'"
             type="button"
-            class="btn-primary"
-            :disabled="busyId === recipe.id"
-            @click="approve(recipe)"
+            class="restore btn-primary"
+            :disabled="busyId === request.id"
+            @click="restore(request)"
           >
-            Goedkeuren
+            Terugzetten
           </button>
-          <button
-            v-if="recipe.status !== 'rejected'"
-            type="button"
-            :disabled="busyId === recipe.id"
-            @click="reject(recipe)"
+          <RouterLink
+            :to="{ name: 'admin-recipe-versions', params: { id: request.id } }"
+            class="btn versions"
           >
-            Afwijzen
-          </button>
-          <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`" class="btn">
-            Bewerken
+            Versies
           </RouterLink>
           <button
             type="button"
-            class="btn-danger"
-            :disabled="busyId === recipe.id"
-            @click="destroy(recipe)"
+            class="destroy btn-danger"
+            :disabled="busyId === request.id"
+            @click="destroy(request)"
           >
-            Verwijderen
+            Definitief verwijderen
           </button>
         </div>
       </li>
     </ul>
   </template>
+
+  <ConfirmDialog ref="confirmDialog" />
 </template>
 
 <style scoped>
@@ -261,30 +232,15 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* Tabs als segmentknoppen: één rij, de gekozen tab gevuld groen. */
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-bottom: var(--space-4);
-  padding: var(--space-1);
-  background: var(--color-surface-hover);
-  border-radius: var(--radius);
-}
-
-.tabs button {
-  flex: 1 1 auto;
+.intro {
   font-size: var(--text-sm);
-  background: transparent;
-  border-color: transparent;
 }
 
-.tabs button[aria-pressed='true'] {
-  color: var(--color-on-brand);
-  background: var(--color-brand);
+.empty {
+  text-align: center;
 }
 
-.recipes {
+.requests {
   display: grid;
   gap: var(--space-3);
   margin: 0;
@@ -292,9 +248,10 @@ onMounted(() => {
   list-style: none;
 }
 
-h2 {
+h3 {
   margin: 0;
   font-size: var(--text-lg);
+  overflow-wrap: anywhere;
 }
 
 .meta {
@@ -303,8 +260,9 @@ h2 {
   color: var(--color-text-muted);
 }
 
-.description {
+.reason {
   margin-bottom: var(--space-3);
+  overflow-wrap: anywhere;
 }
 
 .actions {

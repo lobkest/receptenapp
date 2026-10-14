@@ -12,14 +12,26 @@ nl:
       ingredient: ingrediënt
       step: stap
       standard_item: standaarditem
+      recipe_version: versie
+      shopping_list_item: boodschap
+      tag: tag
+      recipe_tag: tag van recept
     attributes:
       recipe:
         title: Titel
         description: Beschrijving
         servings: Porties
-        status: Status
         steps: Stappen
         recipe_ingredients: Ingrediënten
+        tags: Tags
+        tag_names: Tags
+        lock_version: Versie
+        deletion_reason: Reden
+        deletion_requested_at: Verwijderen aangevraagd op
+      recipe_version:
+        recipe: Recept
+        snapshot: Inhoud
+        summary: Samenvatting
       recipe_ingredient:
         ingredient_name: Naam
         quantity: Hoeveelheid
@@ -33,6 +45,29 @@ nl:
       standard_item:
         name: Naam
         category: Categorie
+      shopping_list_item:
+        name: Naam
+        quantity: Hoeveelheid
+        unit: Eenheid
+        source_label: Herkomst
+        recipe: Recept
+        checked: Afgevinkt
+      tag:
+        name: Naam
+        recipes: Recepten
+      recipe_tag:
+        recipe: Recept
+        tag: Tag
+    errors:
+      models:
+        recipe:
+          attributes:
+            tag_names:
+              too_many_tags: "heeft te veel tags (maximaal %{count})"
+              tag_too_long: "bevat een te lange tag: \"%{name}\" (maximaal %{count} tekens)"
+              tag_with_comma: "bevat een tag met een komma: \"%{name}\""
+  recipes:
+    conflict: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
   errors:
     messages:
       too_many: "heeft te veel regels (maximaal %{count})"

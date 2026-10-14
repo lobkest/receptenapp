@@ -1,8 +1,10 @@
 <script setup>
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { fetchRecipe } from '@/api/recipes'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { fetchRecipe, requestDeletion } from '@/api/recipes'
 import { useAdminStore } from '@/stores/admin'
+import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
 
@@ -16,25 +18,35 @@ const loading = ref(false)
 const notFound = ref(false)
 const error = ref(null)
 
-// Alleen voor de beheerder: bewerken en verwijderen vanaf deze pagina.
-const admin = useAdminStore()
 const router = useRouter()
+const recipes = useRecipesStore()
+// Alleen voor de beheerder: een link naar de versies.
+const admin = useAdminStore()
+// Een melding van de vorige pagina, bijv. "… is opgeslagen." na bewerken.
+const notice = ref(recipes.takeNotice())
+
+// Verwijderen kan iedereen aanvragen. Het recept is dan meteen verborgen; de beheerder
+// beslist of het definitief weg gaat of terugkomt.
+const confirmDialog = useTemplateRef('confirmDialog')
 const deleting = ref(false)
 const deleteError = ref(null)
 
-async function destroy() {
+async function askDeletion() {
   const title = recipe.value.title
-  const sure = window.confirm(
-    `"${title}" definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`,
-  )
-  if (!sure) return
+  const reason = await confirmDialog.value.askWithInput({
+    title: `"${title}" verwijderen?`,
+    text: 'Het recept verdwijnt meteen uit het overzicht. De beheerder kan het nog terugzetten.',
+    inputLabel: 'Reden (optioneel)',
+  })
+  if (reason === null) return
 
   deleting.value = true
   deleteError.value = null
   try {
-    await admin.destroy(recipe.value.id)
-    admin.setFlash(`"${title}" is verwijderd.`)
-    router.push({ name: 'admin' })
+    await requestDeletion(recipe.value.id, reason)
+    recipes.setNotice(`"${title}" is verwijderd.`)
+    recipes.loadTags()
+    router.push({ name: 'recipes' })
   } catch (e) {
     deleteError.value = e.message
   } finally {
@@ -97,9 +109,10 @@ function ingredientLine(ingredient) {
 }
 
 // Boodschappenlijst: we voegen de geschaalde hoeveelheden toe, dus precies wat
-// je op het scherm ziet.
+// je op het scherm ziet. De lijst staat op de server, dus dit kan mislukken.
 const shoppingList = useShoppingListStore()
 const addedMessage = ref(null)
+const addError = ref(null)
 let messageTimer = null
 
 function confirmAdded(message) {
@@ -110,16 +123,29 @@ function confirmAdded(message) {
 
 onUnmounted(() => clearTimeout(messageTimer))
 
+async function addIngredients(ingredients, message) {
+  addError.value = null
+  try {
+    await shoppingList.addIngredients(ingredients, {
+      label: recipe.value.title,
+      recipeId: recipe.value.id,
+    })
+    confirmAdded(message)
+  } catch (e) {
+    addedMessage.value = null
+    addError.value = e.message
+  }
+}
+
 function addToList(ingredient) {
-  shoppingList.add(ingredient, recipe.value)
-  confirmAdded(`${ingredient.name} staat op je boodschappenlijst.`)
+  addIngredients([ingredient], `${ingredient.name} staat op je boodschappenlijst.`)
 }
 
 // Optionele ingrediënten slaan we over: die zet je los op de lijst met "+ lijst".
 function addAllToList() {
   const required = scaledIngredients.value.filter((ingredient) => !ingredient.optional)
-  shoppingList.addIngredients(required, recipe.value)
-  confirmAdded(
+  addIngredients(
+    required,
     required.length < scaledIngredients.value.length
       ? 'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.'
       : 'Alle ingrediënten staan op je boodschappenlijst.',
@@ -136,12 +162,13 @@ watch(() => props.id, load, { immediate: true })
 
   <div v-else-if="notFound">
     <h1>Recept niet gevonden</h1>
-    <p>Dit recept bestaat niet of is nog niet goedgekeurd.</p>
+    <p>Dit recept bestaat niet (meer).</p>
   </div>
 
   <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
   <article v-else-if="recipe">
+    <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
     <h1>{{ recipe.title }}</h1>
     <div class="servings">
       <button
@@ -194,6 +221,7 @@ watch(() => props.id, load, { immediate: true })
       <p v-if="addedMessage" class="added notice notice-success" role="status">
         {{ addedMessage }}
       </p>
+      <p v-if="addError" class="added notice notice-error" role="alert">{{ addError }}</p>
     </section>
 
     <section v-if="recipe.steps?.length" class="steps">
@@ -203,14 +231,26 @@ watch(() => props.id, load, { immediate: true })
       </ol>
     </section>
 
-    <div v-if="admin.isLoggedIn" class="admin-actions">
-      <RouterLink :to="`/beheer/recepten/${recipe.id}/bewerken`" class="btn">Bewerken</RouterLink>
-      <button type="button" class="btn-danger" :disabled="deleting" @click="destroy">
+    <!-- Voor iedereen: bewerken en verwijderen (aanvragen). Versies alleen voor de beheerder. -->
+    <div class="recipe-actions">
+      <RouterLink :to="{ name: 'recipe-edit', params: { id: recipe.id } }" class="btn edit">
+        Bewerken
+      </RouterLink>
+      <RouterLink
+        v-if="admin.isLoggedIn"
+        :to="{ name: 'admin-recipe-versions', params: { id: recipe.id } }"
+        class="btn versions"
+      >
+        Versies
+      </RouterLink>
+      <button type="button" class="btn-danger delete" :disabled="deleting" @click="askDeletion">
         Verwijderen
       </button>
       <p v-if="deleteError" class="error" role="alert">{{ deleteError }}</p>
     </div>
   </article>
+
+  <ConfirmDialog ref="confirmDialog" />
 
   <p><RouterLink to="/" class="back-link">← Terug naar alle recepten</RouterLink></p>
 </template>
@@ -321,7 +361,7 @@ watch(() => props.id, load, { immediate: true })
   color: var(--color-accent-text);
 }
 
-.admin-actions {
+.recipe-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

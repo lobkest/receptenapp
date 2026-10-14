@@ -2,16 +2,16 @@ pannenkoeken:
   title: Pannenkoeken
   description: Klassieke Hollandse pannenkoeken
   servings: 4
-  status: approved
 
+# Someone asked to delete it: hidden from the public until the admin decides.
 erwtensoep:
   title: Erwtensoep
-  description: Ingestuurd, wacht op goedkeuring
+  description: Iemand vroeg om dit recept te verwijderen
   servings: 6
-  status: pending
+  deletion_requested_at: <%= 1.hour.ago.to_fs(:db) %>
+  deletion_reason: dubbel recept
 
 stamppot:
   title: Stamppot
-  description: Ingestuurd en afgewezen
+  description: Een ouder recept, zonder ingrediënten en stappen
   servings: 4
-  status: rejected

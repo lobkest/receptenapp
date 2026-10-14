@@ -1,14 +1,13 @@
 <script setup>
-import { onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
-import { useAdminStore } from '@/stores/admin'
 import { useStandardItemsStore } from '@/stores/standardItems'
 
-// De items staan op de server (via de store). Wat je selecteert en welk item je
-// bewerkt, is alleen state van deze pagina.
-const admin = useAdminStore()
+// De items staan op de server (via de store), openbaar: iedereen met de link ziet en
+// wijzigt dezelfde lijst. Wat je selecteert en welk item je bewerkt, is alleen state
+// van deze pagina.
 const standard = useStandardItemsStore()
 const confirmDialog = useTemplateRef('confirmDialog')
 
@@ -22,19 +21,13 @@ async function load() {
   try {
     await standard.load()
   } catch (e) {
-    // Bij een 401 logt de admin-store uit; dan toont de pagina de inlogmelding.
     error.value = e.message
   } finally {
     loading.value = false
   }
 }
 
-// Laden zodra er een beheercode is: meteen, of nadat je bent ingelogd.
-watch(
-  () => admin.isLoggedIn,
-  (loggedIn) => loggedIn && load(),
-  { immediate: true },
-)
+onMounted(load)
 
 // Voert een actie uit; een validatiefout gaat naar setErrors (bij het formulier),
 // elke andere fout bovenaan de pagina. Geeft true als het gelukt is.
@@ -107,9 +100,10 @@ async function saveEdit(id, fields) {
 
 // ---------- Losse acties per item ----------
 
-function addOne(item) {
-  standard.addToShoppingList([item.id])
-  confirm(`${item.name} staat op je boodschappenlijst.`)
+async function addOne(item) {
+  if (await attempt(() => standard.addToShoppingList([item.id]))) {
+    confirm(`${item.name} staat op je boodschappenlijst.`)
+  }
 }
 
 async function removeOne(item) {
@@ -135,8 +129,10 @@ function stopSelecting() {
   selected.value = []
 }
 
-function addSelected() {
-  const count = standard.addToShoppingList(selected.value)
+async function addSelected() {
+  let count = 0
+  const ok = await attempt(async () => (count = await standard.addToShoppingList(selected.value)))
+  if (!ok) return
   stopSelecting()
   confirm(`${countText(count)} op je boodschappenlijst gezet.`)
 }
@@ -177,140 +173,133 @@ async function importLegacy() {
   <h1>Standaardboodschappen</h1>
   <p class="muted">Wat je vaak koopt. Zet het met één tik op je boodschappenlijst.</p>
 
-  <div v-if="!admin.isLoggedIn" class="login-needed card" role="status">
-    <p>De standaardlijst staat op de server en is alleen te zien met de beheercode.</p>
-    <RouterLink to="/beheer" class="btn btn-primary">Inloggen bij Beheer</RouterLink>
+  <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+
+  <div v-if="standard.legacyItems.length && standard.loaded" class="import card">
+    <p>
+      In deze browser staat nog een oude standaardlijst ({{
+        countText(standard.legacyItems.length)
+      }}). Zet hem op de server; wat er al staat, wordt overgeslagen.
+    </p>
+    <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
+      Lijst uit deze browser importeren
+    </button>
   </div>
 
-  <template v-else>
-    <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+  <section class="card add-card">
+    <h2>Item toevoegen</h2>
+    <StandardItemForm
+      :key="addFormKey"
+      submit-label="Toevoegen"
+      :categories="standard.categories"
+      :errors="addErrors"
+      :submitting="saving"
+      @save="addItem"
+    />
+  </section>
 
-    <div v-if="standard.legacyItems.length && standard.loaded" class="import card">
-      <p>
-        In deze browser staat nog een oude standaardlijst ({{
-          countText(standard.legacyItems.length)
-        }}). Zet hem op de server; wat er al staat, wordt overgeslagen.
-      </p>
-      <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
-        Lijst uit deze browser importeren
-      </button>
-    </div>
+  <p v-if="loading" class="muted">Standaardlijst laden…</p>
 
-    <section class="card add-card">
-      <h2>Item toevoegen</h2>
-      <StandardItemForm
-        :key="addFormKey"
-        submit-label="Toevoegen"
-        :categories="standard.categories"
-        :errors="addErrors"
-        :submitting="saving"
-        @save="addItem"
-      />
-    </section>
+  <p v-else-if="standard.loaded && standard.items.length === 0" class="empty card">
+    Je hebt nog geen standaardboodschappen. Voeg hierboven je eerste item toe.
+  </p>
 
-    <p v-if="loading" class="muted">Standaardlijst laden…</p>
+  <!-- Rechtsboven de lijst, niet naast de titel: daar zou "Standaardboodschappen"
+       op een telefoon over drie regels afbreken. -->
+  <div v-if="standard.items.length" class="list-toolbar">
+    <span class="muted">{{ countText(standard.items.length) }}</span>
+    <button v-if="!selecting" type="button" class="start-selecting" @click="startSelecting">
+      Selecteren
+    </button>
+    <span v-else class="muted">Kies items</span>
+  </div>
 
-    <p v-else-if="standard.loaded && standard.items.length === 0" class="empty card">
-      Je hebt nog geen standaardboodschappen. Voeg hierboven je eerste item toe.
-    </p>
+  <section v-for="group in standard.groups" :key="group.category ?? ''" class="group">
+    <h2>{{ group.category ?? 'overig' }}</h2>
+    <ul class="items card">
+      <li v-for="item in group.items" :key="item.id" :data-id="item.id">
+        <StandardItemForm
+          v-if="editingId === item.id"
+          :initial="item"
+          submit-label="Opslaan"
+          cancellable
+          :categories="standard.categories"
+          :errors="editErrors"
+          :submitting="saving"
+          @save="saveEdit(item.id, $event)"
+          @cancel="editingId = null"
+        />
 
-    <!-- Rechtsboven de lijst, niet naast de titel: daar zou "Standaardboodschappen"
-         op een telefoon over drie regels afbreken. -->
-    <div v-if="standard.items.length" class="list-toolbar">
-      <span class="muted">{{ countText(standard.items.length) }}</span>
-      <button v-if="!selecting" type="button" class="start-selecting" @click="startSelecting">
-        Selecteren
-      </button>
-      <span v-else class="muted">Kies items</span>
-    </div>
+        <label v-else-if="selecting" class="row select">
+          <input v-model="selected" type="checkbox" :value="item.id" />
+          <span class="line">{{ item.name }}</span>
+        </label>
 
-    <section v-for="group in standard.groups" :key="group.category ?? ''" class="group">
-      <h2>{{ group.category ?? 'overig' }}</h2>
-      <ul class="items card">
-        <li v-for="item in group.items" :key="item.id" :data-id="item.id">
-          <StandardItemForm
-            v-if="editingId === item.id"
-            :initial="item"
-            submit-label="Opslaan"
-            cancellable
-            :categories="standard.categories"
-            :errors="editErrors"
-            :submitting="saving"
-            @save="saveEdit(item.id, $event)"
-            @cancel="editingId = null"
-          />
-
-          <label v-else-if="selecting" class="row select">
-            <input v-model="selected" type="checkbox" :value="item.id" />
-            <span class="line">{{ item.name }}</span>
-          </label>
-
-          <div v-else class="row">
-            <span class="line">{{ item.name }}</span>
-            <div class="item-actions">
-              <button
-                type="button"
-                class="icon add-one"
-                :aria-label="`${item.name} op boodschappenlijst`"
-                @click="addOne(item)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon edit"
-                :aria-label="`${item.name} bewerken`"
-                @click="startEdit(item)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
-                  <path d="m13.5 6.5 4 4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon remove"
-                :aria-label="`${item.name} verwijderen`"
-                @click="removeOne(item)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-                </svg>
-              </button>
-            </div>
+        <div v-else class="row">
+          <span class="line">{{ item.name }}</span>
+          <div class="item-actions">
+            <button
+              type="button"
+              class="icon add-one"
+              :aria-label="`${item.name} op boodschappenlijst`"
+              @click="addOne(item)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon edit"
+              :aria-label="`${item.name} bewerken`"
+              @click="startEdit(item)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+                <path d="m13.5 6.5 4 4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon remove"
+              :aria-label="`${item.name} verwijderen`"
+              @click="removeOne(item)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+              </svg>
+            </button>
           </div>
-        </li>
-      </ul>
-    </section>
+        </div>
+      </li>
+    </ul>
+  </section>
 
-    <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
-    <div v-if="selecting || message" class="bottom-bar card">
-      <p v-if="message" class="added notice notice-success" role="status">
-        {{ message }} <RouterLink to="/boodschappen">Bekijk lijst</RouterLink>
-      </p>
-      <div v-if="selecting" class="selection-actions">
-        <button
-          type="button"
-          class="add-selected btn-primary"
-          :disabled="selected.length === 0"
-          @click="addSelected"
-        >
-          Op lijst ({{ selected.length }})
-        </button>
-        <button
-          type="button"
-          class="remove-selected btn-danger"
-          :disabled="selected.length === 0"
-          @click="removeSelected"
-        >
-          Verwijderen ({{ selected.length }})
-        </button>
-        <button type="button" class="stop-selecting" @click="stopSelecting">Annuleren</button>
-      </div>
+  <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
+  <div v-if="selecting || message" class="bottom-bar card">
+    <p v-if="message" class="added notice notice-success" role="status">
+      {{ message }} <RouterLink to="/boodschappen">Bekijk lijst</RouterLink>
+    </p>
+    <div v-if="selecting" class="selection-actions">
+      <button
+        type="button"
+        class="add-selected btn-primary"
+        :disabled="selected.length === 0"
+        @click="addSelected"
+      >
+        Op lijst ({{ selected.length }})
+      </button>
+      <button
+        type="button"
+        class="remove-selected btn-danger"
+        :disabled="selected.length === 0"
+        @click="removeSelected"
+      >
+        Verwijderen ({{ selected.length }})
+      </button>
+      <button type="button" class="stop-selecting" @click="stopSelecting">Annuleren</button>
     </div>
-  </template>
+  </div>
 
   <ConfirmDialog ref="confirmDialog" />
 </template>
@@ -327,10 +316,6 @@ async function importLegacy() {
 
 .start-selecting {
   font-size: var(--text-sm);
-}
-
-.login-needed {
-  text-align: center;
 }
 
 .import,

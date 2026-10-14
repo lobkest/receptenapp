@@ -1,9 +1,9 @@
-// Gedeelde basis voor alle API-modules (recipes.js en admin.js).
+// Gedeelde basis voor alle API-modules (recipes.js, admin.js, shoppingList.js, standardItems.js).
 // URL's zijn relatief (/api/...): in development vangt de Vite-proxy ze op,
 // in productie serveert Rails de frontend zelf op hetzelfde domein.
 
 export class ApiError extends Error {
-  // kind: 'network' | 'unauthorized' | 'not_found' | 'validation' | 'rate_limited' | 'server'
+  // kind: 'network' | 'unauthorized' | 'not_found' | 'conflict' | 'validation' | 'rate_limited' | 'server'
   constructor(kind, message, { status = null, errors = {} } = {}) {
     super(message)
     this.name = 'ApiError'
@@ -40,13 +40,22 @@ export async function request(path, options = {}) {
       throw new ApiError('unauthorized', 'De beheercode is onjuist of verlopen.', { status: 401 })
     case 404:
       throw new ApiError('not_found', 'Niet gevonden.', { status: 404 })
+    // Iemand anders heeft het recept intussen gewijzigd (lock_version). De server stuurt
+    // de Nederlandse melding mee.
+    case 409:
+      throw new ApiError(
+        'conflict',
+        body.error ??
+          'Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.',
+        { status: 409 },
+      )
     case 422:
       throw new ApiError('validation', 'Controleer de ingevulde velden.', {
         status: 422,
         errors: body.errors ?? {},
       })
     case 429:
-      throw new ApiError('rate_limited', 'Te veel inzendingen. Probeer het later opnieuw.', {
+      throw new ApiError('rate_limited', 'Te veel verzoeken. Probeer het later opnieuw.', {
         status: 429,
       })
     default:

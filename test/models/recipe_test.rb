@@ -28,40 +28,91 @@ class RecipeTest < ActiveSupport::TestCase
     end
   end
 
+  test "tag_names koppelt bestaande tags en maakt nieuwe aan, genormaliseerd en zonder dubbele" do
+    recipe = new_recipe(tag_names: [ " Vega ", "vega", "Glutenvrij", "" ])
+
+    assert_difference("Tag.count", 1) { recipe.save! }
+    assert_equal %w[ glutenvrij vega ], recipe.reload.tags.map(&:name).sort
+    assert_equal tags(:vega), recipe.tags.find_by(name: "vega")
+  end
+
+  test "tag_names vervangt bij bijwerken alle tags; zonder tag_names blijven ze staan" do
+    recipe = recipes(:pannenkoeken)
+
+    recipe.update!(tag_names: [ "zoet", "snel" ])
+    assert_equal %w[ snel zoet ], recipe.reload.tags.map(&:name).sort
+
+    recipe.update!(title: "Flensjes")
+    assert_equal %w[ snel zoet ], recipe.reload.tags.map(&:name).sort
+
+    recipe.update!(tag_names: [])
+    assert_empty recipe.reload.tags
+  end
+
+  test "maximaal 10 tags" do
+    assert new_recipe(tag_names: (1..10).map { |i| "tag #{i}" }).valid?
+
+    recipe = new_recipe(tag_names: (1..11).map { |i| "tag #{i}" })
+    assert_not recipe.valid?
+    assert_includes recipe.errors.full_messages, "Tags heeft te veel tags (maximaal 10)"
+  end
+
+  test "een tag is maximaal 30 tekens en heeft geen komma" do
+    assert new_recipe(tag_names: [ "a" * 30 ]).valid?
+
+    recipe = new_recipe(tag_names: [ "a" * 31, "vega,snel" ])
+    assert_not recipe.valid?
+    assert recipe.errors.added?(:tag_names, :tag_too_long, name: "a" * 31, count: 30)
+    assert recipe.errors.added?(:tag_names, :tag_with_comma, name: "vega,snel")
+  end
+
+  test "een ongeldig recept maakt geen nieuwe tags aan" do
+    assert_no_difference("Tag.count") { new_recipe(title: nil, tag_names: [ "nieuw" ]).save }
+  end
+
+  test "tagged_with_all: alleen recepten met alle tags (AND)" do
+    both = new_recipe(title: "Beide", tag_names: %w[ vega snel ]).tap(&:save!)
+    only_vega = new_recipe(title: "Alleen vega", tag_names: %w[ vega ]).tap(&:save!)
+
+    assert_equal [ both ], Recipe.tagged_with_all(%w[ vega snel ]).to_a
+    assert_equal [ both ], Recipe.tagged_with_all([ " Snel", "VEGA", "vega" ]).to_a
+    assert_includes Recipe.tagged_with_all(%w[ vega ]), only_vega
+    assert_empty Recipe.tagged_with_all(%w[ vega bestaat-niet ])
+    assert_equal Recipe.count, Recipe.tagged_with_all([ "", " " ]).count
+  end
+
   test "fixture is geldig" do
     assert recipes(:pannenkoeken).valid?
   end
 
-  test "nieuw recept is standaard pending" do
-    assert new_recipe.pending?
+  test "nieuw recept is direct zichtbaar" do
+    recipe = new_recipe.tap(&:save!)
+
+    assert_includes Recipe.visible, recipe
+    assert_not recipe.deletion_requested?
   end
 
-  test "status accepteert pending, approved en rejected" do
-    %w[ pending approved rejected ].each do |status|
-      recipe = new_recipe(status: status)
-      assert recipe.valid?, "#{status} zou geldig moeten zijn"
-    end
+  test "een verwijderverzoek verbergt het recept, terugzetten maakt het weer zichtbaar" do
+    recipe = recipes(:pannenkoeken)
+
+    recipe.request_deletion!("  dubbel   ")
+    assert_not_includes Recipe.visible, recipe
+    assert_includes Recipe.deletion_requested, recipe
+    assert_equal "dubbel", recipe.deletion_reason
+
+    recipe.cancel_deletion_request!
+    assert_includes Recipe.visible, recipe
+    assert_nil recipe.reload.deletion_reason
   end
 
-  test "onbekende status is ongeldig" do
-    recipe = new_recipe(status: "banaan")
-    assert_not recipe.valid?
-    assert recipe.errors[:status].any?
-  end
+  test "lock_version weigert een verouderde wijziging" do
+    first = Recipe.find(recipes(:pannenkoeken).id)
+    second = Recipe.find(recipes(:pannenkoeken).id)
 
-  test "approved! slaat de nieuwe status op" do
-    recipe = recipes(:erwtensoep)
-    recipe.approved!
-    assert recipe.reload.approved?
-  end
+    first.update!(title: "Flensjes")
 
-  test "scopes filteren op status" do
-    assert_includes Recipe.approved, recipes(:pannenkoeken)
-    assert_not_includes Recipe.approved, recipes(:erwtensoep)
-    assert_not_includes Recipe.approved, recipes(:stamppot)
+    assert_raises(ActiveRecord::StaleObjectError) { second.update!(title: "Crêpes") }
   end
-
-  # Ingredients and steps
 
   test "nieuw recept zonder ingrediënten of stappen is ongeldig" do
     recipe = new_recipe(recipe_ingredients_attributes: [], steps_attributes: [])
@@ -153,7 +204,7 @@ class RecipeTest < ActiveSupport::TestCase
   end
 
   test "een ouder recept zonder ingrediënten en stappen blijft geldig bij een andere wijziging" do
-    recipe = recipes(:erwtensoep)
+    recipe = recipes(:stamppot)
     assert_empty recipe.steps
 
     assert recipe.update(title: "Snert")

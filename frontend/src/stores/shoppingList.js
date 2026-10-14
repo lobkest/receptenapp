@@ -1,91 +1,86 @@
 import { defineStore } from 'pinia'
-import { roundQuantity } from '@/utils/quantity'
+import * as api from '@/api/shoppingList'
 
-// localStorage: blijft bewaard na sluiten van de browser, maar alleen in deze
-// browser op dit apparaat. Prima voor een boodschappenlijst (niet geheim);
-// niet voor de beheercode, die staat bewust in sessionStorage.
-const STORAGE_KEY = 'shoppingList'
+// De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
+// op elk apparaat dezelfde. Deze store praat alleen met de API. Regels worden nooit
+// samengevoegd: twee keer bloem (uit twee recepten) zijn twee regels, elk met eigen herkomst.
 
-// Verhoog dit als de vorm van de opgeslagen data verandert, en zet oude data
-// dan in readStoredItems om naar de nieuwe vorm.
-const VERSION = 1
+// Vroeger stond de lijst in localStorage onder deze sleutel. Wat daar nog staat, kun je
+// één keer importeren (importLegacy); daarna wissen we de sleutel.
+export const LEGACY_STORAGE_KEY = 'shoppingList'
+const LEGACY_VERSION = 1
 
-// "  Rode  Ui " → "rode ui". Bewust simpel: "ui" en "uien" blijven verschillend,
-// en er is geen omrekening tussen eenheden (100 g ui ≠ 1 stuks ui).
+// Zoveel regels neemt de server per request aan (MAX_ITEMS_PER_REQUEST).
+const MAX_PER_REQUEST = 100
+// Langere namen weigert de server (ShoppingListItem::MAX_LENGTH); die slaan we bij de import over.
+const MAX_NAME_LENGTH = 100
+
+// "  Rode  Ui " → "rode ui", net als de server.
 export function normalizeName(name) {
   return String(name).trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function itemKey(name, unit) {
-  return `${normalizeName(name)}|${unit ?? ''}`
-}
-
-function isValidItem(item) {
-  return (
-    item !== null &&
-    typeof item === 'object' &&
-    typeof item.key === 'string' &&
-    typeof item.name === 'string' &&
-    (item.unit === null || typeof item.unit === 'string') &&
-    (item.quantity === null || Number.isFinite(item.quantity)) &&
-    typeof item.checked === 'boolean' &&
-    Array.isArray(item.sources)
-  )
-}
-
-// Leest de lijst uit localStorage. Alles wat kapot, onbekend of van een andere
-// versie is, levert een lege lijst op in plaats van een crash. Losse ongeldige
-// regels worden overgeslagen; de rest blijft staan.
-function readStoredItems() {
+// De oude vorm was { version: 1, items: [{ key, name, quantity, unit, checked, sources }] },
+// met sources: [{ id, title }]. De recept-id's sturen we niet mee: dat recept kan
+// inmiddels verwijderd zijn, en dan zou de server de hele import weigeren. De titels
+// blijven wel staan als herkomst. Kapotte data levert een lege lijst op, en dan
+// verschijnt de importknop gewoon niet.
+function readLegacyItems() {
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (data?.version !== VERSION || !Array.isArray(data.items)) return []
-    return data.items.filter(isValidItem)
+    const data = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY))
+    if (data?.version !== LEGACY_VERSION || !Array.isArray(data.items)) return []
+    return data.items
+      .filter(
+        (item) =>
+          typeof item?.name === 'string' &&
+          item.name.trim() &&
+          item.name.trim().length <= MAX_NAME_LENGTH &&
+          (item.quantity == null || Number.isFinite(item.quantity)),
+      )
+      .map((item) => {
+        const hasQuantity = item.quantity != null && typeof item.unit === 'string'
+        const titles = Array.isArray(item.sources)
+          ? item.sources.map((source) => source?.title).filter((t) => typeof t === 'string')
+          : []
+        return {
+          name: item.name,
+          quantity: hasQuantity ? item.quantity : null,
+          unit: hasQuantity ? item.unit : null,
+          source_label: titles.join(', ') || null,
+          checked: item.checked === true,
+        }
+      })
   } catch {
     return []
   }
 }
 
-function storeItems(items) {
+function forgetLegacyItems() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: VERSION, items }))
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
   } catch {
-    // Privémodus of opslag vol: dan werkt de lijst tot je herlaadt.
+    // Geblokkeerde opslag: dan staat de knop er bij herladen weer.
   }
 }
 
-// Zelfde naam (genormaliseerd) + zelfde eenheid → optellen; anders een nieuwe
-// regel. "Naar smaak" (quantity null) heeft geen eenheid en wordt dus één regel
-// per naam, zonder hoeveelheid. Past items ter plekke aan.
-function mergeIngredient(items, { name, quantity, unit }, recipe) {
-  const unitOrNull = quantity == null ? null : unit
-  const key = itemKey(name, unitOrNull)
-  let item = items.find((i) => i.key === key)
-
-  if (!item) {
-    item = {
-      key,
-      name: normalizeName(name),
-      unit: unitOrNull,
-      quantity: quantity == null ? null : 0,
-      checked: false,
-      sources: [],
-    }
-    items.push(item)
-  }
-
-  if (quantity != null) item.quantity = roundQuantity(item.quantity + quantity, unitOrNull)
-  // Opnieuw nodig, dus niet meer afgevinkt.
-  item.checked = false
-  if (!item.sources.some((s) => s.id === recipe.id)) {
-    item.sources.push({ id: recipe.id, title: recipe.title })
-  }
+function chunks(list, size) {
+  const result = []
+  for (let i = 0; i < list.length; i += size) result.push(list.slice(i, i + size))
+  return result
 }
 
-// De boodschappenlijst. Elke actie die iets wijzigt, slaat daarna op.
+// Een lopende load(), zodat App en de pagina die tegelijk aanroepen maar één request doen.
+let pendingLoad = null
+
 export const useShoppingListStore = defineStore('shoppingList', {
   state: () => ({
-    items: readStoredItems(),
+    // Zoals de server ze stuurt: { id, name, quantity, unit, source_label, recipe_id, checked }.
+    items: [],
+    loaded: false,
+    legacyItems: readLegacyItems(),
+    // Telt elke lokale wijziging, en hoeveel daarvan nog onderweg zijn. Zie load().
+    changes: 0,
+    inFlight: 0,
   }),
 
   getters: {
@@ -94,41 +89,104 @@ export const useShoppingListStore = defineStore('shoppingList', {
   },
 
   actions: {
-    persist() {
-      storeItems(this.items)
+    // Haalt de hele lijst op. Is er intussen hier iets afgevinkt (of is dat nog onderweg),
+    // dan kan het antwoord ouder zijn dan wat je ziet; dan houden we de eigen stand en
+    // haalt de volgende verversing de rest op. Fouten (ApiError) gooien we door.
+    load() {
+      if (pendingLoad) return pendingLoad
+      const changesBefore = this.changes
+      pendingLoad = api
+        .fetchShoppingList()
+        .then((items) => {
+          if (this.changes === changesBefore && this.inFlight === 0) this.items = items
+          this.loaded = true
+        })
+        .finally(() => (pendingLoad = null))
+      return pendingLoad
     },
 
-    // Voegt ingrediënten toe (al geschaald en afgerond) uit één recept.
-    // ingredients: [{ name, quantity, unit }], recipe: { id, title }.
-    addIngredients(ingredients, recipe) {
-      for (const ingredient of ingredients) mergeIngredient(this.items, ingredient, recipe)
-      this.persist()
+    // Voegt ingrediënten toe (al geschaald en afgerond), in één request. Elk ingrediënt
+    // wordt een nieuwe regel achteraan, ook als dezelfde naam er al staat.
+    // ingredients: [{ name, quantity, unit }], source: { label, recipeId }.
+    // "Naar smaak" (quantity null) gaat zonder eenheid.
+    async addIngredients(ingredients, { label = null, recipeId = null } = {}) {
+      if (ingredients.length === 0) return
+      const payload = ingredients.map(({ name, quantity, unit }) => ({
+        name,
+        quantity: quantity ?? null,
+        unit: quantity == null ? null : unit,
+        source_label: label,
+        recipe_id: recipeId,
+      }))
+      this.changes++
+      this.items.push(...(await api.addShoppingListItems(payload)))
     },
 
-    add(ingredient, recipe) {
-      this.addIngredients([ingredient], recipe)
+    add(ingredient, source) {
+      return this.addIngredients([ingredient], source)
     },
 
-    toggle(key) {
-      const item = this.items.find((i) => i.key === key)
+    // Optimistisch: het vinkje staat er meteen, het request volgt. Mislukt het, dan
+    // draaien we het terug en gooien we de fout door, zodat de pagina een melding toont.
+    // Heeft iemand anders de regel al verwijderd, dan verdwijnt hij hier ook.
+    async toggle(id) {
+      const item = this.items.find((i) => i.id === id)
       if (!item) return
-      item.checked = !item.checked
-      this.persist()
+      const checked = !item.checked
+      item.checked = checked
+      this.changes++
+      this.inFlight++
+      try {
+        await api.updateShoppingListItem(id, { checked })
+      } catch (e) {
+        if (e.kind === 'not_found') {
+          this.items = this.items.filter((i) => i.id !== id)
+        } else if (item.checked === checked) {
+          item.checked = !checked
+        }
+        throw e
+      } finally {
+        this.inFlight--
+      }
     },
 
-    remove(key) {
-      this.items = this.items.filter((i) => i.key !== key)
-      this.persist()
+    // Al door iemand anders verwijderd (404) is ook goed: weg is weg.
+    async remove(id) {
+      this.changes++
+      try {
+        await api.deleteShoppingListItem(id)
+      } catch (e) {
+        if (e.kind !== 'not_found') throw e
+      }
+      this.items = this.items.filter((i) => i.id !== id)
     },
 
-    clearChecked() {
+    async clearChecked() {
+      this.changes++
+      await api.clearCheckedShoppingListItems()
       this.items = this.items.filter((i) => !i.checked)
-      this.persist()
     },
 
-    clearAll() {
+    async clearAll() {
+      this.changes++
+      await api.clearAllShoppingListItems()
       this.items = []
-      this.persist()
+    },
+
+    // Zet de oude lijst uit localStorage op de server, als nieuwe regels naast wat er al
+    // staat. Elk request is alles of niets; gaat het mis, dan
+    // blijft de sleutel staan en kun je het opnieuw proberen. (Alleen bij meer dan 100
+    // regels kan een eerder deel dan al binnen zijn; zo'n lange lijst verwachten we niet.)
+    // Geeft het aantal regels terug.
+    async importLegacy() {
+      const count = this.legacyItems.length
+      for (const part of chunks(this.legacyItems, MAX_PER_REQUEST)) {
+        this.changes++
+        this.items.push(...(await api.addShoppingListItems(part)))
+      }
+      forgetLegacyItems()
+      this.legacyItems = []
+      return count
     },
   },
 })

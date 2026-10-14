@@ -1,18 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useShoppingListStore, normalizeName } from '../stores/shoppingList'
+import { LEGACY_STORAGE_KEY, normalizeName, useShoppingListStore } from '../stores/shoppingList'
+import { fakeServer, jsonResponse, mockFetch } from './helpers'
 
-const PANCAKES = { id: 1, title: 'Pannenkoeken' }
-const WAFFLES = { id: 2, title: 'Wafels' }
+const PANCAKES = { label: 'Pannenkoeken', recipeId: 1 }
+const WAFFLES = { label: 'Wafels', recipeId: 2 }
 
-// Een nieuwe Pinia is als een herladen pagina: de store leest opnieuw uit localStorage.
+const BLOEM = { id: 1, name: 'bloem', quantity: 250, unit: 'g', source_label: 'Pannenkoeken' }
+const ZOUT = { id: 2, name: 'zout', source_label: 'Pannenkoeken' }
+const MELK = { id: 3, name: 'melk', source_label: 'standaard', checked: true }
+
+// Een nieuwe Pinia is als een herladen pagina: de store begint leeg en haalt de lijst op.
 function freshStore() {
   setActivePinia(createPinia())
   return useShoppingListStore()
 }
 
-function stored() {
-  return JSON.parse(localStorage.getItem('shoppingList'))
+async function loadedStore() {
+  const list = freshStore()
+  await list.load()
+  return list
+}
+
+function requestsOf(fetch, method) {
+  return fetch.mock.calls.filter(([, options]) => (options.method ?? 'GET') === method)
+}
+
+function bodyOf(call) {
+  return JSON.parse(call[1].body)
+}
+
+// Een request die pas antwoordt als de test dat zegt.
+function deferred() {
+  let resolve
+  const promise = new Promise((r) => (resolve = r))
+  return { promise, resolve }
 }
 
 describe('boodschappenlijst-store', () => {
@@ -21,187 +43,326 @@ describe('boodschappenlijst-store', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
-  describe('samenvoegen', () => {
-    it('telt zelfde naam en eenheid op en onthoudt beide recepten', () => {
-      const list = freshStore()
-      list.add({ name: 'Bloem', quantity: 200, unit: 'g' }, PANCAKES)
-      list.add({ name: '  bloem ', quantity: 150, unit: 'g' }, WAFFLES)
+  it('begint leeg en niet geladen, zonder iets in localStorage te zetten', () => {
+    const list = freshStore()
 
-      expect(list.items).toHaveLength(1)
-      expect(list.items[0]).toMatchObject({ name: 'bloem', quantity: 350, unit: 'g' })
-      expect(list.items[0].sources.map((s) => s.title)).toEqual(['Pannenkoeken', 'Wafels'])
-    })
+    expect(list.items).toEqual([])
+    expect(list.loaded).toBe(false)
+    expect(localStorage.length).toBe(0)
+  })
 
-    it('maakt een aparte regel bij een andere eenheid', () => {
-      const list = freshStore()
-      list.add({ name: 'ui', quantity: 1, unit: 'stuks' }, PANCAKES)
-      list.add({ name: 'ui', quantity: 100, unit: 'g' }, WAFFLES)
+  it('laadt de lijst van de API, zonder beheercode', async () => {
+    const { fetch } = fakeServer({ shopping: [BLOEM, ZOUT, MELK] })
+    const list = await loadedStore()
 
-      expect(list.items.map((i) => [i.quantity, i.unit])).toEqual([
-        [1, 'stuks'],
-        [100, 'g'],
-      ])
-    })
+    expect(fetch.mock.calls[0][0]).toBe('/api/shopping_list_items')
+    expect(fetch.mock.calls[0][1].headers?.Authorization).toBeUndefined()
+    expect(list.items.map((i) => i.name)).toEqual(['bloem', 'zout', 'melk'])
+    expect(list.loaded).toBe(true)
+  })
 
-    it('herkent geen meervoud: "ui" en "uien" blijven apart', () => {
-      const list = freshStore()
-      list.add({ name: 'ui', quantity: 1, unit: 'stuks' }, PANCAKES)
-      list.add({ name: 'uien', quantity: 2, unit: 'stuks' }, WAFFLES)
+  it('telt alleen niet-afgevinkte regels als open, uit de API-data', async () => {
+    fakeServer({ shopping: [BLOEM, ZOUT, MELK] })
+    const list = await loadedStore()
 
-      expect(list.items).toHaveLength(2)
-    })
+    expect(list.openCount).toBe(2)
+    expect(list.hasChecked).toBe(true)
+  })
 
-    it('zet "naar smaak" maar één keer op de lijst, zonder hoeveelheid', () => {
-      const list = freshStore()
-      list.add({ name: 'zout', quantity: null, unit: null }, PANCAKES)
-      list.add({ name: 'Zout', quantity: null, unit: null }, WAFFLES)
+  it('doet maar één request als twee plekken tegelijk laden', async () => {
+    const { fetch } = fakeServer({ shopping: [BLOEM] })
+    const list = freshStore()
 
-      expect(list.items).toHaveLength(1)
-      expect(list.items[0]).toMatchObject({ name: 'zout', quantity: null, unit: null })
-      expect(list.items[0].sources).toHaveLength(2)
-    })
+    await Promise.all([list.load(), list.load()])
 
-    it('telt hetzelfde recept twee keer op, maar noemt het maar één keer als herkomst', () => {
-      const list = freshStore()
-      list.add({ name: 'ei', quantity: 1.5, unit: 'stuks' }, PANCAKES)
-      list.add({ name: 'ei', quantity: 1.5, unit: 'stuks' }, PANCAKES)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
 
-      expect(list.items[0].quantity).toBe(3)
-      expect(list.items[0].sources).toEqual([PANCAKES])
-    })
+  it('gooit een fout door bij laden, en blijft dan niet-geladen', async () => {
+    mockFetch(() => jsonResponse({}, 500))
+    const list = freshStore()
 
-    it('rondt de som af, zonder rekenfouten als 0,30000000000000004', () => {
-      const list = freshStore()
-      list.add({ name: 'gist', quantity: 0.1, unit: 'g' }, PANCAKES)
-      list.add({ name: 'gist', quantity: 0.2, unit: 'g' }, WAFFLES)
-
-      expect(list.items[0].quantity).toBe(0.3)
-    })
-
-    it('haalt het vinkje weg als je een afgevinkte regel opnieuw toevoegt', () => {
-      const list = freshStore()
-      list.add({ name: 'melk', quantity: 500, unit: 'ml' }, PANCAKES)
-      list.toggle(list.items[0].key)
-      list.add({ name: 'melk', quantity: 250, unit: 'ml' }, WAFFLES)
-
-      expect(list.items[0].checked).toBe(false)
-    })
-
-    it('voegt een heel recept in één keer toe', () => {
-      const list = freshStore()
-      list.addIngredients(
-        [
-          { name: 'bloem', quantity: 250, unit: 'g' },
-          { name: 'zout', quantity: null, unit: null },
-        ],
-        PANCAKES,
-      )
-
-      expect(list.items.map((i) => i.name)).toEqual(['bloem', 'zout'])
-    })
+    await expect(list.load()).rejects.toMatchObject({ kind: 'server' })
+    expect(list.loaded).toBe(false)
   })
 
   it('normaliseert namen', () => {
     expect(normalizeName('  Rode   Ui ')).toBe('rode ui')
   })
 
-  it('telt alleen niet-afgevinkte regels als open', () => {
-    const list = freshStore()
-    list.add({ name: 'bloem', quantity: 200, unit: 'g' }, PANCAKES)
-    list.add({ name: 'melk', quantity: 500, unit: 'ml' }, PANCAKES)
-    list.toggle(list.items[0].key)
+  describe('toevoegen', () => {
+    it('stuurt een heel recept in één request, met herkomst en recept-id', async () => {
+      const { fetch } = fakeServer()
+      const list = await loadedStore()
 
-    expect(list.openCount).toBe(1)
-    expect(list.hasChecked).toBe(true)
-  })
+      await list.addIngredients(
+        [
+          { name: 'bloem', quantity: 250, unit: 'g' },
+          { name: 'zout', quantity: null, unit: 'g' },
+        ],
+        PANCAKES,
+      )
 
-  it('verwijdert regels, afgevinkte regels en alles', () => {
-    const list = freshStore()
-    list.add({ name: 'a', quantity: 1, unit: 'stuks' }, PANCAKES)
-    list.add({ name: 'b', quantity: 1, unit: 'stuks' }, PANCAKES)
-    list.add({ name: 'c', quantity: 1, unit: 'stuks' }, PANCAKES)
+      const posts = requestsOf(fetch, 'POST')
+      expect(posts).toHaveLength(1)
+      expect(bodyOf(posts[0])).toEqual({
+        shopping_list_items: [
+          { name: 'bloem', quantity: 250, unit: 'g', source_label: 'Pannenkoeken', recipe_id: 1 },
+          // "Naar smaak" gaat zonder eenheid.
+          { name: 'zout', quantity: null, unit: null, source_label: 'Pannenkoeken', recipe_id: 1 },
+        ],
+      })
+      expect(list.items.map((i) => i.name)).toEqual(['bloem', 'zout'])
+    })
 
-    list.remove('a|stuks')
-    expect(list.items.map((i) => i.name)).toEqual(['b', 'c'])
+    it('zet dezelfde naam uit een ander recept als eigen regel erbij, met eigen herkomst', async () => {
+      fakeServer({ shopping: [{ ...BLOEM, checked: true }] })
+      const list = await loadedStore()
 
-    list.toggle('b|stuks')
-    list.clearChecked()
-    expect(list.items.map((i) => i.name)).toEqual(['c'])
+      await list.add({ name: 'Bloem', quantity: 100, unit: 'g' }, WAFFLES)
 
-    list.clearAll()
-    expect(list.items).toEqual([])
-    expect(stored().items).toEqual([])
-  })
-
-  describe('localStorage', () => {
-    it('slaat op met een versienummer en laadt na herladen terug', () => {
-      const list = freshStore()
-      list.add({ name: 'bloem', quantity: 200, unit: 'g' }, PANCAKES)
-      list.toggle('bloem|g')
-
-      expect(stored().version).toBe(1)
-
-      const reloaded = freshStore()
-      expect(reloaded.items).toEqual([
-        {
-          key: 'bloem|g',
-          name: 'bloem',
-          unit: 'g',
-          quantity: 200,
-          checked: true,
-          sources: [PANCAKES],
-        },
+      expect(
+        list.items.map((i) => [i.name, i.quantity, i.source_label, i.recipe_id, i.checked]),
+      ).toEqual([
+        ['bloem', 250, 'Pannenkoeken', null, true],
+        ['bloem', 100, 'Wafels', 2, false],
       ])
     })
 
-    it('begint leeg bij ongeldige JSON', () => {
-      localStorage.setItem('shoppingList', '{kapot')
-      expect(freshStore().items).toEqual([])
+    it('doet niets met een lege lijst', async () => {
+      const { fetch } = fakeServer()
+      const list = await loadedStore()
+
+      await list.addIngredients([], PANCAKES)
+
+      expect(requestsOf(fetch, 'POST')).toHaveLength(0)
     })
 
-    it('begint leeg bij een onbekende versie', () => {
-      localStorage.setItem('shoppingList', JSON.stringify({ version: 99, items: [] }))
-      expect(freshStore().items).toEqual([])
+    it('gooit een fout door en laat de lijst ongemoeid', async () => {
+      fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
+      mockFetch(() => jsonResponse({ error: 'Too many requests' }, 429))
+
+      await expect(
+        list.add({ name: 'ei', quantity: 1, unit: 'stuks' }, WAFFLES),
+      ).rejects.toMatchObject({ kind: 'rate_limited' })
+      expect(list.items.map((i) => i.name)).toEqual(['bloem'])
+    })
+  })
+
+  describe('afvinken (optimistisch)', () => {
+    it('toont het vinkje meteen, nog voordat de server antwoordt', async () => {
+      const { shoppingDb } = fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
+      const answer = deferred()
+      const fetch = mockFetch(() => answer.promise)
+
+      const toggling = list.toggle(1)
+
+      expect(list.items[0].checked).toBe(true)
+      expect(list.openCount).toBe(0)
+      expect(bodyOf(fetch.mock.calls[0])).toEqual({ shopping_list_item: { checked: true } })
+      answer.resolve(jsonResponse({ ...shoppingDb[0], checked: true }))
+      await toggling
+      expect(list.items[0].checked).toBe(true)
     })
 
-    it('begint leeg als items geen lijst is', () => {
-      localStorage.setItem('shoppingList', JSON.stringify({ version: 1, items: 'nee' }))
-      expect(freshStore().items).toEqual([])
+    it('draait het vinkje terug als de server weigert, en gooit de fout door', async () => {
+      fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
+      mockFetch(() => jsonResponse({}, 500))
+
+      await expect(list.toggle(1)).rejects.toMatchObject({ kind: 'server' })
+
+      expect(list.items[0].checked).toBe(false)
     })
 
-    it('begint leeg bij oude data zonder versie', () => {
-      localStorage.setItem('shoppingList', JSON.stringify(['bloem', 'melk']))
-      expect(freshStore().items).toEqual([])
+    it('draait ook terug zonder netwerk', async () => {
+      fakeServer({ shopping: [MELK] })
+      const list = await loadedStore()
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+      await expect(list.toggle(3)).rejects.toMatchObject({ kind: 'network' })
+
+      expect(list.items[0].checked).toBe(true)
+    })
+
+    it('haalt de regel weg als iemand anders hem al verwijderde', async () => {
+      const { shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT] })
+      const list = await loadedStore()
+      shoppingDb.splice(0, 1)
+
+      await expect(list.toggle(1)).rejects.toMatchObject({ kind: 'not_found' })
+
+      expect(list.items.map((i) => i.name)).toEqual(['zout'])
+    })
+
+    it('laat een verversing die tijdens het afvinken binnenkomt het vinkje niet overschrijven', async () => {
+      fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
+      const patch = deferred()
+      // De GET antwoordt met de oude stand (nog niet afgevinkt); de PATCH hangt nog.
+      mockFetch((method) =>
+        method === 'PATCH' ? patch.promise : jsonResponse([{ ...BLOEM, checked: false }]),
+      )
+
+      const toggling = list.toggle(1)
+      await list.load()
+
+      expect(list.items[0].checked).toBe(true)
+      patch.resolve(jsonResponse({ ...BLOEM, checked: true }))
+      await toggling
+    })
+  })
+
+  describe('verwijderen en wissen', () => {
+    it('verwijdert één regel op de server', async () => {
+      const { shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT] })
+      const list = await loadedStore()
+
+      await list.remove(1)
+
+      expect(list.items.map((i) => i.name)).toEqual(['zout'])
+      expect(shoppingDb.map((i) => i.name)).toEqual(['zout'])
+    })
+
+    it('vindt het goed als de regel al weg was (404)', async () => {
+      const { shoppingDb } = fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
+      shoppingDb.splice(0)
+
+      await list.remove(1)
+
+      expect(list.items).toEqual([])
+    })
+
+    it('wist afgevinkte regels en daarna alles, via de collectie-routes', async () => {
+      const { fetch, shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT, MELK] })
+      const list = await loadedStore()
+
+      await list.clearChecked()
+      expect(list.items.map((i) => i.name)).toEqual(['bloem', 'zout'])
+      expect(shoppingDb).toHaveLength(2)
+
+      await list.clearAll()
+      expect(list.items).toEqual([])
+      expect(shoppingDb).toEqual([])
+      expect(requestsOf(fetch, 'DELETE').map(([url]) => url)).toEqual([
+        '/api/shopping_list_items/clear_checked',
+        '/api/shopping_list_items/clear_all',
+      ])
+    })
+
+    it('houdt de regels als wissen mislukt', async () => {
+      fakeServer({ shopping: [BLOEM, MELK] })
+      const list = await loadedStore()
+      mockFetch(() => jsonResponse({}, 500))
+
+      await expect(list.clearAll()).rejects.toMatchObject({ kind: 'server' })
+      expect(list.items).toHaveLength(2)
+    })
+  })
+
+  describe('import van de oude lijst uit localStorage', () => {
+    const LEGACY = [
+      {
+        key: 'bloem|g',
+        name: 'bloem',
+        unit: 'g',
+        quantity: 200,
+        checked: false,
+        sources: [
+          { id: 1, title: 'Pannenkoeken' },
+          { id: 'standaard', title: 'standaard' },
+        ],
+      },
+      { key: 'zout|', name: 'zout', unit: null, quantity: null, checked: true, sources: [] },
+    ]
+
+    function storeLegacy(items, version = 1) {
+      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ version, items }))
+    }
+
+    it('leest de oude lijst bij het starten', () => {
+      storeLegacy(LEGACY)
+
+      expect(freshStore().legacyItems).toEqual([
+        {
+          name: 'bloem',
+          quantity: 200,
+          unit: 'g',
+          source_label: 'Pannenkoeken, standaard',
+          checked: false,
+        },
+        { name: 'zout', quantity: null, unit: null, source_label: null, checked: true },
+      ])
+    })
+
+    it('negeert kapotte, onbekende of lege data', () => {
+      for (const raw of [
+        '{kapot',
+        JSON.stringify({ version: 99, items: LEGACY }),
+        JSON.stringify({ version: 1, items: 'nee' }),
+        JSON.stringify(['bloem']),
+      ]) {
+        localStorage.setItem(LEGACY_STORAGE_KEY, raw)
+        expect(freshStore().legacyItems).toEqual([])
+      }
     })
 
     it('slaat losse ongeldige regels over en houdt de rest', () => {
-      const good = {
-        key: 'melk|ml',
-        name: 'melk',
-        unit: 'ml',
-        quantity: 500,
-        checked: false,
-        sources: [],
-      }
-      localStorage.setItem(
-        'shoppingList',
-        JSON.stringify({ version: 1, items: [good, null, { name: 'half' }, 'tekst'] }),
-      )
+      storeLegacy([LEGACY[0], null, { name: '' }, { name: 'x'.repeat(101) }, 'tekst'])
 
-      expect(freshStore().items).toEqual([good])
+      expect(freshStore().legacyItems.map((i) => i.name)).toEqual(['bloem'])
     })
 
-    it('blijft werken als opslaan mislukt', () => {
-      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new Error('QuotaExceededError')
-      })
-      const list = freshStore()
-      list.add({ name: 'bloem', quantity: 200, unit: 'g' }, PANCAKES)
+    it('zet alles in één request op de server, zonder recept-id, en wist daarna de sleutel', async () => {
+      storeLegacy(LEGACY)
+      const { fetch, shoppingDb } = fakeServer({ shopping: [BLOEM] })
+      const list = await loadedStore()
 
-      expect(list.items).toHaveLength(1)
+      expect(await list.importLegacy()).toBe(2)
+
+      const [post] = requestsOf(fetch, 'POST')
+      expect(bodyOf(post).shopping_list_items.every((i) => !('recipe_id' in i))).toBe(true)
+      // Bloem stond er al: de oude bloem komt er als eigen regel bij. Zout blijft afgevinkt.
+      expect(shoppingDb.map((i) => [i.name, i.quantity, i.checked])).toEqual([
+        ['bloem', 250, false],
+        ['bloem', 200, false],
+        ['zout', null, true],
+      ])
+      expect(list.items).toHaveLength(3)
+      expect(list.legacyItems).toEqual([])
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
+    })
+
+    it('stuurt een lange lijst in delen van 100', async () => {
+      storeLegacy(
+        Array.from({ length: 150 }, (_, i) => ({ ...LEGACY[1], key: `${i}`, name: `item ${i}` })),
+      )
+      const { fetch } = fakeServer()
+      const list = await loadedStore()
+
+      expect(await list.importLegacy()).toBe(150)
+
+      const posts = requestsOf(fetch, 'POST').map((call) => bodyOf(call).shopping_list_items.length)
+      expect(posts).toEqual([100, 50])
+    })
+
+    it('houdt de sleutel als de import mislukt, zodat je het opnieuw kunt proberen', async () => {
+      storeLegacy(LEGACY)
+      fakeServer()
+      const list = await loadedStore()
+      mockFetch(() => jsonResponse({}, 500))
+
+      await expect(list.importLegacy()).rejects.toMatchObject({ kind: 'server' })
+
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).not.toBeNull()
+      expect(list.legacyItems).toHaveLength(2)
     })
   })
 })

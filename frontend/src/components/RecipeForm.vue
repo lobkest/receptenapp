@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import TagPicker from '@/components/TagPicker.vue'
 import { UNITS } from '@/utils/quantity'
 
 // Props: data die de ouder (RecipeNewView of AdminRecipeEditView) naar dit component stuurt.
@@ -7,9 +8,11 @@ const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
   // Beginwaarden, bijv. een bestaand recept (met ingredients en steps) bij bewerken.
-  // Leeg bij insturen.
+  // Leeg bij toevoegen.
   initial: { type: Object, default: () => ({}) },
-  submitLabel: { type: String, default: 'Recept insturen' },
+  submitLabel: { type: String, default: 'Recept toevoegen' },
+  // Bestaande tags om uit te kiezen (namen, uit /api/tags).
+  availableTags: { type: Array, default: () => [] },
 })
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
@@ -68,6 +71,8 @@ const ingredients = ref(
     : [newIngredient()],
 )
 const steps = ref(props.initial.steps?.length ? props.initial.steps.map(stepFrom) : [newStep()])
+// Bij bewerken staan de bestaande tags al gekozen.
+const tags = ref([...(props.initial.tags ?? [])])
 const lists = { recipe_ingredients: ingredients, steps }
 
 // Ids van bestaande regels die je hebt weggehaald. Die gaan bij versturen mee als
@@ -116,7 +121,7 @@ function withId(row, attributes) {
 // - Verwijderde regels komen achteraan, zodat de plek van de overige regels in de
 //   request (en dus in foutmeldingen als "steps[1].body") niet verschuift.
 // - Een lijst zonder één regel gaat niet mee, zodat bewerken van een ouder recept
-//   zonder ingrediënten of stappen gewoon kan. Bij insturen meldt de server dan
+//   zonder ingrediënten of stappen gewoon kan. Bij toevoegen meldt de server dan
 //   dat ze verplicht zijn.
 function buildRequest() {
   const sent = {
@@ -135,7 +140,8 @@ function buildRequest() {
     steps: sent.steps.map((step) => withId(step, { body: step.body })),
   }
 
-  const body = { ...form, servings: form.servings.trim() }
+  // tag_names gaat altijd mee: een lege lijst betekent "geen tags meer".
+  const body = { ...form, servings: form.servings.trim(), tag_names: [...tags.value] }
   const keys = {}
   for (const kind of ['recipe_ingredients', 'steps']) {
     const removed = removedIds[kind].map((id) => ({ id, _destroy: true }))
@@ -165,7 +171,7 @@ function onSubmit() {
   emit('submit', body)
 }
 
-const FORM_FIELDS = ['title', 'description', 'servings']
+const FORM_FIELDS = ['title', 'description', 'servings', 'tag_names']
 const LABELS = {
   recipe_ingredients: 'Ingrediënten',
   steps: 'Stappen',
@@ -262,6 +268,12 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       />
       <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
     </div>
+
+    <fieldset class="tags field">
+      <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
+      <TagPicker v-model="tags" :options="availableTags" />
+      <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
+    </fieldset>
 
     <fieldset class="ingredients card">
       <legend>Ingrediënten</legend>
@@ -431,6 +443,24 @@ legend {
 
 .row:last-child {
   border-bottom: 0;
+}
+
+/* Tags: een gewoon veld, geen kaart; legend klein zoals de andere labels. */
+.tags {
+  margin-bottom: var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+.tags legend {
+  float: none;
+  margin-bottom: var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+}
+
+.optional-label {
+  font-weight: 400;
 }
 
 /* Porties: een kort getal, geen veld over de hele breedte. */

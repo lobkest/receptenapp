@@ -1,4 +1,6 @@
 class Recipe < ApplicationRecord
+  include DeletionRequestable
+
   MAX_INGREDIENTS = 50
   MAX_STEPS = 30
   # Hard cap, checked before any row is built. Above this the request gets a 422 at once.
@@ -6,8 +8,7 @@ class Recipe < ApplicationRecord
   MAX_DESCRIPTION_LENGTH = 5000
   # Same as the most the recipe page lets you scale to.
   MAX_SERVINGS = 50
-
-  enum :status, { pending: "pending", approved: "approved", rejected: "rejected" }, default: :pending, validate: true
+  MAX_TAGS = 10
 
   # index_errors: errors read "steps[2].body", where 2 is the place in the request.
   has_many :steps, -> { order(:position) }, dependent: :destroy, inverse_of: :recipe,
@@ -15,10 +16,28 @@ class Recipe < ApplicationRecord
   has_many :recipe_ingredients, -> { order(:id) }, dependent: :destroy, inverse_of: :recipe,
     index_errors: :nested_attributes_order
 
+  has_many :recipe_tags, dependent: :destroy
+  has_many :tags, through: :recipe_tags
+
+  # The database deletes versions together with the recipe (on_delete: :cascade).
+  has_many :versions, class_name: "RecipeVersion", dependent: nil
+
   accepts_nested_attributes_for :steps, allow_destroy: true, limit: MAX_NESTED_ROWS
   accepts_nested_attributes_for :recipe_ingredients, allow_destroy: true, limit: MAX_NESTED_ROWS
 
-  scope :with_details, -> { includes(:steps, recipe_ingredients: :ingredient) }
+  scope :with_details, -> { includes(:tags, :steps, recipe_ingredients: :ingredient) }
+
+  # Recipes that have ALL of the given tags. One subquery: take the recipe_tags rows whose
+  # tag is one of the names, group them per recipe, and keep the recipes with as many
+  # rows as there are names. A recipe with 1 of 2 tags has 1 row and drops out.
+  scope :tagged_with_all, ->(names) {
+    names = names.map { |name| Tag.normalize_value_for(:name, name.to_s) }.compact_blank.uniq
+    next all if names.empty?
+
+    matching = RecipeTag.joins(:tag).where(tags: { name: names })
+      .group(:recipe_id).having("COUNT(*) = ?", names.size).select(:recipe_id)
+    where(id: matching)
+  }
 
   before_validation :number_steps
 
@@ -26,8 +45,21 @@ class Recipe < ApplicationRecord
   validates :description, length: { maximum: MAX_DESCRIPTION_LENGTH }
   validates :servings, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_SERVINGS }
   validate :row_counts
+  validate :tag_names_allowed, if: -> { @tag_names }
 
+  # A recipe from before versions existed: keep its old state before the first change.
+  # prepend: before link_tags, which already writes the new tags to the database.
+  before_save :record_original_version, if: -> { persisted? && !versions.exists? }, prepend: true
+
+  # Tags are linked in the same transaction as the recipe, and only once it is valid.
+  before_save :link_tags, if: -> { @tag_names }
+  before_save :touch_for_locking, if: :persisted?
+
+  after_save :record_version
   after_save :forget_submitted_lists
+
+  # Set before saving to describe the next version yourself (see restore_version!).
+  attr_accessor :version_note
 
   # Remembers each step's place in the request, so positions follow the submitted order.
   def steps_attributes=(attributes)
@@ -43,7 +75,54 @@ class Recipe < ApplicationRecord
     super
   end
 
+  # tag_names: ["Vega", "snel"]. Replaces all tags of the recipe. Normalized like Tag#name,
+  # empty names and doubles left out. Without tag_names in a request, tags stay as they are.
+  def tag_names=(names)
+    @tag_names = Array.wrap(names).map { |name| Tag.normalize_value_for(:name, name.to_s) }.compact_blank.uniq
+  end
+
+  def tag_names
+    @tag_names || tags.map(&:name)
+  end
+
+  # Puts an older version back: title, description, servings, tags, ingredients and steps.
+  # Existing rows are replaced by new ones. This is a change like any other, so it makes
+  # a new version too ("Teruggezet naar ...").
+  def restore_version!(version)
+    snapshot = version.snapshot
+
+    transaction do
+      assign_attributes(snapshot.slice("title", "description", "servings"))
+      self.tag_names = snapshot["tag_names"]
+
+      # Not through *_attributes=: an old version may have no ingredients or steps, and
+      # that minimum only applies to what a person submits.
+      recipe_ingredients.each(&:mark_for_destruction)
+      snapshot["ingredients"].each { |row| recipe_ingredients.build(row) }
+      steps.each(&:mark_for_destruction)
+      snapshot["steps"].each.with_index(1) { |step, position| steps.build(body: step["body"], position: position) }
+
+      self.version_note = "Teruggezet naar de versie van #{version.label}"
+      save!
+    end
+  end
+
   private
+    # Optimistic locking only checks lock_version when the recipes row itself is updated.
+    # A change to only an ingredient or a step would skip that, so every save touches the row.
+    def touch_for_locking
+      self.updated_at = Time.current
+    end
+
+    def record_original_version
+      RecipeVersion.record!(self, note: "Oorspronkelijke versie")
+    end
+
+    def record_version
+      RecipeVersion.record!(self, note: version_note)
+      self.version_note = nil
+    end
+
     # Positions are always 1..n, decided here. Steps in the request come first, in request
     # order; steps the request did not mention follow in their old order.
     def number_steps
@@ -56,7 +135,24 @@ class Recipe < ApplicationRecord
 
     def forget_submitted_lists
       @steps_submitted = @recipe_ingredients_submitted = false
+      @tag_names = nil
       association(:steps).target.each { |step| step.request_order = nil }
+    end
+
+    # The same rules as Tag#name, checked here so the errors land on the recipe ("tag_names")
+    # before any tag is created.
+    def tag_names_allowed
+      errors.add(:tag_names, :too_many_tags, count: MAX_TAGS) if @tag_names.size > MAX_TAGS
+
+      @tag_names.each do |name|
+        errors.add(:tag_names, :tag_too_long, name: name, count: Tag::MAX_NAME_LENGTH) if name.length > Tag::MAX_NAME_LENGTH
+        errors.add(:tag_names, :tag_with_comma, name: name) if name.include?(",")
+      end
+    end
+
+    # Existing tags are reused; new ones created (see Tag.named).
+    def link_tags
+      self.tags = @tag_names.map { |name| Tag.named(name) }
     end
 
     # New recipes need at least one ingredient and one step. Older recipes have neither,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_090004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -36,14 +36,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_120001) do
     t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying]::text[])", name: "recipe_ingredients_unit_known"
   end
 
+  create_table "recipe_tags", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.bigint "tag_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["recipe_id", "tag_id"], name: "index_recipe_tags_on_recipe_id_and_tag_id", unique: true
+    t.index ["tag_id"], name: "index_recipe_tags_on_tag_id"
+  end
+
+  create_table "recipe_versions", force: :cascade do |t|
+    t.bigint "recipe_id", null: false
+    t.jsonb "snapshot", null: false
+    t.string "summary", null: false
+    t.datetime "created_at", null: false
+    t.index ["recipe_id"], name: "index_recipe_versions_on_recipe_id"
+  end
+
   create_table "recipes", force: :cascade do |t|
     t.string "title", null: false
     t.text "description"
     t.integer "servings", default: 4, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "status", default: "pending", null: false
-    t.index ["status"], name: "index_recipes_on_status"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "deletion_requested_at"
+    t.string "deletion_reason"
+    t.index ["deletion_requested_at"], name: "index_recipes_on_deletion_requested_at"
+  end
+
+  create_table "shopping_list_items", force: :cascade do |t|
+    t.string "name", null: false
+    t.decimal "quantity", precision: 10, scale: 2
+    t.string "unit"
+    t.string "source_label"
+    t.bigint "recipe_id"
+    t.boolean "checked", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["recipe_id"], name: "index_shopping_list_items_on_recipe_id"
   end
 
   create_table "standard_items", force: :cascade do |t|
@@ -65,7 +96,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_120001) do
     t.unique_constraint ["recipe_id", "position"], deferrable: :deferred, name: "steps_recipe_id_position_unique"
   end
 
+  create_table "tags", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_tags_on_name", unique: true
+  end
+
   add_foreign_key "recipe_ingredients", "ingredients"
   add_foreign_key "recipe_ingredients", "recipes"
+  add_foreign_key "recipe_tags", "recipes"
+  add_foreign_key "recipe_tags", "tags"
+  add_foreign_key "recipe_versions", "recipes", on_delete: :cascade
+  add_foreign_key "shopping_list_items", "recipes", on_delete: :nullify
   add_foreign_key "steps", "recipes"
 end

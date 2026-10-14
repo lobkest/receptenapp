@@ -48,3 +48,6 @@ group :development, :test do
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
 end
+
+# Dutch (and other) default error messages: "is geen getal" instead of "is not a number"
+gem "rails-i18n", "~> 8.1"

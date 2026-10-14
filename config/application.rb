@@ -29,6 +29,11 @@ module Receptenapp
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # Error messages in Dutch. rails-i18n has the standard texts ("is geen getal"),
+    # config/locales/nl.yml the attribute names and the app's own messages.
+    config.i18n.available_locales = %i[ nl en ]
+    config.i18n.default_locale = :nl
+
     # The built index.html of the Vue app (see bin/render-build.sh and FrontendController).
     config.x.frontend_index = Rails.root.join("frontend/dist/index.html")
   end

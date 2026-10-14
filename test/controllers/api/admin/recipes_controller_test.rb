@@ -241,7 +241,7 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
     } }, headers: auth_headers, as: :json
 
     assert_response :unprocessable_content
-    assert_equal [ "can't be blank" ], response.parsed_body["errors"]["steps"]
+    assert_equal [ "moet opgegeven zijn" ], response.parsed_body["errors"]["steps"]
     assert_equal 3, recipe.steps.count
   end
 

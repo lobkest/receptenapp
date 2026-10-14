@@ -1,0 +1,10 @@
+melk:
+  name: melk
+  category: zuivel
+
+kaas:
+  name: kaas
+  category: zuivel
+
+wc_papier:
+  name: wc-papier

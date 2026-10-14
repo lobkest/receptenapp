@@ -93,15 +93,24 @@ describe('ShoppingListView', () => {
     expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['zout'])
   })
 
-  it('wist alles alleen na bevestiging', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('wist alles alleen na bevestiging in het venster', async () => {
     const wrapper = await mountApp(fillTwo)
+    const dialog = () => wrapper.find('dialog')
 
     await buttonWithText(wrapper, 'Alles wissen').trigger('click')
+    await flushPromises()
+    expect(dialog().attributes('open')).toBeDefined()
+    expect(dialog().find('h2').text()).toBe('De hele boodschappenlijst wissen?')
+
+    await dialog().find('.cancel').trigger('click')
+    await flushPromises()
+    expect(dialog().attributes('open')).toBeUndefined()
     expect(wrapper.findAll('.items li')).toHaveLength(2)
 
-    confirm.mockReturnValue(true)
     await buttonWithText(wrapper, 'Alles wissen').trigger('click')
+    await flushPromises()
+    await dialog().find('.confirm').trigger('click')
+    await flushPromises()
     expect(wrapper.find('.empty').exists()).toBe(true)
   })
 

@@ -1,5 +1,7 @@
 <script setup>
+import { useTemplateRef } from 'vue'
 import { RouterLink } from 'vue-router'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatQuantity } from '@/utils/quantity'
 
@@ -18,8 +20,14 @@ function sourcesLine(item) {
   return `uit: ${item.sources.map((s) => s.title).join(', ')}`
 }
 
-function clearAll() {
-  if (window.confirm('De hele boodschappenlijst wissen?')) list.clearAll()
+const confirmDialog = useTemplateRef('confirmDialog')
+
+async function clearAll() {
+  const sure = await confirmDialog.value.ask({
+    title: 'De hele boodschappenlijst wissen?',
+    text: 'Alle regels verdwijnen, ook de afgevinkte.',
+  })
+  if (sure) list.clearAll()
 }
 </script>
 
@@ -64,6 +72,8 @@ function clearAll() {
 
     <p class="hint muted">Deze lijst staat alleen in deze browser op dit apparaat.</p>
   </template>
+
+  <ConfirmDialog ref="confirmDialog" />
 </template>
 
 <style scoped>

@@ -121,8 +121,8 @@ class RecipeTest < ActiveSupport::TestCase
     )
 
     assert_not recipe.valid?
-    assert_includes recipe.errors[:"recipe_ingredients[1].ingredient_name"], "can't be blank"
-    assert_includes recipe.errors[:"steps[2].body"], "can't be blank"
+    assert_includes recipe.errors[:"recipe_ingredients[1].ingredient_name"], "moet opgegeven zijn"
+    assert_includes recipe.errors[:"steps[2].body"], "moet opgegeven zijn"
   end
 
   test "hetzelfde ingrediënt twee keer: de tweede regel krijgt de fout" do

@@ -137,9 +137,9 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_content
     errors = response.parsed_body["errors"]
-    assert_equal [ "must be greater than 0" ], errors["recipe_ingredients[1].quantity"]
-    assert_equal [ "is not included in the list" ], errors["recipe_ingredients[1].unit"]
-    assert_equal [ "can't be blank" ], errors["steps[1].body"]
+    assert_equal [ "moet groter zijn dan 0" ], errors["recipe_ingredients[1].quantity"]
+    assert_equal [ "is niet in de lijst opgenomen" ], errors["recipe_ingredients[1].unit"]
+    assert_equal [ "moet opgegeven zijn" ], errors["steps[1].body"]
     assert_not errors.key?("recipe_ingredients[0].ingredient_name")
   end
 
@@ -147,15 +147,15 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     post api_recipes_url, params: { recipe: recipe_params(recipe_ingredients_attributes: [], steps_attributes: []) }, as: :json
 
     assert_response :unprocessable_content
-    assert_equal [ "can't be blank" ], response.parsed_body["errors"]["steps"]
-    assert_equal [ "can't be blank" ], response.parsed_body["errors"]["recipe_ingredients"]
+    assert_equal [ "moet opgegeven zijn" ], response.parsed_body["errors"]["steps"]
+    assert_equal [ "moet opgegeven zijn" ], response.parsed_body["errors"]["recipe_ingredients"]
   end
 
   test "create with too many steps returns 422" do
     post api_recipes_url, params: { recipe: recipe_params(steps_attributes: (1..31).map { |i| { body: "Stap #{i}" } }) }, as: :json
 
     assert_response :unprocessable_content
-    assert_equal [ "has too many rows (maximum is 30)" ], response.parsed_body["errors"]["steps"]
+    assert_equal [ "heeft te veel regels (maximaal 30)" ], response.parsed_body["errors"]["steps"]
   end
 
   test "create with far too many rows returns 422 without building them" do
@@ -164,7 +164,7 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_equal [ "has too many rows" ], response.parsed_body["errors"]["base"]
+    assert_equal [ "heeft te veel regels" ], response.parsed_body["errors"]["base"]
   end
 
   test "create without title returns 422 with errors" do
@@ -173,10 +173,12 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_includes response.parsed_body["errors"]["title"], "can't be blank"
+    assert_includes response.parsed_body["errors"]["title"], "moet opgegeven zijn"
   end
 
   test "create is rate limited per IP" do
+    assert_equal 5, Api::RecipesController::SUBMISSIONS_PER_HOUR, "default without RECIPE_SUBMISSIONS_PER_HOUR"
+
     5.times do
       post api_recipes_url, params: { recipe: recipe_params(title: "Spam") }, as: :json
       assert_response :created

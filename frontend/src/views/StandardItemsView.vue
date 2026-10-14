@@ -1,41 +1,60 @@
 <script setup>
-import { computed, onUnmounted, ref } from 'vue'
+import { onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
+import { useAdminStore } from '@/stores/admin'
 import { useStandardItemsStore } from '@/stores/standardItems'
-import { formatQuantity } from '@/utils/quantity'
 
-// De items zelf staan in de store (en dus in localStorage). Wat je selecteert en
-// welk item je bewerkt, is alleen state van deze pagina en wordt niet bewaard.
+// De items staan op de server (via de store). Wat je selecteert en welk item je
+// bewerkt, is alleen state van deze pagina.
+const admin = useAdminStore()
 const standard = useStandardItemsStore()
+const confirmDialog = useTemplateRef('confirmDialog')
 
-const selected = ref([])
-const editingId = ref(null)
-// Ophogen geeft het toevoegformulier een nieuwe :key, waardoor het leeg opnieuw begint.
-const addFormKey = ref(0)
+const loading = ref(false)
+// Melding bij een mislukte actie (netwerk, server). Validatiefouten staan bij het veld.
+const error = ref(null)
 
-const allSelected = computed(
-  () => standard.items.length > 0 && selected.value.length === standard.items.length,
+async function load() {
+  loading.value = true
+  error.value = null
+  try {
+    await standard.load()
+  } catch (e) {
+    // Bij een 401 logt de admin-store uit; dan toont de pagina de inlogmelding.
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
+}
+
+// Laden zodra er een beheercode is: meteen, of nadat je bent ingelogd.
+watch(
+  () => admin.isLoggedIn,
+  (loggedIn) => loggedIn && load(),
+  { immediate: true },
 )
 
-function itemLine(item) {
-  if (item.quantity == null) return item.name
-  return `${formatQuantity(item.quantity)} ${item.unit} ${item.name}`
+// Voert een actie uit; een validatiefout gaat naar setErrors (bij het formulier),
+// elke andere fout bovenaan de pagina. Geeft true als het gelukt is.
+async function attempt(action, setErrors = () => {}) {
+  error.value = null
+  try {
+    await action()
+    setErrors({})
+    return true
+  } catch (e) {
+    if (e.kind === 'validation') {
+      setErrors(e.errors)
+    } else {
+      error.value = e.message
+    }
+    return false
+  }
 }
 
-function isSelected(id) {
-  return selected.value.includes(id)
-}
-
-function toggleSelected(id) {
-  selected.value = isSelected(id) ? selected.value.filter((s) => s !== id) : [...selected.value, id]
-}
-
-function toggleAll() {
-  selected.value = allSelected.value ? [] : standard.items.map((i) => i.id)
-}
-
-// Zelfde korte bevestiging als op de receptpagina.
+// Korte bevestiging onderaan, zoals op de receptpagina.
 const message = ref(null)
 let messageTimer = null
 
@@ -47,32 +66,110 @@ function confirm(text) {
 
 onUnmounted(() => clearTimeout(messageTimer))
 
-function addItem(fields) {
-  if (standard.add(fields)) addFormKey.value++
+function countText(count) {
+  return count === 1 ? '1 item' : `${count} items`
 }
 
-function saveEdit(id, fields) {
-  if (standard.update(id, fields)) editingId.value = null
+// ---------- Toevoegen en bewerken ----------
+
+const saving = ref(false)
+const addErrors = ref({})
+// Ophogen geeft het toevoegformulier een nieuwe :key, waardoor het leeg opnieuw begint.
+const addFormKey = ref(0)
+
+async function addItem(fields) {
+  saving.value = true
+  const ok = await attempt(
+    () => standard.add(fields),
+    (errors) => (addErrors.value = errors),
+  )
+  saving.value = false
+  if (ok) addFormKey.value++
 }
 
-function remove(item) {
-  standard.remove(item.id)
-  selected.value = selected.value.filter((s) => s !== item.id)
+const editingId = ref(null)
+const editErrors = ref({})
+
+function startEdit(item) {
+  editErrors.value = {}
+  editingId.value = item.id
 }
+
+async function saveEdit(id, fields) {
+  saving.value = true
+  const ok = await attempt(
+    () => standard.update(id, fields),
+    (errors) => (editErrors.value = errors),
+  )
+  saving.value = false
+  if (ok) editingId.value = null
+}
+
+// ---------- Losse acties per item ----------
 
 function addOne(item) {
   standard.addToShoppingList([item.id])
   confirm(`${item.name} staat op je boodschappenlijst.`)
 }
 
+async function removeOne(item) {
+  if (!(await confirmDialog.value.ask({ title: `${item.name} verwijderen?` }))) return
+  if (await attempt(() => standard.remove(item.id))) confirm(`${item.name} is verwijderd.`)
+}
+
+// ---------- Selectiemodus ----------
+
+const selecting = ref(false)
+const selected = ref([])
+
+function startSelecting() {
+  editingId.value = null
+  // Een oude bevestiging hoort niet in de selectiebalk.
+  clearTimeout(messageTimer)
+  message.value = null
+  selecting.value = true
+}
+
+function stopSelecting() {
+  selecting.value = false
+  selected.value = []
+}
+
 function addSelected() {
   const count = standard.addToShoppingList(selected.value)
-  selected.value = []
-  confirm(
-    count === 1
-      ? '1 item staat op je boodschappenlijst.'
-      : `${count} items staan op je boodschappenlijst.`,
-  )
+  stopSelecting()
+  confirm(`${countText(count)} op je boodschappenlijst gezet.`)
+}
+
+async function removeSelected() {
+  const title = `${countText(selected.value.length)} verwijderen?`
+  if (!(await confirmDialog.value.ask({ title }))) return
+
+  let count = 0
+  const ok = await attempt(async () => (count = await standard.removeMany(selected.value)))
+  if (!ok) return
+  stopSelecting()
+  confirm(`${countText(count)} verwijderd.`)
+}
+
+// Zonder items valt er niets te selecteren (bijv. na alles verwijderen).
+watch(
+  () => standard.items.length,
+  (length) => length === 0 && stopSelecting(),
+)
+
+// ---------- Import van de oude lijst ----------
+
+const importing = ref(false)
+
+async function importLegacy() {
+  importing.value = true
+  let result
+  const ok = await attempt(async () => (result = await standard.importLegacy()))
+  importing.value = false
+  if (!ok) return
+  const skipped = result.skipped ? `, ${result.skipped} overgeslagen (stonden er al)` : ''
+  confirm(`${countText(result.imported)} geïmporteerd${skipped}.`)
 }
 </script>
 
@@ -80,19 +177,53 @@ function addSelected() {
   <h1>Standaardboodschappen</h1>
   <p class="muted">Wat je vaak koopt. Zet het met één tik op je boodschappenlijst.</p>
 
-  <section class="card add-card">
-    <h2>Item toevoegen</h2>
-    <StandardItemForm :key="addFormKey" submit-label="Toevoegen" @save="addItem" />
-  </section>
-
-  <div v-if="standard.items.length === 0" class="empty card">
-    <p>Je hebt nog geen standaardboodschappen.</p>
-    <button type="button" class="load-example" @click="standard.loadExample()">
-      Voorbeeldlijst laden
-    </button>
+  <div v-if="!admin.isLoggedIn" class="login-needed card" role="status">
+    <p>De standaardlijst staat op de server en is alleen te zien met de beheercode.</p>
+    <RouterLink to="/beheer" class="btn btn-primary">Inloggen bij Beheer</RouterLink>
   </div>
 
   <template v-else>
+    <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+
+    <div v-if="standard.legacyItems.length && standard.loaded" class="import card">
+      <p>
+        In deze browser staat nog een oude standaardlijst ({{
+          countText(standard.legacyItems.length)
+        }}). Zet hem op de server; wat er al staat, wordt overgeslagen.
+      </p>
+      <button type="button" class="import-legacy" :disabled="importing" @click="importLegacy">
+        Lijst uit deze browser importeren
+      </button>
+    </div>
+
+    <section class="card add-card">
+      <h2>Item toevoegen</h2>
+      <StandardItemForm
+        :key="addFormKey"
+        submit-label="Toevoegen"
+        :categories="standard.categories"
+        :errors="addErrors"
+        :submitting="saving"
+        @save="addItem"
+      />
+    </section>
+
+    <p v-if="loading" class="muted">Standaardlijst laden…</p>
+
+    <p v-else-if="standard.loaded && standard.items.length === 0" class="empty card">
+      Je hebt nog geen standaardboodschappen. Voeg hierboven je eerste item toe.
+    </p>
+
+    <!-- Rechtsboven de lijst, niet naast de titel: daar zou "Standaardboodschappen"
+         op een telefoon over drie regels afbreken. -->
+    <div v-if="standard.items.length" class="list-toolbar">
+      <span class="muted">{{ countText(standard.items.length) }}</span>
+      <button v-if="!selecting" type="button" class="start-selecting" @click="startSelecting">
+        Selecteren
+      </button>
+      <span v-else class="muted">Kies items</span>
+    </div>
+
     <section v-for="group in standard.groups" :key="group.category ?? ''" class="group">
       <h2>{{ group.category ?? 'overig' }}</h2>
       <ul class="items card">
@@ -102,74 +233,107 @@ function addSelected() {
             :initial="item"
             submit-label="Opslaan"
             cancellable
+            :categories="standard.categories"
+            :errors="editErrors"
+            :submitting="saving"
             @save="saveEdit(item.id, $event)"
             @cancel="editingId = null"
           />
-          <template v-else>
-            <label class="select">
-              <input
-                type="checkbox"
-                :checked="isSelected(item.id)"
-                @change="toggleSelected(item.id)"
-              />
-              <span class="line">{{ itemLine(item) }}</span>
-            </label>
+
+          <label v-else-if="selecting" class="row select">
+            <input v-model="selected" type="checkbox" :value="item.id" />
+            <span class="line">{{ item.name }}</span>
+          </label>
+
+          <div v-else class="row">
+            <span class="line">{{ item.name }}</span>
             <div class="item-actions">
               <button
                 type="button"
-                class="add-one"
+                class="icon add-one"
                 :aria-label="`${item.name} op boodschappenlijst`"
                 @click="addOne(item)"
               >
-                Op lijst
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
               </button>
               <button
                 type="button"
-                class="edit"
+                class="icon edit"
                 :aria-label="`${item.name} bewerken`"
-                @click="editingId = item.id"
+                @click="startEdit(item)"
               >
-                Bewerken
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+                  <path d="m13.5 6.5 4 4" />
+                </svg>
               </button>
               <button
                 type="button"
-                class="remove btn-danger"
+                class="icon remove"
                 :aria-label="`${item.name} verwijderen`"
-                @click="remove(item)"
+                @click="removeOne(item)"
               >
-                Verwijderen
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+                </svg>
               </button>
             </div>
-          </template>
+          </div>
         </li>
       </ul>
     </section>
+
+    <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
+    <div v-if="selecting || message" class="bottom-bar card">
+      <p v-if="message" class="added notice notice-success" role="status">
+        {{ message }} <RouterLink to="/boodschappen">Bekijk lijst</RouterLink>
+      </p>
+      <div v-if="selecting" class="selection-actions">
+        <button
+          type="button"
+          class="add-selected btn-primary"
+          :disabled="selected.length === 0"
+          @click="addSelected"
+        >
+          Op lijst ({{ selected.length }})
+        </button>
+        <button
+          type="button"
+          class="remove-selected btn-danger"
+          :disabled="selected.length === 0"
+          @click="removeSelected"
+        >
+          Verwijderen ({{ selected.length }})
+        </button>
+        <button type="button" class="stop-selecting" @click="stopSelecting">Annuleren</button>
+      </div>
+    </div>
   </template>
 
-  <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
-  <div v-if="standard.items.length || message" class="bulk card">
-    <p v-if="message" class="added notice notice-success" role="status">
-      {{ message }} <RouterLink to="/boodschappen">Bekijk lijst</RouterLink>
-    </p>
-    <div v-if="standard.items.length" class="bulk-actions">
-      <button type="button" class="toggle-all" @click="toggleAll">
-        {{ allSelected ? 'Selectie wissen' : 'Alles selecteren' }}
-      </button>
-      <button
-        type="button"
-        class="add-selected btn-primary"
-        :disabled="selected.length === 0"
-        @click="addSelected"
-      >
-        Geselecteerde op lijst<template v-if="selected.length"> ({{ selected.length }})</template>
-      </button>
-    </div>
-  </div>
-
-  <p class="hint muted">Deze lijst staat alleen in deze browser op dit apparaat.</p>
+  <ConfirmDialog ref="confirmDialog" />
 </template>
 
 <style scoped>
+.list-toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--tap);
+  margin-bottom: var(--space-3);
+}
+
+.start-selecting {
+  font-size: var(--text-sm);
+}
+
+.login-needed {
+  text-align: center;
+}
+
+.import,
 .add-card {
   margin-bottom: var(--space-5);
 }
@@ -200,20 +364,36 @@ function addSelected() {
 }
 
 .items li {
-  padding: var(--space-3) 0;
+  padding: var(--space-1) 0;
   border-bottom: 1px solid var(--color-border);
+}
+
+.items li:has(> form) {
+  padding: var(--space-3) 0;
 }
 
 .items li:last-child {
   border-bottom: 0;
 }
 
-.select {
+/* Compact: naam links, knoppen rechts op dezelfde regel. */
+.row {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   align-items: center;
   min-height: var(--tap);
+}
+
+.line {
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+
+/* In de selectiemodus is de hele regel het tikvlak. */
+.select {
+  gap: var(--space-3);
   font-weight: 400;
   cursor: pointer;
 }
@@ -222,42 +402,39 @@ function addSelected() {
   flex-shrink: 0;
 }
 
-/* Mobiel: knoppen op een eigen regel onder de naam, even breed. */
 .item-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  display: flex;
+  flex-shrink: 0;
 }
 
-.item-actions button {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
+/* Icoonknoppen: 44×44, zonder rand, zodat de regel rustig blijft. */
+.icon {
+  width: var(--tap);
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .add-one {
   color: var(--color-accent-text);
 }
 
-/* Breed: naam links, knoppen rechts op dezelfde regel. */
-@media (min-width: 40rem) {
-  .items li:has(> .select) {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .select {
-    flex: 1;
-  }
-
-  .item-actions {
-    display: flex;
-    margin-top: 0;
-  }
+.remove {
+  color: var(--color-danger);
 }
 
-.bulk {
+.bottom-bar {
   position: sticky;
   bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + var(--space-2));
   z-index: 5;
@@ -267,13 +444,17 @@ function addSelected() {
 }
 
 @media (min-width: 40rem) {
-  .bulk {
+  .bottom-bar {
     bottom: var(--space-3);
   }
 }
 
 .added {
-  margin-bottom: var(--space-3);
+  margin-bottom: 0;
+}
+
+.added + .selection-actions {
+  margin-top: var(--space-3);
 }
 
 .added a {
@@ -281,17 +462,14 @@ function addSelected() {
   font-weight: 600;
 }
 
-.bulk-actions {
+.selection-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.bulk-actions button {
+.selection-actions button {
   flex: 1 1 auto;
-}
-
-.hint {
-  margin-top: var(--space-4);
   font-size: var(--text-sm);
 }
 </style>

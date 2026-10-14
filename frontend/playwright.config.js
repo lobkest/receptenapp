@@ -32,7 +32,9 @@ export default defineConfig({
       command: `bin/rails db:prepare && bin/rails db:truncate_all && bin/rails server -p ${RAILS_PORT} -P tmp/pids/e2e.pid`,
       cwd: '..',
       url: `${RAILS_URL}/up`,
-      env: { RAILS_ENV: 'test', ADMIN_TOKEN },
+      // Hoge limiet voor insturen: na een mislukte test start Playwright opnieuw en maakt
+      // het de testdata nog eens aan; met de normale 5 per uur zou dat op 429 stuklopen.
+      env: { RAILS_ENV: 'test', ADMIN_TOKEN, RECIPE_SUBMISSIONS_PER_HOUR: '1000' },
       reuseExistingServer: false,
       timeout: 60_000,
     },

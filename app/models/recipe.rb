@@ -72,7 +72,7 @@ class Recipe < ApplicationRecord
       if required && count.zero?
         errors.add(association, :blank)
       elsif count > maximum
-        errors.add(association, :too_many, count: maximum, message: "has too many rows (maximum is %{count})")
+        errors.add(association, :too_many, count: maximum)
       end
     end
 end

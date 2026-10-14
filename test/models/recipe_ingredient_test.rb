@@ -85,6 +85,13 @@ class RecipeIngredientTest < ActiveSupport::TestCase
     end
   end
 
+  test "foutmeldingen zijn Nederlands" do
+    row = row(ingredient_name: "ui", quantity: "abc", unit: "stuks")
+
+    assert_not row.valid?
+    assert_includes row.errors.full_messages, "Hoeveelheid is geen getal"
+  end
+
   test "een lege hoeveelheid is naar smaak" do
     [ "", "  ", nil ].each do |input|
       row = row(ingredient_name: "zout", quantity: input, unit: "g")

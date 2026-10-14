@@ -29,3 +29,7 @@
 
 en:
   hello: "Hello world"
+  errors:
+    messages:
+      too_many: "has too many rows (maximum is %{count})"
+      too_many_rows: "has too many rows"

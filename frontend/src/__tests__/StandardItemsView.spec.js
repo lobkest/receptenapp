@@ -4,25 +4,29 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
-import { EXAMPLE_ITEMS, useStandardItemsStore } from '../stores/standardItems'
+import { LEGACY_STORAGE_KEY } from '../stores/standardItems'
 import { useShoppingListStore } from '../stores/shoppingList'
+import { ADMIN_CODE, fakeStandardServer } from './helpers'
 
-// Monteert de hele App, zodat we ook de link in het menu kunnen testen.
-async function mountApp(fill = () => {}) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  fill(useStandardItemsStore())
+const ITEMS = [
+  { id: 1, name: 'melk', category: 'zuivel' },
+  { id: 2, name: 'kaas', category: 'zuivel' },
+  { id: 3, name: 'banaan', category: 'groente & fruit' },
+  { id: 4, name: 'wc-papier', category: null },
+]
+
+// Monteert de hele App, zodat ook het menu en de inloglink echt werken.
+// attachTo: anders kan de focus in jsdom niet naar een knop.
+async function mountApp() {
+  setActivePinia(createPinia())
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push('/standaard')
-  const wrapper = mount(App, { global: { plugins: [pinia, router] }, attachTo: document.body })
+  const wrapper = mount(App, {
+    global: { plugins: [router] },
+    attachTo: document.body,
+  })
   await flushPromises()
-  return wrapper
-}
-
-function fillThree(standard) {
-  standard.add({ name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' })
-  standard.add({ name: 'kaas', quantity: 400, unit: 'g', category: 'zuivel' })
-  standard.add({ name: 'wc-papier' })
+  return { wrapper, router }
 }
 
 function buttonWithText(wrapper, text) {
@@ -33,160 +37,304 @@ function lines(wrapper) {
   return wrapper.findAll('.items .line').map((l) => l.text())
 }
 
-// Het li-element van een item, gevonden op de getoonde tekst.
-function rowOf(wrapper, line) {
-  return wrapper.findAll('.items li').find((li) => li.find('.line').text() === line)
+function rowOf(wrapper, name) {
+  return wrapper.findAll('.items li').find((li) => li.find('.line').text() === name)
 }
 
-function shoppingLines() {
-  return useShoppingListStore().items.map((i) => [i.name, i.quantity, i.unit])
+function dialog(wrapper) {
+  return wrapper.find('dialog')
+}
+
+function shoppingNames() {
+  return useShoppingListStore().items.map((i) => i.name)
 }
 
 describe('StandardItemsView', () => {
   let wrapper
+  let server
 
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
+    sessionStorage.setItem('adminCode', ADMIN_CODE)
+    server = fakeStandardServer(ITEMS)
   })
 
   afterEach(() => {
     wrapper?.unmount()
+    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
   it('staat in het hoofdmenu', async () => {
-    wrapper = await mountApp()
+    ;({ wrapper } = await mountApp())
 
     const link = wrapper.findAll('nav a').find((a) => a.text() === 'Standaard')
     expect(link.attributes('href')).toBe('/standaard')
   })
 
-  it('begint leeg en laadt de voorbeeldlijst', async () => {
-    wrapper = await mountApp()
-    expect(wrapper.find('.empty').text()).toContain('nog geen')
+  it('toont zonder beheercode een melding met een link naar Beheer, en laadt niets', async () => {
+    sessionStorage.clear()
+    ;({ wrapper } = await mountApp())
 
-    await wrapper.find('.load-example').trigger('click')
-
-    expect(wrapper.find('.empty').exists()).toBe(false)
-    expect(lines(wrapper)).toHaveLength(EXAMPLE_ITEMS.length)
+    const notice = wrapper.find('.login-needed')
+    expect(notice.text()).toContain('alleen te zien met de beheercode')
+    expect(notice.find('a').attributes('href')).toBe('/beheer')
+    expect(server.fetch).not.toHaveBeenCalled()
+    expect(wrapper.find('.add-card').exists()).toBe(false)
+    expect(buttonWithText(wrapper, 'Selecteren')).toBeUndefined()
   })
 
-  it('toont items per categorie, zonder categorie onder "overig"', async () => {
-    wrapper = await mountApp(fillThree)
+  it('toont de inlogmelding als de code niet (meer) klopt', async () => {
+    sessionStorage.setItem('adminCode', 'verkeerd')
+    ;({ wrapper } = await mountApp())
 
-    expect(wrapper.findAll('.group h2').map((h) => h.text())).toEqual(['zuivel', 'overig'])
-    expect(lines(wrapper)).toEqual(['400 g kaas', '1.000 ml melk', 'wc-papier'])
+    expect(wrapper.find('.login-needed').exists()).toBe(true)
   })
 
-  it('voegt een item toe via het formulier en maakt het formulier leeg', async () => {
-    wrapper = await mountApp()
-    const form = wrapper.find('.add-card form')
+  it('toont items per categorie, zonder categorie onder "overig", compact met drie icoonknoppen', async () => {
+    ;({ wrapper } = await mountApp())
 
-    await form.find('.name').setValue('Yoghurt')
-    await form.find('.quantity').setValue('500')
-    await form.find('.unit').setValue('ml')
-    await form.find('.category').setValue('zuivel')
-    await form.trigger('submit')
-
-    expect(lines(wrapper)).toEqual(['500 ml yoghurt'])
-    expect(wrapper.find('.add-card .name').element.value).toBe('')
-    expect(JSON.parse(localStorage.getItem('standardItems')).items).toHaveLength(1)
-  })
-
-  it('meldt een ontbrekende naam en een ongeldige hoeveelheid', async () => {
-    wrapper = await mountApp()
-    const form = wrapper.find('.add-card form')
-
-    await form.find('.quantity').setValue('0')
-    await form.trigger('submit')
-
-    expect(form.findAll('.error').map((e) => e.text())).toEqual([
-      'Vul een naam in.',
-      'Vul een hoeveelheid groter dan 0 in, of laat het leeg.',
+    expect(wrapper.findAll('.group h2').map((h) => h.text())).toEqual([
+      'groente & fruit',
+      'zuivel',
+      'overig',
     ])
-    expect(form.find('.name').attributes('aria-invalid')).toBe('true')
-    expect(useStandardItemsStore().items).toEqual([])
+    expect(lines(wrapper)).toEqual(['banaan', 'kaas', 'melk', 'wc-papier'])
+    expect(
+      rowOf(wrapper, 'melk')
+        .findAll('button')
+        .map((b) => b.attributes('aria-label')),
+    ).toEqual(['melk op boodschappenlijst', 'melk bewerken', 'melk verwijderen'])
+  })
+
+  it('heeft geen voorbeeldlijst meer', async () => {
+    server = fakeStandardServer([])
+    ;({ wrapper } = await mountApp())
+
+    expect(wrapper.find('.empty').text()).toContain('nog geen standaardboodschappen')
+    expect(wrapper.text()).not.toContain('Voorbeeldlijst')
+  })
+
+  describe('toevoegen', () => {
+    it('met een nieuwe categorie: verschijnt in een eigen groep, en het formulier wordt leeg', async () => {
+      ;({ wrapper } = await mountApp())
+      const form = () => wrapper.find('.add-card form')
+
+      await form().find('.name').setValue('Chocola')
+      await form().find('select.category').setValue('NEW')
+      await form().find('.new-category').setValue('Snoep')
+      await form().trigger('submit')
+      await flushPromises()
+
+      expect(server.db).toContainEqual({ id: 5, name: 'chocola', category: 'snoep' })
+      expect(wrapper.findAll('.group h2').map((h) => h.text())).toContain('snoep')
+      expect(form().find('.name').element.value).toBe('')
+      expect(form().find('.new-category').exists()).toBe(false)
+      // De nieuwe categorie staat nu ook in de keuzelijst.
+      const options = form()
+        .findAll('select.category option')
+        .map((o) => o.text())
+      expect(options).toEqual([
+        'Geen categorie',
+        'groente & fruit',
+        'snoep',
+        'zuivel',
+        'Nieuwe categorie…',
+      ])
+    })
+
+    it('meldt een dubbele naam bij het veld en houdt de invoer', async () => {
+      ;({ wrapper } = await mountApp())
+      const form = wrapper.find('.add-card form')
+
+      await form.find('.name').setValue('Melk')
+      await form.trigger('submit')
+      await flushPromises()
+
+      expect(form.find('.error').text()).toBe('Naam is al in gebruik')
+      expect(form.find('.name').element.value).toBe('Melk')
+      expect(server.db).toHaveLength(4)
+    })
   })
 
   it('bewerkt een item op zijn plek, en annuleren laat het ongemoeid', async () => {
-    wrapper = await mountApp(fillThree)
+    ;({ wrapper } = await mountApp())
 
     await rowOf(wrapper, 'wc-papier').find('.edit').trigger('click')
-    let editForm = wrapper.find('.items form')
-    expect(editForm.find('.name').element.value).toBe('wc-papier')
-    await buttonWithText(wrapper, 'Annuleren').trigger('click')
+    let form = wrapper.find('.items form')
+    expect(form.find('.name').element.value).toBe('wc-papier')
+    await form.find('.cancel').trigger('click')
     expect(wrapper.find('.items form').exists()).toBe(false)
 
     await rowOf(wrapper, 'wc-papier').find('.edit').trigger('click')
-    editForm = wrapper.find('.items form')
-    await editForm.find('.quantity').setValue('8')
-    await editForm.find('.unit').setValue('stuks')
-    await editForm.find('.category').setValue('huishouden')
-    await editForm.trigger('submit')
+    form = wrapper.find('.items form')
+    await form.find('.name').setValue('Toiletpapier')
+    await form.find('select.category').setValue('NEW')
+    await form.find('.new-category').setValue('huishouden')
+    await form.trigger('submit')
+    await flushPromises()
 
     expect(wrapper.find('.items form').exists()).toBe(false)
-    expect(wrapper.findAll('.group h2').map((h) => h.text())).toEqual(['huishouden', 'zuivel'])
-    expect(lines(wrapper)).toContain('8 stuks wc-papier')
+    expect(server.db.find((i) => i.id === 4)).toEqual({
+      id: 4,
+      name: 'toiletpapier',
+      category: 'huishouden',
+    })
+    expect(wrapper.findAll('.group h2').map((h) => h.text())).toContain('huishouden')
   })
 
-  it('verwijdert een item', async () => {
-    wrapper = await mountApp(fillThree)
+  it('verwijdert pas na bevestiging: "banaan verwijderen?"', async () => {
+    ;({ wrapper } = await mountApp())
 
-    await rowOf(wrapper, '400 g kaas').find('.remove').trigger('click')
+    await rowOf(wrapper, 'banaan').find('.remove').trigger('click')
+    await flushPromises()
+    expect(dialog(wrapper).attributes('open')).toBeDefined()
+    expect(dialog(wrapper).find('h2').text()).toBe('banaan verwijderen?')
+    expect(document.activeElement).toBe(dialog(wrapper).find('.cancel').element)
 
-    expect(lines(wrapper)).toEqual(['1.000 ml melk', 'wc-papier'])
+    await dialog(wrapper).find('.cancel').trigger('click')
+    await flushPromises()
+    expect(lines(wrapper)).toContain('banaan')
+    expect(server.db).toHaveLength(4)
+
+    await rowOf(wrapper, 'banaan').find('.remove').trigger('click')
+    await flushPromises()
+    await dialog(wrapper).find('.confirm').trigger('click')
+    await flushPromises()
+    expect(lines(wrapper)).not.toContain('banaan')
+    expect(server.db.map((i) => i.name)).not.toContain('banaan')
   })
 
-  it('zet één item op de boodschappenlijst, met bevestiging die weer verdwijnt', async () => {
+  it('zet één item op de boodschappenlijst, met een bevestiging die weer verdwijnt', async () => {
     vi.useFakeTimers()
-    wrapper = await mountApp(fillThree)
+    ;({ wrapper } = await mountApp())
 
-    await rowOf(wrapper, '1.000 ml melk').find('.add-one').trigger('click')
+    await rowOf(wrapper, 'melk').find('.add-one').trigger('click')
 
-    expect(shoppingLines()).toEqual([['melk', 1000, 'ml']])
-    expect(useShoppingListStore().items[0].sources[0].title).toBe('standaard')
-    expect(wrapper.find('[role="status"]').text()).toContain('melk staat op je boodschappenlijst')
-
+    expect(shoppingNames()).toEqual(['melk'])
+    expect(wrapper.find('[role="status"]').text()).toContain('melk staat op je boodschappenlijst.')
     await vi.advanceTimersByTimeAsync(3000)
-    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.find('.bottom-bar').exists()).toBe(false)
   })
 
-  it('zet geselecteerde items op de lijst en wist daarna de selectie', async () => {
-    wrapper = await mountApp(fillThree)
-    const addSelected = wrapper.find('.add-selected')
-    expect(addSelected.attributes('disabled')).toBeDefined()
+  describe('selectiemodus', () => {
+    async function startSelecting() {
+      ;({ wrapper } = await mountApp())
+      await buttonWithText(wrapper, 'Selecteren').trigger('click')
+    }
 
-    await rowOf(wrapper, '400 g kaas').find('input[type="checkbox"]').setValue(true)
-    await rowOf(wrapper, 'wc-papier').find('input[type="checkbox"]').setValue(true)
-    expect(addSelected.text()).toBe('Geselecteerde op lijst (2)')
+    async function select(...names) {
+      for (const name of names) await rowOf(wrapper, name).find('input').setValue(true)
+    }
 
-    await addSelected.trigger('click')
+    it('heeft buiten de selectiemodus geen checkboxes en geen balk', async () => {
+      ;({ wrapper } = await mountApp())
 
-    expect(shoppingLines()).toEqual([
-      ['kaas', 400, 'g'],
-      ['wc-papier', null, null],
-    ])
-    expect(wrapper.find('[role="status"]').text()).toContain('2 items staan')
-    expect(wrapper.findAll('.items input:checked')).toHaveLength(0)
-    expect(addSelected.attributes('disabled')).toBeDefined()
+      expect(wrapper.findAll('.items input[type="checkbox"]')).toHaveLength(0)
+      expect(wrapper.find('.bottom-bar').exists()).toBe(false)
+    })
+
+    it('toont checkboxes en een balk met tellers; de icoonknoppen verdwijnen', async () => {
+      await startSelecting()
+
+      expect(wrapper.findAll('.items input[type="checkbox"]')).toHaveLength(4)
+      expect(wrapper.findAll('.items .icon')).toHaveLength(0)
+      expect(buttonWithText(wrapper, 'Selecteren')).toBeUndefined()
+      expect(buttonWithText(wrapper, 'Op lijst (0)').attributes('disabled')).toBeDefined()
+      expect(buttonWithText(wrapper, 'Verwijderen (0)').attributes('disabled')).toBeDefined()
+
+      await select('melk', 'kaas')
+
+      expect(buttonWithText(wrapper, 'Op lijst (2)').attributes('disabled')).toBeUndefined()
+      expect(buttonWithText(wrapper, 'Verwijderen (2)').attributes('disabled')).toBeUndefined()
+    })
+
+    it('zet de selectie op de boodschappenlijst en stopt dan', async () => {
+      await startSelecting()
+      await select('melk', 'wc-papier')
+
+      await buttonWithText(wrapper, 'Op lijst (2)').trigger('click')
+
+      expect(shoppingNames()).toEqual(['melk', 'wc-papier'])
+      expect(wrapper.find('[role="status"]').text()).toContain(
+        '2 items op je boodschappenlijst gezet.',
+      )
+      expect(wrapper.findAll('.items input[type="checkbox"]')).toHaveLength(0)
+    })
+
+    it('verwijdert de selectie na één bevestiging, via bulk_destroy', async () => {
+      await startSelecting()
+      await select('melk', 'kaas', 'banaan')
+
+      await buttonWithText(wrapper, 'Verwijderen (3)').trigger('click')
+      await flushPromises()
+      expect(dialog(wrapper).find('h2').text()).toBe('3 items verwijderen?')
+      await dialog(wrapper).find('.confirm').trigger('click')
+      await flushPromises()
+
+      const posts = server.fetch.mock.calls.filter(([, o]) => o.method === 'POST')
+      expect(posts.map(([url]) => url)).toEqual(['/api/admin/standard_items/bulk_destroy'])
+      expect(JSON.parse(posts[0][1].body).ids.sort()).toEqual([1, 2, 3])
+      expect(lines(wrapper)).toEqual(['wc-papier'])
+      expect(wrapper.find('[role="status"]').text()).toContain('3 items verwijderd.')
+      expect(wrapper.findAll('.items input[type="checkbox"]')).toHaveLength(0)
+    })
+
+    it('verwijdert niets als je de bevestiging annuleert, en blijft in de selectiemodus', async () => {
+      await startSelecting()
+      await select('melk')
+
+      await buttonWithText(wrapper, 'Verwijderen (1)').trigger('click')
+      await flushPromises()
+      expect(dialog(wrapper).find('h2').text()).toBe('1 item verwijderen?')
+      await dialog(wrapper).find('.cancel').trigger('click')
+      await flushPromises()
+
+      expect(server.db).toHaveLength(4)
+      expect(buttonWithText(wrapper, 'Verwijderen (1)')).toBeDefined()
+    })
+
+    it('stopt met Annuleren en vergeet de selectie', async () => {
+      await startSelecting()
+      await select('melk')
+
+      await buttonWithText(wrapper, 'Annuleren').trigger('click')
+      expect(wrapper.find('.bottom-bar').exists()).toBe(false)
+
+      await buttonWithText(wrapper, 'Selecteren').trigger('click')
+      expect(buttonWithText(wrapper, 'Op lijst (0)')).toBeDefined()
+    })
   })
 
-  it('selecteert alles en wist de selectie weer', async () => {
-    wrapper = await mountApp(fillThree)
+  describe('import uit deze browser', () => {
+    function storeLegacy(items) {
+      localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({ version: 1, items }))
+    }
 
-    await buttonWithText(wrapper, 'Alles selecteren').trigger('click')
-    expect(wrapper.findAll('.items input:checked')).toHaveLength(3)
+    it('toont geen importknop zonder oude lijst', async () => {
+      ;({ wrapper } = await mountApp())
 
-    await buttonWithText(wrapper, 'Selectie wissen').trigger('click')
-    expect(wrapper.findAll('.items input:checked')).toHaveLength(0)
-  })
+      expect(buttonWithText(wrapper, 'Lijst uit deze browser importeren')).toBeUndefined()
+    })
 
-  it('haalt een verwijderd item ook uit de selectie', async () => {
-    wrapper = await mountApp(fillThree)
+    it('importeert de oude lijst, slaat dubbele over, en de knop verdwijnt', async () => {
+      storeLegacy([
+        { id: 1, name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' },
+        { id: 2, name: 'koffie', quantity: 500, unit: 'g', category: 'voorraad' },
+      ])
+      ;({ wrapper } = await mountApp())
 
-    await rowOf(wrapper, 'wc-papier').find('input[type="checkbox"]').setValue(true)
-    await rowOf(wrapper, 'wc-papier').find('.remove').trigger('click')
+      expect(wrapper.find('.import').text()).toContain('2 items')
+      await buttonWithText(wrapper, 'Lijst uit deze browser importeren').trigger('click')
+      await flushPromises()
 
-    expect(wrapper.find('.add-selected').attributes('disabled')).toBeDefined()
+      expect(lines(wrapper)).toContain('koffie')
+      expect(wrapper.find('[role="status"]').text()).toContain(
+        '1 item geïmporteerd, 1 overgeslagen (stonden er al).',
+      )
+      expect(wrapper.find('.import').exists()).toBe(false)
+      expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
+    })
   })
 })

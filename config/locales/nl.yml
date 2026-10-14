@@ -1,0 +1,39 @@
+# Dutch names and messages for the API's validation errors. The standard texts
+# ("moet opgegeven zijn", "is geen getal") come from the rails-i18n gem.
+#
+# The API sends messages without the attribute name ({ "title": ["moet opgegeven zijn"] });
+# the frontend puts its own label in front. These names are used where Rails builds a
+# full message itself (errors.full_messages, the console, logs).
+nl:
+  activerecord:
+    models:
+      recipe: recept
+      recipe_ingredient: ingrediënt
+      ingredient: ingrediënt
+      step: stap
+      standard_item: standaarditem
+    attributes:
+      recipe:
+        title: Titel
+        description: Beschrijving
+        servings: Porties
+        status: Status
+        steps: Stappen
+        recipe_ingredients: Ingrediënten
+      recipe_ingredient:
+        ingredient_name: Naam
+        quantity: Hoeveelheid
+        unit: Eenheid
+        optional: Optioneel
+      ingredient:
+        name: Naam
+      step:
+        body: Stap
+        position: Positie
+      standard_item:
+        name: Naam
+        category: Categorie
+  errors:
+    messages:
+      too_many: "heeft te veel regels (maximaal %{count})"
+      too_many_rows: "heeft te veel regels"

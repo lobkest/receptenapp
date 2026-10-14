@@ -1,14 +1,18 @@
 <script setup>
-import { reactive, ref, useId } from 'vue'
-import { CATEGORY_SUGGESTIONS } from '@/stores/standardItems'
-import { UNITS } from '@/utils/quantity'
+import { computed, nextTick, reactive, ref, useId, useTemplateRef } from 'vue'
 
 // Eén formulier voor toevoegen (leeg) en bewerken (initial = een bestaand item).
+// Alleen naam en categorie; de server normaliseert ("  Zuivel " → "zuivel").
 const props = defineProps({
   initial: { type: Object, default: () => ({}) },
   submitLabel: { type: String, default: 'Toevoegen' },
   // Bij bewerken een knop "Annuleren".
   cancellable: { type: Boolean, default: false },
+  // De bestaande categorieën, uniek en gesorteerd (uit de store).
+  categories: { type: Array, default: () => [] },
+  // Fouten van de server, bijv. { name: ['is al in gebruik'] }.
+  errors: { type: Object, default: () => ({}) },
+  submitting: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['save', 'cancel'])
@@ -17,30 +21,60 @@ const emit = defineEmits(['save', 'cancel'])
 // soms tegelijk op de pagina, en een label moet naar precies één veld wijzen.
 const uid = useId()
 
+// Waarde van de keuze "Nieuwe categorie…". Kan niet botsen met een echte categorie:
+// die zijn genormaliseerd en hebben dus geen hoofdletters.
+const NEW_CATEGORY = 'NEW'
+
 const form = reactive({
   name: props.initial.name ?? '',
-  quantity: props.initial.quantity ?? '',
-  unit: props.initial.unit ?? 'stuks',
+  // '' = geen categorie.
   category: props.initial.category ?? '',
+  newCategory: '',
 })
 
-const errors = ref({})
+// Ook de eigen categorie van het item, voor het geval die (nog) niet in de lijst staat.
+const options = computed(() =>
+  props.initial.category && !props.categories.includes(props.initial.category)
+    ? [...props.categories, props.initial.category]
+    : props.categories,
+)
 
-// Hier alleen de controles waar de gebruiker een melding voor nodig heeft;
-// de store normaliseert en controleert daarna nog een keer zelf.
+const newCategoryInput = useTemplateRef('newCategoryInput')
+
+// Kies je "Nieuwe categorie…", dan verschijnt het tekstveld en krijgt het meteen de focus.
+async function onCategoryChange() {
+  if (form.category !== NEW_CATEGORY) return
+  await nextTick()
+  newCategoryInput.value?.focus()
+}
+
+const clientErrors = ref({})
+
+// Eerst onze eigen meldingen; daarna die van de server (met het veld ervoor).
+const shownErrors = computed(() => ({
+  name: clientErrors.value.name ?? serverError('Naam', 'name'),
+  category: clientErrors.value.category ?? serverError('Categorie', 'category'),
+}))
+
+function serverError(label, field) {
+  return props.errors[field]?.length ? `${label} ${props.errors[field].join(', ')}` : null
+}
+
 function validate() {
   const result = {}
   if (!form.name.trim()) result.name = 'Vul een naam in.'
-  if (form.quantity !== '' && !(Number(form.quantity) > 0)) {
-    result.quantity = 'Vul een hoeveelheid groter dan 0 in, of laat het leeg.'
+  if (form.category === NEW_CATEGORY && !form.newCategory.trim()) {
+    result.category = 'Vul een naam voor de nieuwe categorie in.'
   }
   return result
 }
 
 function onSubmit() {
-  errors.value = validate()
-  if (Object.keys(errors.value).length) return
-  emit('save', { ...form })
+  clientErrors.value = validate()
+  if (Object.keys(clientErrors.value).length) return
+
+  const category = form.category === NEW_CATEGORY ? form.newCategory : form.category
+  emit('save', { name: form.name, category: category.trim() || null })
 }
 </script>
 
@@ -54,59 +88,51 @@ function onSubmit() {
         type="text"
         class="name"
         placeholder="bijv. melk"
-        :aria-invalid="!!errors.name"
-        :aria-describedby="errors.name ? `${uid}-name-error` : undefined"
+        :aria-invalid="!!shownErrors.name"
+        :aria-describedby="shownErrors.name ? `${uid}-name-error` : undefined"
       />
-      <p v-if="errors.name" :id="`${uid}-name-error`" class="error">{{ errors.name }}</p>
+      <p v-if="shownErrors.name" :id="`${uid}-name-error`" class="error">
+        {{ shownErrors.name }}
+      </p>
     </div>
-
-    <div class="amount">
-      <div class="field">
-        <label :for="`${uid}-quantity`">Hoeveelheid</label>
-        <input
-          :id="`${uid}-quantity`"
-          v-model="form.quantity"
-          type="number"
-          step="any"
-          min="0"
-          inputmode="decimal"
-          class="quantity"
-          :aria-invalid="!!errors.quantity"
-          :aria-describedby="`${uid}-quantity-message`"
-        />
-      </div>
-      <div class="field">
-        <label :for="`${uid}-unit`">Eenheid</label>
-        <select :id="`${uid}-unit`" v-model="form.unit" class="unit">
-          <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
-        </select>
-      </div>
-    </div>
-    <!-- Melding of uitleg: steeds hetzelfde id, zodat aria-describedby altijd klopt. -->
-    <p v-if="errors.quantity" :id="`${uid}-quantity-message`" class="error quantity-error">
-      {{ errors.quantity }}
-    </p>
-    <p v-else :id="`${uid}-quantity-message`" class="hint muted">
-      Optioneel. Leeg betekent: geen vaste hoeveelheid.
-    </p>
 
     <div class="field">
-      <label :for="`${uid}-category`">Categorie (optioneel)</label>
-      <input
+      <label :for="`${uid}-category`">Categorie</label>
+      <select
         :id="`${uid}-category`"
         v-model="form.category"
-        type="text"
         class="category"
-        :list="`${uid}-categories`"
-        placeholder="bijv. zuivel"
-      />
-      <datalist :id="`${uid}-categories`">
-        <option v-for="category in CATEGORY_SUGGESTIONS" :key="category" :value="category" />
-      </datalist>
+        @change="onCategoryChange"
+      >
+        <option value="">Geen categorie</option>
+        <option v-for="category in options" :key="category" :value="category">
+          {{ category }}
+        </option>
+        <option :value="NEW_CATEGORY">Nieuwe categorie…</option>
+      </select>
     </div>
 
+    <div v-if="form.category === NEW_CATEGORY" class="field">
+      <label :for="`${uid}-new-category`">Nieuwe categorie</label>
+      <input
+        :id="`${uid}-new-category`"
+        ref="newCategoryInput"
+        v-model="form.newCategory"
+        type="text"
+        class="new-category"
+        placeholder="bijv. zuivel"
+        :aria-invalid="!!shownErrors.category"
+        :aria-describedby="shownErrors.category ? `${uid}-category-error` : undefined"
+      />
+    </div>
+    <p v-if="shownErrors.category" :id="`${uid}-category-error`" class="error category-error">
+      {{ shownErrors.category }}
+    </p>
+
     <div class="form-actions">
-      <button type="submit" class="btn-primary save">{{ submitLabel }}</button>
+      <button type="submit" class="btn-primary save" :disabled="submitting">
+        {{ submitLabel }}
+      </button>
       <button v-if="cancellable" type="button" class="cancel" @click="emit('cancel')">
         Annuleren
       </button>
@@ -115,20 +141,8 @@ function onSubmit() {
 </template>
 
 <style scoped>
-.amount {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-}
-
-.amount .field {
-  margin-bottom: 0;
-}
-
-.hint,
-.quantity-error {
-  margin: var(--space-1) 0 var(--space-4);
-  font-size: var(--text-sm);
+.category-error {
+  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
 }
 
 .form-actions {

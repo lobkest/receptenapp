@@ -15,6 +15,11 @@ Rails.application.routes.draw do
           patch :reject
         end
       end
+
+      resources :standard_items, only: %i[ index create update destroy ] do
+        # POST, not DELETE: a DELETE request with a body is not reliably passed on.
+        post :bulk_destroy, on: :collection
+      end
     end
 
     # Unknown API paths get a JSON 404, never the frontend's index.html.

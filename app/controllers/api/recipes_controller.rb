@@ -1,7 +1,10 @@
 class Api::RecipesController < ApplicationController
   before_action :set_recipe, only: :show
 
-  rate_limit to: 5, within: 1.hour, only: :create,
+  # Configurable so the e2e tests can raise it; without the variable it stays 5 per hour.
+  SUBMISSIONS_PER_HOUR = Integer(ENV.fetch("RECIPE_SUBMISSIONS_PER_HOUR", 5))
+
+  rate_limit to: SUBMISSIONS_PER_HOUR, within: 1.hour, only: :create,
     with: -> { render json: { error: "Too many submissions, try again later" }, status: :too_many_requests }
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found

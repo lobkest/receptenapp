@@ -4,8 +4,14 @@ Rails 8.1 API-only app (Ruby 3.4, PostgreSQL, Minitest), live op Render met Neon
 De eigenaar is Rails-beginner: leg uit in het Nederlands, vergelijk met Flask of Spring.
 
 ## Regels
-- Commit en push NOOIT. De eigenaar doet dat zelf.
-- Leg eerst je plan uit en wacht op akkoord voordat je bestanden wijzigt.
+- Commit en push NOOIT, en maak geen branches. De eigenaar doet dat zelf.
+- Bij een duidelijk plan dat niet afwijkt van de opdracht: direct uitvoeren, zonder op
+  akkoord te wachten. Alleen stoppen en vragen bij afwijkingen, onduidelijkheden,
+  onomkeerbare acties of als er sudo nodig is.
+- Commitberichten (als voorstel in het rapport) volledig in kleine letters.
 - Raak productieconfiguratie (config/environments/production.rb, config/database.yml,
   config/cache.yml, config/cable.yml, bin/render-build.sh) niet aan zonder expliciete toestemming.
-- Draai na wijzigingen `bin/rails test` en `bin/rubocop`.
+- Test zelf zo volledig mogelijk; de eigenaar test niet zelf. Draai na wijzigingen
+  `bin/rails test` en `bin/rubocop`, en bij frontendwijzigingen ook `npx vitest run` en
+  `npm run test:e2e` (in frontend/). Bekijk de Playwright-screenshots in
+  frontend/e2e/screenshots/ en beschrijf wat je ziet.

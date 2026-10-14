@@ -164,6 +164,18 @@ test('recept insturen: komma, optioneel ingrediënt, en daarna de receptpagina',
   await expect(page.getByText('peterselie')).toHaveCount(0)
 })
 
+test('recept insturen: Nederlandse foutmelding bij een ongeldige hoeveelheid', async ({ page }) => {
+  await page.goto('/recepten/nieuw')
+  await page.getByLabel('Titel').fill('Foutje')
+  await page.getByLabel('Naam ingrediënt 1').fill('ui')
+  await page.getByLabel('Hoeveelheid ingrediënt 1').fill('abc')
+  await page.getByLabel('Stap 1', { exact: true }).fill('Snijden.')
+  await page.getByRole('button', { name: 'Recept insturen' }).click()
+
+  await expect(page.locator('.ingredient-row .error')).toHaveText('Hoeveelheid is geen getal')
+  await expect(page.getByLabel('Hoeveelheid ingrediënt 1')).toHaveAttribute('aria-invalid', 'true')
+})
+
 test('receptdetail met lange titel', async ({ page }) => {
   const errors = collectErrors(page)
   await page.goto(`/recepten/${recipeIds[0]}`)
@@ -187,19 +199,151 @@ test('boodschappen: afvinken met een groene checkbox', async ({ page }) => {
   const accent = await checkboxes.first().evaluate((box) => getComputedStyle(box).accentColor)
   expect(accent).toBe('rgb(46, 125, 67)')
   await expect(page.getByRole('button', { name: 'Afgevinkte wissen' })).toBeEnabled()
-  await expect(page.getByRole('button', { name: 'Alles wissen' })).toBeVisible()
   await expect(page.getByText('Ik ga winkelen')).toHaveCount(0)
+
+  // "Alles wissen" vraagt eerst om bevestiging in een venster.
+  await page.getByRole('button', { name: 'Alles wissen' }).click()
+  const dialog = page.getByRole('dialog', { name: 'De hele boodschappenlijst wissen?' })
+  await expect(dialog.getByRole('button', { name: 'Annuleren' })).toBeFocused()
+  await page.screenshot({ path: 'e2e/screenshots/boodschappen-wissen.png' })
+  await dialog.getByRole('button', { name: 'Annuleren' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(checkboxes).toHaveCount(3)
 
   await checkLayout(page, errors, 'boodschappen')
 })
 
-test('standaardboodschappen met voorbeeldlijst', async ({ page }) => {
+// ---------- Standaardboodschappen (op de server, achter de beheercode) ----------
+
+const STANDARD_ITEMS = [
+  { name: 'melk', category: 'zuivel' },
+  { name: 'kaas', category: 'zuivel' },
+  { name: 'yoghurt', category: 'zuivel' },
+  { name: 'banaan', category: 'groente & fruit' },
+  { name: 'appels', category: 'groente & fruit' },
+  { name: 'brood', category: 'bakker' },
+  { name: 'wc-papier', category: null },
+]
+
+async function createStandardItems() {
+  for (const item of STANDARD_ITEMS) {
+    const created = await api.post('/api/admin/standard_items', {
+      data: { standard_item: item },
+      headers: ADMIN_HEADERS,
+    })
+    expect(created.status(), await created.text()).toBe(201)
+  }
+}
+
+async function standardNamesOnServer() {
+  const response = await api.get('/api/admin/standard_items', { headers: ADMIN_HEADERS })
+  return (await response.json()).map((item) => item.name)
+}
+
+// Ingelogd bij beheer: de code staat in sessionStorage, net als na inloggen op /beheer.
+async function loginAsAdmin(page) {
+  await page.addInitScript((code) => sessionStorage.setItem('adminCode', code), ADMIN_TOKEN)
+}
+
+test('standaard: zonder beheercode een melding met link naar Beheer', async ({ page }) => {
   const errors = collectErrors(page)
   await page.goto('/standaard')
-  await expect(page.getByRole('heading', { name: 'Standaardboodschappen' })).toBeVisible()
-  await page.getByRole('button', { name: 'Voorbeeldlijst laden' }).click()
 
+  await expect(page.getByText('alleen te zien met de beheercode')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Inloggen bij Beheer' })).toHaveAttribute(
+    'href',
+    '/beheer',
+  )
+  await expect(page.getByText('Voorbeeldlijst laden')).toHaveCount(0)
+  await checkLayout(page, errors, 'standaard-zonder-code')
+})
+
+test('standaard: toevoegen met nieuwe categorie, verwijderen met bevestiging', async ({ page }) => {
+  await createStandardItems()
+  await loginAsAdmin(page)
+  const errors = collectErrors(page)
+  await page.goto('/standaard')
+  await expect(page.locator('.items .line')).toHaveCount(STANDARD_ITEMS.length)
+
+  // Compact: naam links, drie icoonknoppen van minstens 44×44.
+  for (const label of ['melk op boodschappenlijst', 'melk bewerken', 'melk verwijderen']) {
+    const box = await page.getByRole('button', { name: label }).boundingBox()
+    expect(box.width, label).toBeGreaterThanOrEqual(44)
+    expect(box.height, label).toBeGreaterThanOrEqual(44)
+  }
+
+  // Toevoegen met een nieuwe categorie.
+  const addForm = page.locator('.add-card')
+  await addForm.getByLabel('Naam').fill('Chocola')
+  await addForm.getByLabel('Categorie').selectOption({ label: 'Nieuwe categorie…' })
+  await expect(addForm.getByLabel('Nieuwe categorie')).toBeFocused()
+  await addForm.getByLabel('Nieuwe categorie').fill('Snoep')
+  await addForm.getByRole('button', { name: 'Toevoegen' }).click()
+  await expect(page.getByRole('heading', { name: 'snoep' })).toBeVisible()
+  await expect(addForm.getByLabel('Naam')).toHaveValue('')
+  await expect(addForm.getByLabel('Categorie').locator('option')).toContainText(['snoep'])
+
+  // Verwijderen: eerst een venster, focus op Annuleren; Escape sluit zonder te verwijderen.
+  await page.getByRole('button', { name: 'banaan verwijderen' }).click()
+  const dialog = page.getByRole('dialog', { name: 'banaan verwijderen?' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Annuleren' })).toBeFocused()
+  await page.screenshot({ path: 'e2e/screenshots/standaard-verwijderen.png' })
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(page.locator('.items .line', { hasText: 'banaan' })).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'banaan verwijderen' }).click()
+  await dialog.getByRole('button', { name: 'Verwijderen' }).click()
+  await expect(page.locator('.items .line', { hasText: 'banaan' })).toHaveCount(0)
+  expect(await standardNamesOnServer()).not.toContain('banaan')
+
+  await page.evaluate(() => window.scrollTo(0, 0))
   await checkLayout(page, errors, 'standaard')
+})
+
+test('standaard: selectiemodus, op lijst en bulk-verwijderen', async ({ page }) => {
+  await loginAsAdmin(page)
+  const errors = collectErrors(page)
+  await page.goto('/standaard')
+  await expect(page.locator('.items .line').first()).toBeVisible()
+
+  // Buiten de selectiemodus: geen checkboxes en geen balk.
+  await expect(page.locator('.items input[type="checkbox"]')).toHaveCount(0)
+  await expect(page.locator('.bottom-bar')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Selecteren' }).click()
+  await page.getByLabel('melk').check()
+  await page.getByLabel('wc-papier').check()
+  await page.getByRole('button', { name: 'Op lijst (2)' }).click()
+  await expect(page.getByRole('status')).toContainText('2 items op je boodschappenlijst gezet.')
+  await expect(page.locator('.items input[type="checkbox"]')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Selecteren' }).click()
+  for (const name of ['kaas', 'yoghurt', 'appels']) await page.getByLabel(name).check()
+
+  // De balk plakt onderaan, boven de menubalk.
+  const bar = await page.locator('.bottom-bar').boundingBox()
+  const nav = await page.locator('.main-nav').boundingBox()
+  expect(bar.y + bar.height).toBeLessThanOrEqual(nav.y)
+  expect(bar.y).toBeGreaterThan(0)
+  await page.screenshot({ path: 'e2e/screenshots/standaard-selectie.png' })
+
+  await page.getByRole('button', { name: 'Verwijderen (3)' }).click()
+  const dialog = page.getByRole('dialog', { name: '3 items verwijderen?' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Verwijderen' }).click()
+  await expect(page.getByRole('status')).toContainText('3 items verwijderd.')
+  // Per groep: bakker, snoep, zuivel, overig.
+  await expect(page.locator('.items .line')).toHaveText(['brood', 'chocola', 'melk', 'wc-papier'])
+
+  const remaining = await standardNamesOnServer()
+  expect(remaining.sort()).toEqual(['brood', 'chocola', 'melk', 'wc-papier'])
+  await checkLayout(page, errors, 'standaard-na-bulk')
+
+  // Op de boodschappenlijst kwamen ze zonder hoeveelheid, "uit: standaard".
+  await page.goto('/boodschappen')
+  await expect(page.locator('.items .line')).toContainText(['melk', 'wc-papier'])
 })
 
 test('licht thema, ook als de telefoon op donker staat', async ({ page }) => {

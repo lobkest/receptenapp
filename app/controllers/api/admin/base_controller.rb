@@ -26,6 +26,6 @@ class Api::Admin::BaseController < ApplicationController
     end
 
     def render_not_found
-      render json: { error: "Recipe not found" }, status: :not_found
+      render json: { error: "#{controller_name.classify.titleize.capitalize} not found" }, status: :not_found
     end
 end

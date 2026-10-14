@@ -1,157 +1,131 @@
 import { defineStore } from 'pinia'
+import * as api from '@/api/admin'
+import { useAdminStore } from '@/stores/admin'
 import { normalizeName, useShoppingListStore } from '@/stores/shoppingList'
 import { byName, groupByCategory } from '@/utils/grouping'
-import { UNITS, roundQuantity } from '@/utils/quantity'
 
-// Zelfde aanpak als de boodschappenlijst: localStorage, met een versienummer,
-// en kapotte of onbekende data levert een lege lijst op in plaats van een crash.
-const STORAGE_KEY = 'standardItems'
-
-// Verhoog dit als de vorm van de opgeslagen data verandert, en zet oude data
-// dan in readStoredItems om naar de nieuwe vorm.
-const VERSION = 1
+// Vroeger stond de standaardlijst in localStorage onder deze sleutel. Nu staat hij op
+// de server; wat hier nog staat, kun je één keer importeren (importLegacy).
+export const LEGACY_STORAGE_KEY = 'standardItems'
 
 // Herkomst op de boodschappenlijst ("uit: standaard"). Recepten hebben een getal
 // als id, dus deze tekst kan nooit met een recept botsen.
 export const STANDARD_SOURCE = { id: 'standaard', title: 'standaard' }
 
-// Alleen suggesties in het formulier; je mag ook een eigen categorie typen.
-export const CATEGORY_SUGGESTIONS = [
-  'zuivel',
-  'groente & fruit',
-  'brood',
-  'vlees & vis',
-  'voorraad',
-  'diepvries',
-  'drinken',
-  'huishouden',
-  'verzorging',
-]
-
-export const EXAMPLE_ITEMS = [
-  { name: 'melk', quantity: 1000, unit: 'ml', category: 'zuivel' },
-  { name: 'yoghurt', quantity: 500, unit: 'ml', category: 'zuivel' },
-  { name: 'kaas', quantity: 400, unit: 'g', category: 'zuivel' },
-  { name: 'eieren', quantity: 6, unit: 'stuks', category: 'zuivel' },
-  { name: 'brood', quantity: 1, unit: 'stuks', category: 'brood' },
-  { name: 'bananen', quantity: 6, unit: 'stuks', category: 'groente & fruit' },
-  { name: 'appels', quantity: 4, unit: 'stuks', category: 'groente & fruit' },
-  { name: 'tomaten', quantity: 500, unit: 'g', category: 'groente & fruit' },
-  { name: 'pasta', quantity: 500, unit: 'g', category: 'voorraad' },
-  { name: 'koffie', quantity: 500, unit: 'g', category: 'voorraad' },
-  { name: 'wc-papier', quantity: null, unit: null, category: 'huishouden' },
-  { name: 'afwasmiddel', quantity: null, unit: null, category: 'huishouden' },
-]
-
-// Maakt van formuliervelden een net item, of null als het niet klopt.
-// - naam verplicht; naam en categorie genormaliseerd ("  Zuivel " → "zuivel")
-// - hoeveelheid leeg = geen hoeveelheid en geen eenheid; anders > 0 met een bekende eenheid
-// - lege categorie = null (komt onder "overig")
-export function cleanFields({ name, quantity, unit, category }) {
-  const cleanName = normalizeName(name ?? '')
-  if (!cleanName) return null
-
-  const hasQuantity = quantity !== '' && quantity != null
-  const number = hasQuantity ? Number(quantity) : null
-  if (hasQuantity && !(Number.isFinite(number) && number > 0)) return null
-  if (hasQuantity && !UNITS.includes(unit)) return null
-
-  return {
-    name: cleanName,
-    quantity: hasQuantity ? roundQuantity(number, unit) : null,
-    unit: hasQuantity ? unit : null,
-    category: category ? normalizeName(category) || null : null,
-  }
-}
-
-function isValidItem(item) {
-  return (
-    item !== null &&
-    typeof item === 'object' &&
-    Number.isInteger(item.id) &&
-    typeof item.name === 'string' &&
-    item.name !== '' &&
-    (item.quantity === null
-      ? item.unit === null
-      : Number.isFinite(item.quantity) && item.quantity > 0 && UNITS.includes(item.unit)) &&
-    (item.category === null || typeof item.category === 'string')
-  )
-}
-
-function readStoredItems() {
+// De oude vorm was { version: 1, items: [{ id, name, quantity, unit, category }] }.
+// Alleen naam en categorie gaan mee: de server kent geen hoeveelheid meer.
+// Kapotte data levert een lege lijst op, en dan verschijnt de importknop gewoon niet.
+function readLegacyItems() {
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (data?.version !== VERSION || !Array.isArray(data.items)) return []
-    return data.items.filter(isValidItem)
+    const data = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY))
+    if (!Array.isArray(data?.items)) return []
+    return data.items
+      .filter((item) => typeof item?.name === 'string' && item.name.trim())
+      .map((item) => ({
+        name: item.name,
+        category: typeof item.category === 'string' ? item.category : null,
+      }))
   } catch {
     return []
   }
 }
 
-function storeItems(items) {
+function forgetLegacyItems() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: VERSION, items }))
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
   } catch {
-    // Privémodus of opslag vol: dan werkt de lijst tot je herlaadt.
+    // Geblokkeerde opslag: dan staat de knop er bij herladen weer; dubbele worden overgeslagen.
   }
 }
 
-// De vaste boodschappen. Elke actie die iets wijzigt, slaat daarna op.
+// De vaste boodschappen, via de beheer-API. Elke actie gaat via admin.call, net als
+// goedkeuren: die stuurt de beheercode mee en logt uit bij een 401. Fouten (ApiError)
+// gooien we door, zodat de pagina de melding kan tonen.
 export const useStandardItemsStore = defineStore('standardItems', {
   state: () => ({
-    items: readStoredItems(),
+    items: [],
+    loaded: false,
+    legacyItems: readLegacyItems(),
   }),
 
   getters: {
     // Per categorie op alfabet, "overig" (null) achteraan; binnen een groep op naam.
     groups: (state) => groupByCategory(state.items.toSorted(byName), (item) => item.category),
+
+    // Voor de keuzelijst in het formulier: elke categorie één keer, op alfabet.
+    categories: (state) =>
+      [...new Set(state.items.map((item) => item.category).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'nl'),
+      ),
   },
 
   actions: {
-    persist() {
-      storeItems(this.items)
+    async load() {
+      this.items = await useAdminStore().call(api.fetchStandardItems)
+      this.loaded = true
     },
 
-    // Geeft het nieuwe item terug, of null als de velden niet kloppen.
-    add(fields) {
-      const clean = cleanFields(fields)
-      if (!clean) return null
-      // Een oplopend getal is genoeg; crypto.randomUUID() werkt alleen via https.
-      const id = Math.max(0, ...this.items.map((i) => i.id)) + 1
-      const item = { id, ...clean }
+    // fields: { name, category }. De server normaliseert en geeft het nette item terug.
+    async add(fields) {
+      const item = await useAdminStore().call(api.createStandardItem, fields)
       this.items.push(item)
-      this.persist()
       return item
     },
 
-    // true als het gelukt is.
-    update(id, fields) {
-      const clean = cleanFields(fields)
-      const item = this.items.find((i) => i.id === id)
-      if (!clean || !item) return false
-      Object.assign(item, clean)
-      this.persist()
-      return true
+    async update(id, fields) {
+      const item = await useAdminStore().call(api.updateStandardItem, id, fields)
+      this.items = this.items.map((i) => (i.id === id ? item : i))
+      return item
     },
 
-    remove(id) {
+    async remove(id) {
+      await useAdminStore().call(api.deleteStandardItem, id)
       this.items = this.items.filter((i) => i.id !== id)
-      this.persist()
     },
 
-    // Alleen voor een lege lijst, zodat je nooit per ongeluk dubbele items krijgt.
-    loadExample() {
-      if (this.items.length) return
-      for (const example of EXAMPLE_ITEMS) this.add(example)
+    // Geeft het aantal verwijderde items terug.
+    async removeMany(ids) {
+      const { deleted_ids: deleted } = await useAdminStore().call(api.bulkDeleteStandardItems, ids)
+      this.items = this.items.filter((i) => !deleted.includes(i.id))
+      return deleted.length
     },
 
-    // Zet items op de boodschappenlijst met de bestaande samenvoeglogica:
-    // 1000 ml melk + 200 ml melk uit een recept = 1200 ml, "uit: …, standaard".
+    // Zet de oude lijst uit localStorage op de server. Namen die er al staan (ook twee keer
+    // dezelfde in de oude lijst) slaan we over; wat de server weigert (bijv. te lang) ook.
+    // Daarna is de oude sleutel weg. Gaat het halverwege mis (netwerk, 401), dan blijft de
+    // sleutel staan: opnieuw proberen slaat wat al geïmporteerd is gewoon over.
+    async importLegacy() {
+      const existing = new Set(this.items.map((item) => item.name))
+      let imported = 0
+      let skipped = 0
+
+      for (const legacy of this.legacyItems) {
+        if (existing.has(normalizeName(legacy.name))) {
+          skipped++
+          continue
+        }
+        try {
+          const item = await this.add(legacy)
+          existing.add(item.name)
+          imported++
+        } catch (e) {
+          if (e.kind !== 'validation') throw e
+          skipped++
+        }
+      }
+
+      forgetLegacyItems()
+      this.legacyItems = []
+      return { imported, skipped }
+    },
+
+    // Op de bestaande boodschappenlijst (localStorage), zonder hoeveelheid: je moet het
+    // gewoon kopen. Dezelfde naam uit een recept wordt één regel ("uit: …, standaard").
     // Geeft het aantal toegevoegde items terug.
     addToShoppingList(ids) {
       const chosen = this.items.filter((i) => ids.includes(i.id))
       useShoppingListStore().addIngredients(
-        chosen.map(({ name, quantity, unit }) => ({ name, quantity, unit })),
+        chosen.map(({ name }) => ({ name, quantity: null, unit: null })),
         STANDARD_SOURCE,
       )
       return chosen.length

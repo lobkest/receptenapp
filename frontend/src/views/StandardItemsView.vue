@@ -236,7 +236,7 @@ function addSelected() {
 }
 
 .add-one {
-  color: var(--color-brand);
+  color: var(--color-accent-text);
 }
 
 /* Breed: naam links, knoppen rechts op dezelfde regel. */

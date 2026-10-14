@@ -155,7 +155,7 @@ h1 {
   font-family: var(--font-heading);
   font-size: var(--text-xl);
   text-align: center;
-  color: var(--color-brand);
+  color: var(--color-accent-text);
 }
 
 .empty {
@@ -320,7 +320,7 @@ h1 {
 
 .undo-hint {
   font-size: var(--text-sm);
-  color: var(--color-brand);
+  color: var(--color-accent-text);
 }
 
 .finish {

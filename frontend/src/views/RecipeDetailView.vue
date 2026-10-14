@@ -271,7 +271,7 @@ watch(() => props.id, load, { immediate: true })
   flex-shrink: 0;
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
-  color: var(--color-brand);
+  color: var(--color-accent-text);
   border-color: var(--color-border);
 }
 
@@ -306,7 +306,7 @@ watch(() => props.id, load, { immediate: true })
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
-  color: var(--color-brand);
+  color: var(--color-accent-text);
 }
 
 .admin-actions {

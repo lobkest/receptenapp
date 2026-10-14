@@ -164,7 +164,7 @@ main {
 
 /* RouterLink zet deze class op de link van de huidige pagina. */
 .nav-link.router-link-exact-active {
-  color: var(--color-brand);
+  color: var(--color-accent-text);
 }
 
 .nav-link.router-link-exact-active::before {

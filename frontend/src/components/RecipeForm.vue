@@ -446,7 +446,7 @@ legend {
 .add {
   width: 100%;
   margin-top: var(--space-2);
-  color: var(--color-brand);
+  color: var(--color-accent-text);
   border-style: dashed;
 }
 </style>

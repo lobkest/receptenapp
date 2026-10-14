@@ -3,6 +3,7 @@
 # the shared limit (PublicWriteRateLimit).
 class Api::RecipeVariationsController < ApplicationController
   include PublicWriteRateLimit
+  include AddsToShoppingList
   limit_public_writes only: %i[ create update request_deletion add_to_shopping_list ]
 
   # Also used by Api::RecipesController for a variation added with the recipe form.
@@ -15,13 +16,6 @@ class Api::RecipeVariationsController < ApplicationController
   before_action :set_recipe
   before_action :set_variation, except: :create
 
-  rescue_from ActiveRecord::RecordNotFound do |error|
-    render json: { error: "#{error.model.to_s.underscore.humanize} not found" }, status: :not_found
-  end
-  rescue_from ActiveRecord::StaleObjectError do
-    render json: { error: I18n.t("variations.conflict") }, status: :conflict
-  end
-
   # POST /api/recipes/1/variations
   def create
     @variation = @recipe.variations.build(params.expect(variation: FIELDS))
@@ -29,7 +23,7 @@ class Api::RecipeVariationsController < ApplicationController
     if @variation.save
       render json: serialize(@variation), status: :created
     else
-      render_errors(@variation)
+      render_invalid(@variation)
     end
   end
 
@@ -41,7 +35,7 @@ class Api::RecipeVariationsController < ApplicationController
     if @variation.update(params.expect(variation: [ :lock_version, *FIELDS ]))
       render json: serialize(@variation)
     else
-      render_errors(@variation)
+      render_invalid(@variation)
     end
   end
 
@@ -54,19 +48,8 @@ class Api::RecipeVariationsController < ApplicationController
 
   # POST /api/recipes/1/variations/2/add_to_shopping_list  { "servings": 6 }
   # Puts the variation on the shopping list, scaled to servings (default: the recipe's).
-  # Every ingredient becomes its own line, all or nothing, like the bulk create.
   def add_to_shopping_list
-    servings = Integer(params.fetch(:servings, @recipe.servings).to_s, exception: false)
-    unless servings&.between?(1, Recipe::MAX_SERVINGS)
-      return render json: { error: I18n.t("api.servings_out_of_range", max: Recipe::MAX_SERVINGS) }, status: :unprocessable_content
-    end
-
-    items = ShoppingListItem.transaction do
-      @variation.shopping_list_items(servings: servings).map { |attributes| ShoppingListItem.create!(attributes) }
-    end
-    render json: items.map { |item| ShoppingListItemSerializer.item(item) }, status: :created
-  rescue ActiveRecord::RecordInvalid => error
-    render_errors(error.record)
+    add_to_shopping_list_from(@variation)
   end
 
   private
@@ -81,9 +64,5 @@ class Api::RecipeVariationsController < ApplicationController
 
     def serialize(variation)
       RecipeSerializer.variation(RecipeVariation.with_details.find(variation.id))
-    end
-
-    def render_errors(record)
-      render json: { errors: record.errors }, status: :unprocessable_content
     end
 end

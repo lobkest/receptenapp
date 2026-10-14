@@ -95,6 +95,16 @@ class Recipe < ApplicationRecord
     @tag_names || tags.map(&:name)
   end
 
+  # What "Alles op lijst" (only: nil, without the optional ingredients) or "+ lijst"
+  # (only: [ row id ]) puts on the shopping list, scaled to servings. Attributes for
+  # ShoppingListItem (see ShoppingListAddition).
+  def shopping_list_items(servings:, only: nil)
+    rows = only ? recipe_ingredients.select { |row| only.include?(row.id) } : recipe_ingredients.reject(&:optional)
+
+    ShoppingListItem.lines_for(rows.map { |row| [ row.ingredient_name, row.quantity, row.unit ] },
+      factor: Rational(servings, self.servings), source_label: title, recipe_id: id)
+  end
+
   # Puts an older version back: title, description, servings, tags, ingredients, steps
   # and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
   # That also deletes the variations' removals (on_delete: :cascade), so the variations are

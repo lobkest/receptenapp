@@ -98,7 +98,7 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
     post api_recipe_variations_url(recipes(:erwtensoep)), as: :json, params: { variation: { name: "Met worst" } }
 
     assert_response :not_found
-    assert_equal "Recipe not found", response.parsed_body["error"]
+    assert_equal "Recept niet gevonden.", response.parsed_body["error"]
   end
 
   test "a variation can come with a new recipe" do
@@ -181,7 +181,7 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
 
     patch api_recipe_variation_url(@recipe, @spek), as: :json, params: { variation: { lock_version: 1, name: "Anders" } }
     assert_response :not_found
-    assert_equal "Recipe variation not found", response.parsed_body["error"]
+    assert_equal "Variatie niet gevonden.", response.parsed_body["error"]
   end
 
   # ---------- Variatie op lijst ----------

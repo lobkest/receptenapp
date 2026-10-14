@@ -8,7 +8,10 @@ Rails.application.routes.draw do
   namespace :api do
     # Public: anyone may add and edit. Deleting is only a request; see admin below.
     resources :recipes, only: %i[ index show create update ] do
-      post :request_deletion, on: :member
+      member do
+        post :request_deletion
+        post :add_to_shopping_list
+      end
 
       resources :variations, only: %i[ create update ], controller: "recipe_variations" do
         member do

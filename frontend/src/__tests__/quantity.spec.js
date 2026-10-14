@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { roundQuantity, scaleQuantity, formatQuantity } from '../utils/quantity'
+// Vite leest JSON als module; het bestand staat bij de Rails-testbestanden (zie onderaan).
+import { cases } from '../../../test/fixtures/files/quantity_cases.json'
 
 describe('roundQuantity', () => {
   it('rondt g en ml vanaf 10 af op hele getallen', () => {
@@ -70,4 +72,17 @@ describe('formatQuantity', () => {
     expect(formatQuantity(1250)).toBe('1.250')
     expect(formatQuantity(2)).toBe('2')
   })
+})
+
+// Dezelfde gevallen als test/models/quantity_test.rb, uit één gedeeld bestand: de
+// receptpagina (hier) en de boodschappenlijst (de server) rekenen zo altijd hetzelfde.
+
+describe('gedeelde testgevallen met de server', () => {
+  it.each(cases)(
+    '$quantity $unit × $servings/$base is $expected',
+    ({ quantity, servings, base, unit, expected }) => {
+      const result = scaleQuantity(quantity, servings / base, unit)
+      expect(result).toBe(expected === null ? null : Number(expected))
+    },
+  )
 })

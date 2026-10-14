@@ -1,6 +1,6 @@
 # Scaling and rounding amounts, the same way as the frontend (src/utils/quantity.js), so
 # the shopping list gets exactly what the recipe page shows. nil means "naar smaak": it
-# never scales.
+# never scales. Both are checked against the same cases: test/fixtures/files/quantity_cases.json.
 module Quantity
   # The smallest amount we write down when something is needed: never round to 0.
   MINIMUM = { "g" => BigDecimal("0.1"), "ml" => BigDecimal("0.1"), "stuks" => BigDecimal("0.5") }.freeze
@@ -8,10 +8,13 @@ module Quantity
 
   module_function
 
+  # factor: a Rational, e.g. Rational(6, 4) for 6 servings of a recipe for 4. Multiply
+  # first, then divide: 0.15 × 7 / 3 is exactly 0.35 (rounds to 0.4), while 0.15 × (7 / 3)
+  # works with 2.333… cut off somewhere and lands just under 0.35 (rounds to 0.3).
   def scale(quantity, factor, unit)
     return if quantity.nil?
 
-    round(quantity * factor, unit)
+    round(quantity * factor.numerator / factor.denominator, unit)
   end
 
   # g/ml: whole numbers from 10 up, one decimal below that. stuks: halves (half an egg,

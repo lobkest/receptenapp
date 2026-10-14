@@ -114,8 +114,9 @@ function ingredientLine(ingredient) {
   return `${formatQuantity(ingredient.quantity)} ${ingredient.unit} ${ingredient.name}`
 }
 
-// Boodschappenlijst: we voegen de geschaalde hoeveelheden toe, dus precies wat
-// je op het scherm ziet. De lijst staat op de server, dus dit kan mislukken.
+// Boodschappenlijst: de server rekent de hoeveelheden uit voor het gekozen aantal
+// porties, met dezelfde afronding als hierboven op het scherm (beide getest met
+// test/fixtures/files/quantity_cases.json). De lijst staat op de server, dus dit kan mislukken.
 const shoppingList = useShoppingListStore()
 const addedMessage = ref(null)
 const addError = ref(null)
@@ -129,13 +130,11 @@ function confirmAdded(message) {
 
 onUnmounted(() => clearTimeout(messageTimer))
 
-async function addIngredients(ingredients, message) {
+// ingredientIds null: alles behalve de optionele ingrediënten.
+async function addToShoppingList(ingredientIds, message) {
   addError.value = null
   try {
-    await shoppingList.addIngredients(ingredients, {
-      label: recipe.value.title,
-      recipeId: recipe.value.id,
-    })
+    await shoppingList.addRecipe(recipe.value.id, servings.value, ingredientIds)
     confirmAdded(message)
   } catch (e) {
     addedMessage.value = null
@@ -144,15 +143,15 @@ async function addIngredients(ingredients, message) {
 }
 
 function addToList(ingredient) {
-  addIngredients([ingredient], `${ingredient.name} staat op je boodschappenlijst.`)
+  addToShoppingList([ingredient.id], `${ingredient.name} staat op je boodschappenlijst.`)
 }
 
-// Optionele ingrediënten slaan we over: die zet je los op de lijst met "+ lijst".
+// Optionele ingrediënten laat de server weg: die zet je los op de lijst met "+ lijst".
 function addAllToList() {
-  const required = scaledIngredients.value.filter((ingredient) => !ingredient.optional)
-  addIngredients(
-    required,
-    required.length < scaledIngredients.value.length
+  const hasOptional = recipe.value.ingredients.some((ingredient) => ingredient.optional)
+  addToShoppingList(
+    null,
+    hasOptional
       ? 'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.'
       : 'Alle ingrediënten staan op je boodschappenlijst.',
   )

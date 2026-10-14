@@ -6,8 +6,6 @@ class Api::StandardItemsController < ApplicationController
 
   before_action :set_standard_item, only: %i[ update destroy ]
 
-  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
-
   # GET /api/standard_items
   def index
     render json: StandardItem.order(:name).map { |item| serialize(item) }
@@ -43,7 +41,7 @@ class Api::StandardItemsController < ApplicationController
 
     render json: { deleted_ids: deleted.map(&:id) }
   rescue ActiveRecord::RecordNotDestroyed
-    render json: { error: I18n.t("api.bulk_destroy_failed") }, status: :unprocessable_content
+    render_error :unprocessable_content, I18n.t("api.bulk_destroy_failed")
   end
 
   private
@@ -60,22 +58,14 @@ class Api::StandardItemsController < ApplicationController
       if @standard_item.save
         render json: serialize(@standard_item), status: status
       else
-        render_errors
+        render_invalid(@standard_item)
       end
     rescue ActiveRecord::RecordNotUnique
       @standard_item.errors.add(:name, :taken)
-      render_errors
-    end
-
-    def render_errors
-      render json: { errors: @standard_item.errors }, status: :unprocessable_content
+      render_invalid(@standard_item)
     end
 
     def serialize(item)
       item.slice("id", "name", "category")
-    end
-
-    def render_not_found
-      render json: { error: "Standard item not found" }, status: :not_found
     end
 end

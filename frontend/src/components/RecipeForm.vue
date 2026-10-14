@@ -305,8 +305,8 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
           pattern="[0-9]*"
           class="servings"
           :aria-invalid="!!errors.servings"
+          :aria-describedby="errors.servings ? 'servings-error' : undefined"
         />
-        <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
       </div>
 
       <fieldset class="tags field">
@@ -314,6 +314,11 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
         <TagPicker v-model="tags" :options="availableTags" />
         <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
       </fieldset>
+      <!-- Onder porties en tags, over de hele breedte: in de smalle portieskolom zou de
+           melding over zes regels breken. -->
+      <p v-if="errors.servings" id="servings-error" class="error servings-error">
+        Porties {{ errors.servings.join(', ') }}
+      </p>
     </div>
 
     <fieldset class="ingredients card">
@@ -515,6 +520,11 @@ legend {
 }
 
 .meta-row .field {
+  margin: 0;
+}
+
+.servings-error {
+  grid-column: 1 / -1;
   margin: 0;
 }
 

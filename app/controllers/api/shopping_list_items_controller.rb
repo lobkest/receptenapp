@@ -10,8 +10,6 @@ class Api::ShoppingListItemsController < ApplicationController
 
   before_action :set_item, only: %i[ update destroy ]
 
-  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
-
   # GET /api/shopping_list_items
   def index
     render json: ShoppingListItem.order(:id).map { |item| serialize(item) }
@@ -36,7 +34,7 @@ class Api::ShoppingListItemsController < ApplicationController
     if @item.update(params.expect(shopping_list_item: %i[ checked name ]))
       render json: serialize(@item)
     else
-      render json: { errors: @item.errors }, status: :unprocessable_content
+      render_invalid(@item)
     end
   end
 
@@ -72,15 +70,16 @@ class Api::ShoppingListItemsController < ApplicationController
       if item.save
         render json: serialize(item), status: :created
       else
-        render json: { errors: item.errors }, status: :unprocessable_content
+        render_invalid(item)
       end
     end
 
-    # All or nothing: one invalid item rolls back the ones before it, and the response
-    # says which one (index, counting from 0) and why.
+    # All or nothing: one invalid item rolls back the ones before it. The errors name
+    # the line by its place in the request, counting from 0: "shopping_list_items[2].name",
+    # like the nested errors of a recipe ("steps[1].body").
     def create_many(attributes_list)
       if attributes_list.size > MAX_ITEMS_PER_REQUEST
-        return render json: { error: I18n.t("api.too_many_items", count: MAX_ITEMS_PER_REQUEST) }, status: :unprocessable_content
+        return render_error :unprocessable_content, I18n.t("api.too_many_items", count: MAX_ITEMS_PER_REQUEST)
       end
 
       failed_index = failed_item = nil
@@ -96,7 +95,8 @@ class Api::ShoppingListItemsController < ApplicationController
       end
 
       if failed_item
-        render json: { index: failed_index, errors: failed_item.errors }, status: :unprocessable_content
+        errors = failed_item.errors.to_hash.transform_keys { |field| "shopping_list_items[#{failed_index}].#{field}" }
+        render_error :unprocessable_content, I18n.t("api.invalid"), errors
       else
         render json: items.map { |item| serialize(item) }, status: :created
       end
@@ -104,9 +104,5 @@ class Api::ShoppingListItemsController < ApplicationController
 
     def serialize(item)
       ShoppingListItemSerializer.item(item)
-    end
-
-    def render_not_found
-      render json: { error: "Shopping list item not found" }, status: :not_found
     end
 end

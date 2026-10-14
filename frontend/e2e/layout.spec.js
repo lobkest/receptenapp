@@ -187,6 +187,31 @@ test('recept toevoegen: Nederlandse foutmelding bij een ongeldige hoeveelheid', 
   await expect(page.getByLabel('Hoeveelheid ingrediënt 1')).toHaveAttribute('aria-invalid', 'true')
 })
 
+test('recept toevoegen: te veel porties, melding van de server bij het veld', async ({ page }) => {
+  const errors = collectErrors(page)
+  await page.goto('/recepten/nieuw')
+  await page.getByLabel('Titel').fill('Voor een weeshuis')
+  await page.getByLabel('Porties').fill('60')
+  await page.getByLabel('Naam ingrediënt 1').fill('rijst')
+  await page.getByLabel('Hoeveelheid ingrediënt 1').fill('5000')
+  await page.getByLabel('Stap 1', { exact: true }).fill('Koken.')
+  await page.getByRole('button', { name: 'Recept toevoegen' }).click()
+
+  const servings = page.getByLabel('Porties')
+  await expect(servings).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.locator('.meta-row .error')).toHaveText(
+    'Porties moet minder dan of gelijk zijn aan 50',
+  )
+  // Alleen bij het veld, geen algemene melding bovenaan het formulier.
+  await expect(page.locator('.general-errors')).toHaveCount(0)
+  await expect(page).toHaveURL(/\/recepten\/nieuw$/)
+  // De browser logt het 422-antwoord als console-fout; dat is hier de bedoeling.
+  expect(errors).toEqual([expect.stringContaining('422 (Unprocessable')])
+  errors.length = 0
+  await servings.scrollIntoViewIfNeeded()
+  await checkLayout(page, errors, 'recept-toevoegen-porties-fout')
+})
+
 // ---------- Tags ----------
 
 async function createRecipe(title, tagNames = []) {

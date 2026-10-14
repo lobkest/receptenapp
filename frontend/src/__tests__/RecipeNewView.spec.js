@@ -139,10 +139,11 @@ describe('RecipeNewView', () => {
     await fillAndSubmit(wrapper, { title: '', servings: '0' })
 
     const titleField = wrapper.find('#title').element.parentElement
-    const servingsField = wrapper.find('#servings').element.parentElement
     const descriptionField = wrapper.find('#description').element.parentElement
     expect(titleField.textContent).toContain('Titel moet opgegeven zijn')
-    expect(servingsField.textContent).toContain('Porties moet groter zijn dan 0')
+    // Onder de rij porties + tags, gekoppeld aan het veld voor schermlezers.
+    expect(wrapper.find('#servings-error').text()).toBe('Porties moet groter zijn dan 0')
+    expect(wrapper.find('#servings').attributes('aria-describedby')).toBe('servings-error')
     expect(wrapper.find('.tags .error').text()).toBe('Tags heeft te veel tags (maximaal 10)')
     expect(descriptionField.querySelector('.error')).toBeNull()
     expect(wrapper.find('#title').attributes('aria-invalid')).toBe('true')

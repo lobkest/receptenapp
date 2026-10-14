@@ -52,7 +52,9 @@ flowchart LR
 | `app/controllers/concerns/public_write_rate_limit.rb` | Gedeelde limiet op schrijfacties per IP |
 | `app/models/` | ActiveRecord-modellen: de tabellen plus hun regels (validaties, callbacks) |
 | `app/models/concerns/` | Gedeelde stukjes modelgedrag: `DeletionRequestable`, `DecimalComma` |
-| `app/models/quantity.rb` | Hoeveelheden schalen en afronden (gespiegeld in `frontend/src/utils/quantity.js`) |
+| `app/models/quantity.rb` | Hoeveelheden schalen en afronden voor de boodschappenlijst (gespiegeld in `frontend/src/utils/quantity.js` voor het scherm; beide getest met `test/fixtures/files/quantity_cases.json`) |
+| `app/models/shopping_list_addition.rb` | "Op lijst" voor een recept of variatie: valideren, schalen, alles-of-niets opslaan |
+| `app/controllers/concerns/api_errors.rb` | Eén foutformaat voor de hele API (`rescue_from`) |
 | `app/serializers/` | De JSON-vorm van de API, uitgeschreven per veld |
 | `config/locales/nl.yml` | Nederlandse namen en foutteksten |
 | `db/migrate/` | De migraties (vergelijkbaar met Alembic of Flyway) |
@@ -209,8 +211,8 @@ flowchart TD
   D2 --> D3["update_params<br/>params.expect(recipe: [...])"]
   D3 --> E["@recipe.update(...)<br/>validaties + callbacks + SQL in 1 transactie"]
   E -->|geldig| F["RecipeSerializer.detail → render json:, 200"]
-  E -->|ongeldig| G["render json: { errors: }, 422"]
-  E -->|"StaleObjectError"| H["rescue_from → 409"]
+  E -->|ongeldig| G["render_invalid → 422<br/>error + errors per veld"]
+  E -->|"StaleObjectError"| H["rescue_from in ApiErrors → 409"]
 ```
 
 De Rails-conventies die je hier tegenkomt:
@@ -221,7 +223,7 @@ De Rails-conventies die je hier tegenkomt:
 | **REST-acties** | `index`, `show`, `create`, `update` en `destroy`; extra acties met `member` of `collection` (bijvoorbeeld `post :request_deletion, on: :member`) | Spring: `@GetMapping`, `@PostMapping` |
 | **namespace** | `namespace :api` → module `Api::` en URL-prefix `/api`; `namespace :admin` daarbinnen | Een Flask-Blueprint met `url_prefix` |
 | **before_action** | `set_recipe` laadt het record voor `show`, `update` en `request_deletion`; `authenticate_admin!` in de admin-basecontroller | `@app.before_request` of een Spring-interceptor |
-| **rescue_from** | Exceptions omzetten in een JSON-fout (404, 409) | `@app.errorhandler` of `@ExceptionHandler` |
+| **rescue_from** | Exceptions omzetten in een JSON-fout. Op één plek, `app/controllers/concerns/api_errors.rb` (in `ApplicationController`), voor 400, 404, 409 en 422. Elke fout heeft dezelfde vorm: `{ "error": "Nederlandse melding", "errors": { "veld": ["melding"] } }`. Alleen `frontend/src/api/client.js` leest die uit | `@app.errorhandler` of `@ExceptionHandler` in een `@ControllerAdvice` |
 | **Strong parameters** | `params.expect(recipe: [:title, ...])` laat alleen toegestane velden door. Ontbreekt de sleutel, dan volgt een 400 | Een whitelist, zoals een DTO of een Marshmallow-schema |
 | **ActiveRecord** | `Recipe.visible.tagged_with_all(...)` bouwt SQL via scopes (herbruikbare queryfragmenten) | SQLAlchemy-query of een Spring Data `Specification` |
 | **Validaties** | `validates :title, presence: true` in het model, plus `null: false` en check constraints in de database | Bean Validation (`@NotNull`) plus databaseconstraints |
@@ -256,7 +258,7 @@ flowchart TD
 - **Vue Router** (`src/router/index.js`) koppelt een URL aan een view, net als `routes.rb`, maar dan in de browser. `props: true` geeft `:id` als prop door.
 - **Views en components**: `<script setup>` met de Composition API. `ref()` is reactieve staat, `computed()` een afgeleide waarde, `watch()` reageert op veranderingen. **Props** gaan naar beneden (ouder → kind), **emits** naar boven (kind → ouder).
 - **Pinia-stores** zijn gedeelde, reactieve staat buiten de componenten (vergelijk met een singleton-service in Spring, of met een module-level object in Python, maar dan reactief). Hier: de receptenlijst en het filter, de boodschappenlijst, de standaardlijst en de beheercode. Data die bij één pagina hoort (het recept op de detailpagina) haalt de view zelf op via `src/api/`.
-- **`src/api/client.js`** doet alle `fetch`-aanroepen en zet HTTP-fouten om in een `ApiError` met een `kind` (`not_found`, `validation`, `conflict`, …) en een Nederlandse melding.
+- **`src/api/client.js`** doet alle `fetch`-aanroepen en zet HTTP-fouten om in een `ApiError` met een `kind` (`not_found`, `validation`, `conflict`, …), de Nederlandse melding van de server (`error`) en de fouten per veld (`errors`). Het is de enige plek die het foutformaat van de API uitleest.
 
 ---
 
@@ -309,7 +311,7 @@ Waarom het filter in de URL staat en niet in de store: dan werkt "terug" en kun 
 
 ### b. Een recept of een variatie op de boodschappenlijst zetten
 
-Twee paden (zie review I1): het **basisrecept** wordt in de browser geschaald, een **variatie** op de server.
+Eén pad voor beide: de browser zegt alleen **wat** (recept, of één ingrediënt, of een variatie) en **voor hoeveel porties**. De server rekent en slaat op ("fat model, thin client"). Het live schalen op de receptpagina blijft in de browser (`quantity.js`), zodat niet elke tik op + of − een request is. Dat de twee hetzelfde afronden, bewaken dezelfde testgevallen in `test/fixtures/files/quantity_cases.json`, die zowel Minitest als Vitest inleest.
 
 ```mermaid
 sequenceDiagram
@@ -317,46 +319,49 @@ sequenceDiagram
   participant DV as RecipeDetailView.vue
   participant VC as VariationCard.vue
   participant SL as stores/shoppingList.js
-  participant SAPI as api/shoppingList.js
-  participant VAPI as api/variations.js
-  participant SC as Api::ShoppingListItemsController
-  participant VCtl as Api::RecipeVariationsController
-  participant RV as RecipeVariation + Quantity
+  participant API as api/recipes.js of api/variations.js
+  participant C as RecipesController of RecipeVariationsController
+  participant A as ShoppingListAddition
+  participant M as Recipe of RecipeVariation
+  participant Q as Quantity
   participant DB as PostgreSQL
 
-  Note over U,DB: Pad 1: basisrecept, Alles op lijst
+  Note over U,DB: Alles op lijst, + lijst of Variatie op lijst
   U->>DV: kiest 6 porties, tikt Alles op lijst
-  DV->>DV: scaledIngredients met scaleQuantity, zonder optionele
-  DV->>SL: addIngredients(regels, label en recipeId)
-  SL->>SAPI: addShoppingListItems(payload)
-  SAPI->>SC: POST /api/shopping_list_items met shopping_list_items lijst
-  SC->>DB: create_many in 1 transactie, alles of niets
-  SC-->>SL: nieuwe regels via ShoppingListItemSerializer
-  SL-->>DV: items.push, menu toont Boodschappen (n)
-
-  Note over U,DB: Pad 2: variatie, Variatie op lijst
-  U->>VC: tikt Variatie op lijst
+  DV->>SL: addRecipe(recipeId, 6) of met ingredientIds bij + lijst
+  U->>VC: of tikt Variatie op lijst
   VC-->>DV: emit add-to-list
-  DV->>SL: addVariation(recipeId, variationId, servings)
-  SL->>VAPI: addVariationToShoppingList
-  VAPI->>VCtl: POST /api/recipes/1/variations/2/add_to_shopping_list
-  VCtl->>RV: shopping_list_items(servings: 6)
-  RV->>RV: basis min weggelaten en optionele, plus extra, Quantity.scale
-  VCtl->>DB: ShoppingListItem.create! per regel in 1 transactie
-  VCtl-->>SL: nieuwe regels
+  DV->>SL: addVariation(recipeId, variationId, 6)
+  SL->>API: addRecipeToShoppingList of addVariationToShoppingList
+  API->>C: POST .../add_to_shopping_list met servings en ingredient_ids
+  C->>A: AddsToShoppingList: new(source, servings, ingredient_ids)
+  A->>A: valideren: porties 1 tot 50, ingrediënten van dit recept
+  alt ongeldig
+    A-->>C: errors
+    C-->>SL: 422 met error en errors per veld
+    SL-->>DV: ApiError, melding van de server
+  else geldig
+    A->>M: shopping_list_items(servings, only)
+    M->>Q: per regel Quantity.scale, eerst vermenigvuldigen dan delen
+    A->>DB: ShoppingListItem.create! per regel, 1 transactie
+    C-->>SL: 201 met nieuwe regels
+    SL-->>DV: items.push, menu toont Boodschappen (n)
+  end
 ```
 
 Bestanden in volgorde:
-1. `frontend/src/views/RecipeDetailView.vue`: `servings` en `scaledIngredients` (regels 85-108), `addAllToList` en `addToList` (regels 132-159), `addVariationToList` (regels 253-264).
-2. `frontend/src/components/VariationCard.vue`: de knop emit `add-to-list` (regel 65).
-3. `frontend/src/utils/quantity.js`: `scaleQuantity` en `roundQuantity`.
-4. `frontend/src/stores/shoppingList.js`: `addIngredients` en `addVariation` (regels 113-134).
-5. `frontend/src/api/shoppingList.js` en `frontend/src/api/variations.js`.
-6. `app/controllers/api/shopping_list_items_controller.rb#create` → `create_many`, of `app/controllers/api/recipe_variations_controller.rb#add_to_shopping_list`.
-7. `app/models/recipe_variation.rb#shopping_list_items` en `app/models/quantity.rb`.
-8. `app/models/shopping_list_item.rb`: normaliseren en valideren.
+1. `frontend/src/views/RecipeDetailView.vue`: `scaledIngredients` voor het scherm (regel 102), `addToShoppingList`, `addToList` en `addAllToList` (regels 134-160), `addVariationToList` (regel 252).
+2. `frontend/src/components/VariationCard.vue`: de knop emit `add-to-list`.
+3. `frontend/src/stores/shoppingList.js`: `addRecipe` en `addVariation` (regels 65-75).
+4. `frontend/src/api/recipes.js#addRecipeToShoppingList` en `frontend/src/api/variations.js#addVariationToShoppingList`.
+5. `config/routes.rb`: `post :add_to_shopping_list` als member van `recipes` en van `variations`.
+6. `app/controllers/api/recipes_controller.rb#add_to_shopping_list` en `app/controllers/api/recipe_variations_controller.rb#add_to_shopping_list`: elk één regel, die `add_to_shopping_list_from` aanroept uit `app/controllers/concerns/adds_to_shopping_list.rb`.
+7. `app/models/shopping_list_addition.rb`: een form object (ActiveModel, geen tabel) dat valideert en alles-of-niets opslaat.
+8. `app/models/recipe.rb#shopping_list_items` en `app/models/recipe_variation.rb#shopping_list_items`: welke regels; `ShoppingListItem.lines_for` schaalt ze met `app/models/quantity.rb`.
 9. `app/serializers/shopping_list_item_serializer.rb`.
 10. `frontend/src/App.vue`: `shoppingLabel` gebruikt de getter `openCount` van de store.
+
+De standaardlijst ("op lijst" zonder hoeveelheid) gebruikt nog de gewone bulk-insert `POST /api/shopping_list_items`, want daar valt niets te rekenen.
 
 ### c. Een verwijderverzoek indienen en afhandelen met de beheercode (en de versiegeschiedenis)
 
@@ -429,7 +434,8 @@ Bestanden in volgorde:
 | Een nieuw API-endpoint | `config/routes.rb` → controller in `app/controllers/api/` → functie in `frontend/src/api/*.js` → store of view |
 | Een Nederlandse foutmelding aanpassen | `config/locales/nl.yml` (server) of `frontend/src/api/client.js` (algemene meldingen) |
 | Kleuren of afstanden | De tokens in `frontend/src/assets/main.css` |
-| Afronding van hoeveelheden | `frontend/src/utils/quantity.js` **én** `app/models/quantity.rb` (moeten gelijk blijven) |
+| Afronding van hoeveelheden | Eerst een geval in `test/fixtures/files/quantity_cases.json`, dan `app/models/quantity.rb` **én** `frontend/src/utils/quantity.js` tot beide tests groen zijn |
+| Een nieuwe foutmelding | `config/locales/nl.yml` (`api.*`), en bij een nieuw soort fout een `rescue_from` in `app/controllers/concerns/api_errors.rb` |
 | Een nieuwe eenheid (bv. `el`) | Check constraints via een migratie (`recipe_ingredients`, `variation_changes`), de `enum :unit` in `recipe_ingredient.rb` en `variation_change.rb`, `UNITS` en `MINIMUM` in `quantity.js`, `MINIMUM` in `quantity.rb` |
 | Wat openbaar is en wat beheer | `config/routes.rb` (namespace `admin`) en `app/controllers/api/admin/base_controller.rb` |
 | De rate limits | `app/controllers/concerns/public_write_rate_limit.rb` en `SUBMISSIONS_PER_HOUR` in `recipes_controller.rb` |
@@ -469,5 +475,7 @@ Bestanden in volgorde:
 | **Composable** | Een herbruikbare functie met reactieve staat (`useX()`) | Een hulpklasse of service |
 | **Pinia-store** | Gedeelde reactieve staat met acties en getters | Een singleton-service (Spring) of een module-level state-object |
 | **Vue Router / navigation guard** | URL → view; `beforeEach` draait voor elke navigatie | Flask-routes / een `before_request`-check |
-| **`ApiError`** | Eigen fouttype in `client.js` met een `kind` | Een eigen exceptionklasse |
+| **`ApiError`** | Eigen fouttype in `client.js` met `kind`, `message` en `errors` | Een eigen exceptionklasse |
+| **Form object** (`ActiveModel::Model`) | Een klasse zonder tabel met validaties en `errors`, zoals `ShoppingListAddition` | Een DTO met Bean Validation, een WTForms-formulier |
+| **`file_fixture_path`** | De map `test/fixtures/files` voor testbestanden, hier de gedeelde hoeveelheidstests | `src/test/resources` |
 | **Vitest / Playwright** | Unit-tests in jsdom / end-to-end-tests in een echte browser | pytest / Selenium |

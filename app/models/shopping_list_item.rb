@@ -23,6 +23,15 @@ class ShoppingListItem < ApplicationRecord
   # foreign key and becomes a 500 instead of a 422.
   validates :recipe, presence: true, if: -> { recipe_id.present? }
 
+  # The lines for "op lijst": rows of [ name, quantity, unit ] scaled by factor (a
+  # Rational, see Quantity.scale), all with the same source. Attributes for create!.
+  def self.lines_for(rows, factor:, source_label:, recipe_id:)
+    rows.map do |name, quantity, unit|
+      { name: name, quantity: Quantity.scale(quantity, factor, unit), unit: quantity && unit,
+        source_label: source_label, recipe_id: recipe_id }
+    end
+  end
+
   private
     # "  Rode  UI " is stored as "rode ui", like on the standard list. Without an
     # amount a unit means nothing ("zout", "wc-papier"), so it is cleared.

@@ -9,6 +9,16 @@ export const UNITS = ['g', 'ml', 'stuks']
 // Kleinste waarde die we tonen als er wél iets nodig is; nooit afronden naar 0.
 const MINIMUM = { g: 0.1, ml: 0.1, stuks: 0.5 }
 
+// Rondt af op decimals cijfers achter de komma, half naar boven, zonder float-ruis.
+// 0,35 × 3 is in JavaScript 1,0499999999999998; Math.round(10,499…) zou 1,0 geven.
+// Daarom eerst terug naar 12 significante cijfers (1,05), en dan afronden via de
+// e-notatie ("1.05e1" is precies 10,5), niet via × 10. Zo rekent het net als BigDecimal
+// op de server (app/models/quantity.rb).
+function roundTo(value, decimals) {
+  const clean = Number(value.toPrecision(12))
+  return Number(`${Math.round(Number(`${clean}e${decimals}`))}e-${decimals}`)
+}
+
 // Rondt af op een "keukenwaardige" precisie per eenheid:
 // - g/ml: vanaf 10 een heel getal (213,7 g → 214 g), daaronder één decimaal (2,25 ml → 2,3 ml).
 //   Preciezer kun je thuis niet afmeten, maar bij kleine hoeveelheden telt die decimaal wel.
@@ -20,11 +30,11 @@ export function roundQuantity(value, unit) {
 
   let rounded
   if (unit === 'g' || unit === 'ml') {
-    rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10
+    rounded = value >= 10 ? roundTo(value, 0) : roundTo(value, 1)
   } else if (unit === 'stuks') {
-    rounded = Math.round(value * 2) / 2
+    rounded = roundTo(value * 2, 0) / 2
   } else {
-    rounded = Math.round(value * 100) / 100
+    rounded = roundTo(value, 2)
   }
 
   // 1 ei voor 4 personen, teruggeschaald naar 1 persoon, is 0,25 → 0,5 en niet 0.

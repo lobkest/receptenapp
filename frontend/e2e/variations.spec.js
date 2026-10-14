@@ -169,6 +169,36 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await expect(card(page, 'Met kip').locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
 })
 
+// Het basisrecept op de lijst, voor 3 porties (× 1,5), na de eerste test (rijst 200 g). Deze uitkomsten zijn vastgelegd
+// vóór de server het rekenwerk overnam; ze moeten precies zo blijven.
+test('recept op lijst: alles en los, geschaald', async ({ page }) => {
+  const errors = collectErrors(page)
+  await page.goto(`/recepten/${recipeId}`)
+  await page.getByRole('button', { name: 'Meer porties' }).click()
+  await expect(page.locator('.servings-count')).toHaveText('3 porties')
+
+  await page.getByRole('button', { name: 'Alles op lijst' }).click()
+  await expect(page.locator('.ingredients [role="status"]')).toHaveText(
+    'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.',
+  )
+  // Los: ook een optioneel ingrediënt.
+  await page.getByRole('button', { name: 'koriander op boodschappenlijst' }).click()
+  await expect(page.locator('.ingredients [role="status"]')).toHaveText(
+    'koriander staat op je boodschappenlijst.',
+  )
+  await checkLayout(page, errors, 'recept-op-lijst-knoppen')
+
+  await page.goto('/boodschappen')
+  await expect(page.locator('.items .line')).toHaveText([
+    '300 g tofu',
+    '300 g rijst', // 200 g sinds de eerste test, × 1,5
+    '1,5 stuks ui',
+    '7,5 g koriander',
+  ])
+  await expect(page.locator('.items .sources')).toHaveText(Array(4).fill('uit: Tofucurry'))
+  await checkLayout(page, errors, 'recept-op-lijst')
+})
+
 test('receptpagina met drie variaties: twee kolommen, de derde op een nieuwe rij', async ({
   page,
 }) => {

@@ -35,37 +35,27 @@ export async function request(path, options = {}) {
 
   if (response.ok) return body
 
-  switch (response.status) {
-    case 401:
-      throw new ApiError('unauthorized', 'De beheercode is onjuist of verlopen.', { status: 401 })
-    case 404:
-      throw new ApiError('not_found', 'Niet gevonden.', { status: 404 })
-    // Iemand anders heeft het recept intussen gewijzigd (lock_version). De server stuurt
-    // de Nederlandse melding mee.
-    case 409:
-      throw new ApiError(
-        'conflict',
-        body.error ??
-          'Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.',
-        { status: 409 },
-      )
-    // Veldfouten (errors) toont het formulier zelf bij elk veld. Zonder veldfouten stuurt
-    // de server een Nederlandse melding (error), bijv. als een versie niet terug kan.
-    case 422:
-      throw new ApiError('validation', body.error ?? 'Controleer de ingevulde velden.', {
-        status: 422,
-        errors: body.errors ?? {},
-      })
-    // De server zegt hoe lang je moet wachten (bij beheer: een minuut).
-    case 429:
-      throw new ApiError(
-        'rate_limited',
-        body.error ?? 'Te veel verzoeken. Probeer het later opnieuw.',
-        {
-          status: 429,
-        },
-      )
-    default:
-      throw new ApiError('server', 'Er ging iets mis op de server.', { status: response.status })
-  }
+  // Elke fout van de API heeft dezelfde vorm (app/controllers/concerns/api_errors.rb):
+  // { error: 'Nederlandse melding', errors: { veld: ['melding zonder veldnaam'] } }.
+  // Dit is de enige plek die dat uitleest. Formulieren tonen errors bij elk veld; de rest
+  // toont message. Zonder body (bijv. een proxy ervoor) valt message terug op FALLBACK.
+  const [kind, fallback] = STATUSES[response.status] ?? SERVER_ERROR
+  // Bij een 500 nooit de servertekst: dat kan een technische melding zijn.
+  const message = kind === 'server' ? fallback : (body.error ?? fallback)
+  throw new ApiError(kind, message, { status: response.status, errors: body.errors ?? {} })
+}
+
+const SERVER_ERROR = ['server', 'Er ging iets mis op de server.']
+
+// HTTP-status → [kind, Nederlandse melding als de server er geen meestuurt].
+const STATUSES = {
+  // Er ontbrak iets in het verzoek (bijv. lock_version); errors noemt het veld.
+  400: ['validation', 'Controleer de ingevulde velden.'],
+  401: ['unauthorized', 'De beheercode is onjuist of verlopen.'],
+  404: ['not_found', 'Niet gevonden.'],
+  // Iemand anders heeft het intussen gewijzigd (lock_version).
+  409: ['conflict', 'Dit is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.'],
+  422: ['validation', 'Controleer de ingevulde velden.'],
+  // De server zegt hoe lang je moet wachten (bij beheer: een minuut).
+  429: ['rate_limited', 'Te veel verzoeken. Probeer het later opnieuw.'],
 }

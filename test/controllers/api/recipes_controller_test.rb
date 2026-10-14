@@ -91,14 +91,14 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     get api_recipe_url(id: 0), as: :json
 
     assert_response :not_found
-    assert_equal "Recipe not found", response.parsed_body["error"]
+    assert_equal "Recept niet gevonden.", response.parsed_body["error"]
   end
 
   test "show of a recipe with a deletion request returns 404" do
     get api_recipe_url(recipes(:erwtensoep)), as: :json
 
     assert_response :not_found
-    assert_equal "Recipe not found", response.parsed_body["error"]
+    assert_equal "Recept niet gevonden.", response.parsed_body["error"]
   end
 
   test "an older recipe without ingredients and steps is visible like any other" do

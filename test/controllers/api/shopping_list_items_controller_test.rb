@@ -114,8 +114,7 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_equal 2, response.parsed_body["index"]
-    assert_equal [ "moet opgegeven zijn" ], response.parsed_body["errors"]["name"]
+    assert_equal [ "moet opgegeven zijn" ], response.parsed_body["errors"]["shopping_list_items[2].name"]
   end
 
   test "create refuses too many items at once" do
@@ -173,7 +172,7 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     patch api_shopping_list_item_url(id: 0), params: { shopping_list_item: { checked: true } }, as: :json
 
     assert_response :not_found
-    assert_equal "Shopping list item not found", response.parsed_body["error"]
+    assert_equal "Boodschap niet gevonden.", response.parsed_body["error"]
   end
 
   # destroy, clear_checked, clear_all

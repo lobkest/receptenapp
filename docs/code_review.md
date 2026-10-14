@@ -3,6 +3,8 @@
 Stand van 14 oktober 2026 (commit `5fd7d55`). Alleen gelezen en gemeten, niets gewijzigd.
 
 > **Bijgewerkt na refactorblok 1** (bugs, veiligheid, opruimen). Afgerond: ✅ B1, ✅ B5, ✅ D1/I9, ✅ F6, ✅ T1; deels: 🟡 B3, 🟡 B8, 🟡 T4. Vervallen: ⛔ B2 en stap 10 (geen wijzigingen aan de productieconfiguratie). Zie de markeringen bij elk punt en in de top 10.
+>
+> **Bijgewerkt na refactorblok 2** (één bron van waarheid). Afgerond: ✅ I1, ✅ B3, ✅ B4, ✅ T2, ✅ top-10 stap 2 en 3; deels: 🟡 B11, 🟡 T5. Nieuw: ⚠️ B17 (rate limit en X-Forwarded-For op Render, nog open, wacht op jouw keuze). Correctie: T3 was al gedekt.
 
 **Legenda** – prioriteit: **hoog** / **middel** / **laag**; moeite: **klein** (< 1 uur), **middel** (een dagdeel), **groot** (meer dan een dag).
 Regelnummers verwijzen naar de bestanden zoals ze nu zijn.
@@ -42,7 +44,10 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Waarom**: de tellers gelden per proces en zijn weg na elke herstart of deploy. Draait Puma met meerdere workers, dan heeft elke worker zijn eigen teller, en is de echte limiet dus hoger dan ingesteld.
 - **Voorstel**: `:solid_cache_store` gebruiken (de gem en `db/cache_schema.rb` staan er al). Dit is productieconfiguratie: **alleen met jouw expliciete toestemming**.
 
-### B3. Foutresponses hebben drie vormen en twee talen – **middel**, moeite **middel** – 🟡 deels
+### B3. Foutresponses hebben drie vormen en twee talen – **middel**, moeite **middel** – ✅ afgerond (blok 2)
+> Blok 2: elke fout is nu `{ "error": "<Nederlandse melding>", "errors": { "<veld>": ["…"] } }`, ook 400, 401, 404, 409 en 429. De bulk-insert noemt de regel in de veldnaam (`shopping_list_items[2].name`) in plaats van een los `index`. Alle teksten staan in `config/locales/nl.yml` (`api.*`, `admin.*`). `client.js` leest dit op één plek uit; een 500 toont nooit de servertekst.
+>
+> Blok 1:
 > Gedaan: alle 422- en 429-teksten komen nu in het Nederlands uit `config/locales/nl.yml` (`api.*` en `admin.*`), en `client.js` toont `body.error` bij 422 en 429 als die er is. Nog open: de 404- en 401-teksten zijn nog Engels (de frontend toont die niet), en `{ index, errors }` van de bulk-insert wordt nog niet gebruikt.
 - **Wat/waar**:
   - `{ error: "..." }` in het Engels: `api/recipes_controller.rb:13` en `:95`, `api/recipe_variations_controller.rb:19` en `:61`, `api/shopping_list_items_controller.rb:83` en `:110`, `api/standard_items_controller.rb:46` en `:79`, `api/not_found_controller.rb:4`, `api/admin/base_controller.rb:25` en `:29`, `concerns/public_write_rate_limit.rb:19`.
@@ -52,7 +57,8 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Waarom**: de frontend (`frontend/src/api/client.js:38-63`) gooit de servertekst bij 404, 422 en 429 weg en toont een vaste Nederlandse melding. Gevolg: een 422 zonder `errors` (bijvoorbeeld "Servings must be between 1 and 50" uit `recipe_variations_controller.rb:61`) wordt "Controleer de ingevulde velden." zonder dat een veld rood wordt. Het `index` van de bulk-insert wordt nergens gebruikt.
 - **Voorstel**: één vorm afspreken (`{ error: "<Nederlandse tekst>" }` voor algemene fouten, `{ errors: {...} }` voor veldfouten). Teksten in `config/locales/nl.yml`. `client.js` laten terugvallen op `body.error` als die er is.
 
-### B4. RecordNotFound wordt op vijf manieren afgehandeld – **middel**, moeite **klein**
+### B4. RecordNotFound wordt op vijf manieren afgehandeld – **middel**, moeite **klein** – ✅ afgerond
+> Eén concern `app/controllers/concerns/api_errors.rb` in `ApplicationController` met `rescue_from` voor `RecordNotFound` ("Recept niet gevonden.", met de modelnaam uit `nl.yml`), `RecordInvalid`, `StaleObjectError`, `ParameterMissing` en `TooManyRecords`. De vijf losse afhandelingen en de `render_errors`-methodes per controller zijn weg.
 - **Wat/waar**: eigen `rescue_from ActiveRecord::RecordNotFound` in `api/recipes_controller.rb:15`, `api/recipe_variations_controller.rb:18-20`, `api/shopping_list_items_controller.rb:13`, `api/standard_items_controller.rb:9` en `api/admin/base_controller.rb:6`. Elk heeft een eigen tekst.
 - **Voorstel**: één `rescue_from` in `ApplicationController` (zoals daar al gebeurt voor `TooManyRecords`, `application_controller.rb:3-5`), met een I18n-tekst. Mag samen met B3.
 
@@ -91,7 +97,8 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Waarom**: fat model is in Rails beter dan een fat controller, maar het terugzetten is een losse use case met eigen regels.
 - **Voorstel**: `restore_version!` naar een plain Ruby-object `RecipeVersion::Restore` (in `app/models/recipe_version/restore.rb`). Pas doen als er nog meer bij komt.
 
-### B11. Controllers zijn dun, op twee plekken na – **laag**, moeite **klein**
+### B11. Controllers zijn dun, op twee plekken na – **laag**, moeite **klein** – 🟡 deels
+> "Op lijst" zit nu in het form object `ShoppingListAddition` en de concern `AddsToShoppingList`; beide controlleracties zijn één regel. `create_many` in `ShoppingListItemsController` staat er nog.
 - `ShoppingListItemsController#create_many` (`shopping_list_items_controller.rb:81-103`) en `RecipeVariationsController#add_to_shopping_list` (`recipe_variations_controller.rb:58-70`) doen allebei "veel regels in één transactie". Voorstel: `ShoppingListItem.create_all!(list)` in het model en die op beide plekken gebruiken.
 - `Api::RecipesController` gebruikt `Api::RecipeVariationsController::FIELDS` (`recipes_controller.rb:77` en `:87`). Een controller die van een andere afhangt is ongebruikelijk. Beter: `RecipeVariation::PERMITTED_ATTRIBUTES`.
 
@@ -114,6 +121,15 @@ Bewust open (zie de commentaren in `config/routes.rb:170` en `:183`): recepten e
 
 ### B16. Naamgeving – in orde
 Code, tabellen en routes zijn Engels; UI, frontend-routes (`/recepten`, `/boodschappen`) en foutteksten via I18n zijn Nederlands. Commentaar is Engels in de backend en Nederlands in de frontend. Dat is consequent per laag, dus geen actie nodig.
+
+### B17. Rate limit en X-Forwarded-For op Render – ⚠️ **hoog als scenario B klopt**, nog open
+- **Wat**: `rate_limit` gebruikt `request.remote_ip`, niet de ruwe header (`by: -> { request.remote_ip }` in actionpack, `rate_limiting.rb`). `remote_ip` (`ActionDispatch::RemoteIp`) loopt X-Forwarded-For van rechts naar links af, slaat vertrouwde adressen over (localhost en privé-reeksen; de app stelt geen eigen `trusted_proxies` in) en neemt het eerste andere adres.
+- **Lokaal nagerekend** met `REMOTE_ADDR` 10.0.0.5:
+  - A. Render zet het echte IP **achteraan** (`vervalst, echt`): `remote_ip` = echt → veilig.
+  - B. Render zet het echte IP **vooraan** en laat het meegestuurde erachter staan (`echt, vervalst`): `remote_ip` = vervalst → **de limiet is te omzeilen**.
+  - C. Render zet er een **publiek** proxy-IP achter (`vervalst, echt, proxy`): `remote_ip` = proxy → geen omzeiling, maar alle bezoekers achter dezelfde proxy delen één teller.
+- **Niet geverifieerd**: welk scenario op Render geldt. Officiële docs heb ik niet gevonden. Render-staf schreef in 2021 "we set the first IP in the list to the real client IP" (dat past bij B); een gebruiker meldde in 2024 dat Render een meegestuurde header niet leegmaakt maar alleen aanvult. Bronnen: [feedback.render.com](https://feedback.render.com/features/p/send-the-correct-xforwardedfor), [community.render.com](https://community.render.com/t/accessing-client-ips-in-a-node-express-app/36282).
+- **Voorstel**: eerst meten in productie, dan pas iets wijzigen; een oplossing raakt de productieconfiguratie (`config.action_dispatch.trusted_proxies`) of de sleutel van de limiet.
 
 ---
 
@@ -192,10 +208,10 @@ Alle kleuren, afstanden en lettergroottes zijn tokens in `src/assets/main.css:19
 | # | Wat ontbreekt | Prio |
 |---|---|---|
 | T1 ✅ | Een test van de rate limit op beheer-endpoints (nu in Rails en e2e) | hoog |
-| T2 | Een pariteitstest dat `app/models/quantity.rb` en `frontend/src/utils/quantity.js` hetzelfde afronden. Ruby gebruikt `BigDecimal`, JS floats; bij randgevallen zoals x,x5 kan dat verschillen. Zie I1 | middel |
-| T3 | De afhandeling van `TooManyRecords` → 422 (`application_controller.rb:3-5`). Grep op `too_many_rows` en `MAX_NESTED_ROWS` in `test/` vindt niets | laag |
+| T2 ✅ | Een pariteitstest dat `app/models/quantity.rb` en `frontend/src/utils/quantity.js` hetzelfde afronden. Ruby gebruikt `BigDecimal`, JS floats; bij randgevallen zoals x,x5 kan dat verschillen. Zie I1 | middel |
+| T3 ✅ (correctie: was al gedekt; `test/controllers/api/recipes_controller_test.rb:207` controleert de tekst "heeft te veel regels", mijn grep zocht op de sleutel) | De afhandeling van `TooManyRecords` → 422 (`application_controller.rb:3-5`). Grep op `too_many_rows` en `MAX_NESTED_ROWS` in `test/` vindt niets | laag |
 | T4 🟡 | Versie terugzetten met een ongeldig snapshot (nu getest) of bij een conflict (nog niet: minitest 6 heeft geen ingebouwde `stub` meer, en een echte race is lastig na te bootsen) | middel |
-| T5 | Geen eigen spec voor `src/api/client.js` (welke status welke `ApiError.kind` geeft) en voor `stores/recipes.js` (de "laatste load wint"-logica, regels 4-6 en 42-55) | laag |
+| T5 🟡 (`client.spec.js` bestaat nu; `stores/recipes.js` nog niet) | Geen eigen spec voor `src/api/client.js` (welke status welke `ApiError.kind` geeft) en voor `stores/recipes.js` (de "laatste load wint"-logica, regels 4-6 en 42-55) | laag |
 | T6 | `App.vue`: de lijst verversen bij `visibilitychange` (regels 12-25) heeft geen unit-test | laag |
 | T7 | Geen aparte Ruby-unit-test voor de module `Quantity`; die wordt alleen indirect getest via `recipe_variation_test.rb` en `recipe_variations_test.rb` | laag |
 
@@ -205,9 +221,9 @@ Alle kleuren, afstanden en lettergroottes zijn tokens in `src/assets/main.css:19
 
 | # | Onderwerp | Onderdeel A | Onderdeel B |
 |---|---|---|---|
-| I1 | **Op de boodschappenlijst zetten** | Basisrecept: de **frontend** schaalt (`RecipeDetailView.vue:102-108`, `utils/quantity.js`), slaat optionele ingrediënten over (`:151-159`) en POST de regels naar `/api/shopping_list_items` | Variatie: de **server** schaalt (`RecipeVariation#shopping_list_items`, `recipe_variation.rb:100-112`, met `app/models/quantity.rb`) via een eigen endpoint. Twee implementaties van dezelfde rekenregel, en de herkomstlabels verschillen ("Titel" tegenover "Titel (variatie: X)") |
-| I2 | Foutvorm | `{ errors: {} }` (validatie) | `{ error: "" }` in het Engels, of `{ index, errors }` (B3) |
-| I3 | Not found | 5 eigen `rescue_from`'s (B4) | – |
+| I1 ✅ | **Op de boodschappenlijst zetten** (nu één pad via de server: `POST /api/recipes/:id/add_to_shopping_list`, `ShoppingListAddition`, `Quantity`. Daarbij bleken **beide** implementaties randgevallen fout af te ronden, 80 van 5184 combinaties: JS door float-ruis (0,35 × 3 → 1,0), Ruby doordat het eerst deelde (0,15 × 7/3 → 0,3). Allebei gerepareerd en vastgelegd in `test/fixtures/files/quantity_cases.json`) | Basisrecept: de **frontend** schaalt (`RecipeDetailView.vue:102-108`, `utils/quantity.js`), slaat optionele ingrediënten over (`:151-159`) en POST de regels naar `/api/shopping_list_items` | Variatie: de **server** schaalt (`RecipeVariation#shopping_list_items`, `recipe_variation.rb:100-112`, met `app/models/quantity.rb`) via een eigen endpoint. Twee implementaties van dezelfde rekenregel, en de herkomstlabels verschillen ("Titel" tegenover "Titel (variatie: X)") |
+| I2 ✅ | Foutvorm | `{ errors: {} }` (validatie) | `{ error: "" }` in het Engels, of `{ index, errors }` (B3) |
+| I3 ✅ | Not found | 5 eigen `rescue_from`'s (B4) | – |
 | I4 | Normaliseren | `normalizes` (Ingredient, Tag, VariationChange) | `before_validation` (ShoppingListItem, StandardItem) (B9) |
 | I5 | Tags | regels in `Recipe` | dezelfde regels in `RecipeVariation` (B6) |
 | I6 | Melding na paginawissel | `recipes.notice` | `admin.flash` (F4) |
@@ -225,8 +241,8 @@ Elke stap staat op zichzelf, laat de API voor de gebruiker gelijk (tenzij vermel
 | # | Stap | Bevindingen | Prio | Moeite | Hoe testen |
 |---|---|---|---|---|---|
 | 1 ✅ | **Rate limit op de beheer-endpoints** | B1, T1 | **hoog** | klein | nieuwe controllertest: de 11e foute code binnen een minuut geeft 429 |
-| 2 🟡 | **Uniforme foutafhandeling** (deels: admin-rescues, de 422- en 429-teksten en `client.js` zijn af; een centrale NotFound-afhandeling nog niet): `rescue_from` voor NotFound, RecordInvalid en Stale in `ApplicationController` en de admin-basecontroller; alle `error`-teksten via `nl.yml`; `client.js` toont `body.error` als die er is | B3, B4, B5, T4, I2, I3 | **hoog** | middel | bestaande controllertests aanpassen op de Nederlandse tekst; nieuwe test voor terugzetten met een ongeldig snapshot; Vitest voor `client.js` |
-| 3 | **Eén pad naar de boodschappenlijst**: `Recipe#shopping_list_items(servings:)` en `POST /api/recipes/:id/add_to_shopping_list`, door `RecipeVariation` hergebruikt; de frontend roept voor "Alles op lijst" dat endpoint aan. `quantity.js` blijft alleen voor de weergave | I1, T2, B11 | **hoog** | middel | modeltest dat recept en variatie dezelfde regels geven; de e2e "variatie op lijst" en "Alles op lijst" blijven groen |
+| 2 ✅ | **Uniforme foutafhandeling** (blok 1 en 2): `rescue_from` voor NotFound, RecordInvalid en Stale in `ApplicationController` en de admin-basecontroller; alle `error`-teksten via `nl.yml`; `client.js` toont `body.error` als die er is | B3, B4, B5, T4, I2, I3 | **hoog** | middel | bestaande controllertests aanpassen op de Nederlandse tekst; nieuwe test voor terugzetten met een ongeldig snapshot; Vitest voor `client.js` |
+| 3 ✅ | **Eén pad naar de boodschappenlijst**: `Recipe#shopping_list_items(servings:)` en `POST /api/recipes/:id/add_to_shopping_list`, door `RecipeVariation` hergebruikt; de frontend roept voor "Alles op lijst" dat endpoint aan. `quantity.js` blijft alleen voor de weergave | I1, T2, B11 | **hoog** | middel | modeltest dat recept en variatie dezelfde regels geven; de e2e "variatie op lijst" en "Alles op lijst" blijven groen |
 | 4 🟡 | **Database-constraints op `shopping_list_items`** (✅ af) + concern `HasQuantity` voor de drie modellen (open) | D1, B8, I9 | middel | middel | migratie draaien; de bestaande modeltests van alle drie blijven groen; een test dat een onbekende eenheid ook in SQL faalt |
 | 5 | **Tagregels op één plek** (`Tag.normalize_names` en `Tag.name_errors`) en `normalizes` overal | B6, B9, I4, I5 | middel | middel | `recipe_test`, `recipe_variation_test` en `tag_test` blijven groen; test voor `StandardItem.find_by(name: " Melk ")` |
 | 6 | **Frontend-composables**: `useServerErrors`, `useTimedMessage`, `useResource` en `utils/format.js` | F2, F3 | middel | klein | de bestaande Vitest-specs van RecipeForm, VariationForm en de views blijven groen; nieuwe specs voor de composables |

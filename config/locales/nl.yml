@@ -5,6 +5,18 @@
 # the frontend puts its own label in front. These names are used where Rails builds a
 # full message itself (errors.full_messages, the console, logs).
 nl:
+  # Models without a table (ActiveModel::Model), such as ShoppingListAddition.
+  activemodel:
+    attributes:
+      shopping_list_addition:
+        servings: Porties
+        ingredient_ids: Ingrediënten
+    errors:
+      models:
+        shopping_list_addition:
+          attributes:
+            ingredient_ids:
+              other_recipe: "bevat een ingrediënt dat niet bij dit recept hoort"
   activerecord:
     models:
       recipe: recept
@@ -112,18 +124,24 @@ nl:
             tag:
               on_recipe: "staat al op het recept"
               not_on_recipe: "staat niet op het recept"
-  recipes:
-    conflict: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
-  variations:
-    conflict: "Deze variatie is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
   # Messages the frontend shows as they are (body.error), next to the ones in client.js.
+  # The general message ("error") of every API error; see app/controllers/concerns/api_errors.rb.
   api:
+    invalid: "Controleer de ingevulde velden."
+    not_found: "%{model} niet gevonden."
+    route_not_found: "Dit adres bestaat niet."
+    parameter_missing: "Er ontbreekt iets in het verzoek: %{param}."
+    conflict:
+      recipe: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
+      recipe_variation: "Deze variatie is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
+      default: "Dit is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
     too_many_requests: "Te veel verzoeken. Probeer het over een minuut opnieuw."
     too_many_submissions: "Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw."
     too_many_items: "Maximaal %{count} regels tegelijk."
     servings_out_of_range: "Kies tussen 1 en %{max} porties."
     bulk_destroy_failed: "Niet alle items konden worden verwijderd, dus er is niets verwijderd."
   admin:
+    unauthorized: "De beheercode is onjuist of verlopen."
     rate_limited: "Te veel pogingen. Wacht een minuut en probeer het opnieuw."
     restore_failed: "Deze versie kan niet worden teruggezet: %{reasons}"
   errors:

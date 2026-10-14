@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/shoppingList'
+import { addRecipeToShoppingList } from '@/api/recipes'
 import { addVariationToShoppingList } from '@/api/variations'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
@@ -41,8 +42,8 @@ export const useShoppingListStore = defineStore('shoppingList', {
       return pendingLoad
     },
 
-    // Voegt ingrediënten toe (al geschaald en afgerond), in één request. Elk ingrediënt
-    // wordt een nieuwe regel achteraan, ook als dezelfde naam er al staat.
+    // Voegt regels toe zoals ze zijn, zonder rekenwerk, in één request (de standaardlijst).
+    // Elk ingrediënt wordt een nieuwe regel achteraan, ook als dezelfde naam er al staat.
     // ingredients: [{ name, quantity, unit }], source: { label, recipeId }.
     // "Naar smaak" (quantity null) gaat zonder eenheid.
     async addIngredients(ingredients, { label = null, recipeId = null } = {}) {
@@ -58,8 +59,12 @@ export const useShoppingListStore = defineStore('shoppingList', {
       this.items.push(...(await api.addShoppingListItems(payload)))
     },
 
-    add(ingredient, source) {
-      return this.addIngredients([ingredient], source)
+    // "Alles op lijst" (ingredientIds null: alles behalve de optionele) of "+ lijst" (één
+    // id) op de receptpagina. De server schaalt en rondt af (app/models/quantity.rb), net
+    // als bij een variatie, en geeft de nieuwe regels terug.
+    async addRecipe(recipeId, servings, ingredientIds = null) {
+      this.changes++
+      this.items.push(...(await addRecipeToShoppingList(recipeId, servings, ingredientIds)))
     },
 
     // "Variatie op lijst": de server stelt de regels samen en geeft ze terug.

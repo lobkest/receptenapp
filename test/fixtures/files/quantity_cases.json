@@ -1,0 +1,273 @@
+{
+  "uitleg": [
+    "Gedeelde testgevallen voor het schalen en afronden van hoeveelheden.",
+    "Gelezen door test/models/quantity_test.rb (app/models/quantity.rb) en",
+    "frontend/src/__tests__/quantity.spec.js (frontend/src/utils/quantity.js), zodat die twee",
+    "niet uit elkaar kunnen lopen. quantity × servings / base, dan afgerond per eenheid.",
+    "Getallen als tekst, zodat er bij het inlezen niets wordt afgerond. null = naar smaak.",
+    "De verwachte uitkomsten zijn met exacte breuken berekend, niet met een van beide implementaties."
+  ],
+  "cases": [
+    {
+      "quantity": "213.7",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "214",
+      "note": "vanaf 10 hele getallen"
+    },
+    {
+      "quantity": "10.4",
+      "servings": 1,
+      "base": 1,
+      "unit": "ml",
+      "expected": "10"
+    },
+    {
+      "quantity": "1249.6",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "1250"
+    },
+    {
+      "quantity": "2.25",
+      "servings": 1,
+      "base": 1,
+      "unit": "ml",
+      "expected": "2.3",
+      "note": "onder 10 één decimaal, half naar boven"
+    },
+    {
+      "quantity": "9.94",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "9.9"
+    },
+    {
+      "quantity": "9.96",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "10",
+      "note": "net onder 10 wordt 10"
+    },
+    {
+      "quantity": "1.3",
+      "servings": 1,
+      "base": 1,
+      "unit": "stuks",
+      "expected": "1.5",
+      "note": "stuks op 0,5"
+    },
+    {
+      "quantity": "1.2",
+      "servings": 1,
+      "base": 1,
+      "unit": "stuks",
+      "expected": "1"
+    },
+    {
+      "quantity": "7.75",
+      "servings": 1,
+      "base": 1,
+      "unit": "stuks",
+      "expected": "8"
+    },
+    {
+      "quantity": "0.2",
+      "servings": 1,
+      "base": 1,
+      "unit": "stuks",
+      "expected": "0.5",
+      "note": "nooit 0: minimaal een halve"
+    },
+    {
+      "quantity": "0.01",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "0.1",
+      "note": "nooit 0: minimaal 0,1"
+    },
+    {
+      "quantity": null,
+      "servings": 6,
+      "base": 4,
+      "unit": "g",
+      "expected": null,
+      "note": "naar smaak blijft naar smaak"
+    },
+    {
+      "quantity": "200",
+      "servings": 6,
+      "base": 4,
+      "unit": "g",
+      "expected": "300"
+    },
+    {
+      "quantity": "3",
+      "servings": 2,
+      "base": 4,
+      "unit": "stuks",
+      "expected": "1.5"
+    },
+    {
+      "quantity": "250",
+      "servings": 50,
+      "base": 4,
+      "unit": "ml",
+      "expected": "3125"
+    },
+    {
+      "quantity": "1",
+      "servings": 1,
+      "base": 4,
+      "unit": "stuks",
+      "expected": "0.5",
+      "note": "1 ei voor 4, voor 1 persoon"
+    },
+    {
+      "quantity": "5",
+      "servings": 1,
+      "base": 3,
+      "unit": "ml",
+      "expected": "1.7",
+      "note": "niet-eindigende deling"
+    },
+    {
+      "quantity": "0.5",
+      "servings": 1,
+      "base": 1,
+      "unit": "ml",
+      "expected": "0.5"
+    },
+    {
+      "quantity": "150",
+      "servings": 3,
+      "base": 2,
+      "unit": "g",
+      "expected": "225"
+    },
+    {
+      "quantity": "1.5",
+      "servings": 3,
+      "base": 3,
+      "unit": "stuks",
+      "expected": "1.5"
+    },
+    {
+      "quantity": "0.35",
+      "servings": 3,
+      "base": 1,
+      "unit": "g",
+      "expected": "1.1",
+      "note": "precies 1,05: JS-floats gaven 1,0"
+    },
+    {
+      "quantity": "0.35",
+      "servings": 6,
+      "base": 2,
+      "unit": "ml",
+      "expected": "1.1",
+      "note": "idem via een factor"
+    },
+    {
+      "quantity": "0.7",
+      "servings": 3,
+      "base": 2,
+      "unit": "g",
+      "expected": "1.1",
+      "note": "precies 1,05: JS-floats gaven 1,0"
+    },
+    {
+      "quantity": "1.15",
+      "servings": 1,
+      "base": 1,
+      "unit": "g",
+      "expected": "1.2",
+      "note": "precies 1,15: JS-floats gaven 1,1"
+    },
+    {
+      "quantity": "0.15",
+      "servings": 7,
+      "base": 3,
+      "unit": "g",
+      "expected": "0.4",
+      "note": "precies 0,35: Ruby deelde eerst en gaf 0,3"
+    },
+    {
+      "quantity": "0.15",
+      "servings": 11,
+      "base": 3,
+      "unit": "ml",
+      "expected": "0.6",
+      "note": "precies 0,55: JS-floats gaven 0,5"
+    },
+    {
+      "quantity": "0.15",
+      "servings": 9,
+      "base": 1,
+      "unit": "g",
+      "expected": "1.4",
+      "note": "precies 1,35: JS gaf 1,3"
+    },
+    {
+      "quantity": "0.35",
+      "servings": 5,
+      "base": 7,
+      "unit": "g",
+      "expected": "0.3",
+      "note": "precies 0,25: Ruby deelde eerst"
+    },
+    {
+      "quantity": "4.95",
+      "servings": 2,
+      "base": 1,
+      "unit": "g",
+      "expected": "9.9",
+      "note": "precies 9,9"
+    },
+    {
+      "quantity": "9.95",
+      "servings": 1,
+      "base": 1,
+      "unit": "ml",
+      "expected": "10",
+      "note": "precies 9,95: half naar boven is 10"
+    },
+    {
+      "quantity": "0.25",
+      "servings": 3,
+      "base": 1,
+      "unit": "stuks",
+      "expected": "1",
+      "note": "0,75 stuks wordt 1"
+    },
+    {
+      "quantity": "0.75",
+      "servings": 1,
+      "base": 3,
+      "unit": "stuks",
+      "expected": "0.5",
+      "note": "0,25 stuks wordt een halve (minimum)"
+    },
+    {
+      "quantity": "333.33",
+      "servings": 1,
+      "base": 7,
+      "unit": "g",
+      "expected": "48",
+      "note": "47,6185… wordt 48"
+    },
+    {
+      "quantity": "12.5",
+      "servings": 1,
+      "base": 2,
+      "unit": "g",
+      "expected": "6.3",
+      "note": "6,25 wordt 6,3"
+    }
+  ]
+}

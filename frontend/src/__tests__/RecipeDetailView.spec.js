@@ -3,7 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
-import { fakeServer, jsonResponse, mockFetch } from './helpers'
+import { useShoppingListStore } from '../stores/shoppingList'
+import { jsonResponse, mockFetch } from './helpers'
 
 const SOUP = { id: 5, title: 'Tomatensoep', description: 'Lekker.', servings: 4 }
 
@@ -191,19 +192,22 @@ describe('RecipeDetailView', () => {
       for (let i = 0; i < times; i++) await button(wrapper, label).trigger('click')
     }
 
-    // Het recept, plus een nep-boodschappenlijst op de "server".
-    let shoppingDb
-    let shoppingFetch
+    // Het recept, plus "op lijst" op de "server". De browser rekent niets meer uit: hij
+    // stuurt porties en eventueel welke regels, en toont wat de server teruggeeft.
+    const ADD_URL = '/api/recipes/7/add_to_shopping_list'
+    let addRequests
+    let serverLines
 
     function serve(recipe) {
-      ;({ shoppingDb, fetch: shoppingFetch } = fakeServer())
-      mockFetch((method, url, options) =>
-        url.startsWith('/api/recipes/') ? jsonResponse(recipe) : shoppingFetch(url, options),
-      )
-    }
-
-    function shoppingPosts() {
-      return shoppingFetch.mock.calls.filter(([, o]) => o.method === 'POST')
+      addRequests = []
+      serverLines = [{ id: 90, name: 'bloem', quantity: 375, unit: 'g', checked: false }]
+      mockFetch((method, url, options) => {
+        if (url === ADD_URL && method === 'POST') {
+          addRequests.push(JSON.parse(options.body))
+          return jsonResponse(serverLines, 201)
+        }
+        return jsonResponse(recipe)
+      })
     }
 
     async function mountPancakes() {
@@ -275,7 +279,7 @@ describe('RecipeDetailView', () => {
       expect(buttonWithText(wrapper, 'Terug naar origineel')).toBeUndefined()
     })
 
-    it('zet één ingrediënt geschaald op de lijst, met een korte bevestiging', async () => {
+    it('vraagt de server één ingrediënt op de lijst te zetten, met een korte bevestiging', async () => {
       vi.useFakeTimers()
       const wrapper = await mountPancakes()
       await clickTimes(wrapper, 'Meer porties', 2)
@@ -283,36 +287,45 @@ describe('RecipeDetailView', () => {
       await button(wrapper, 'bloem op boodschappenlijst').trigger('click')
       await flushPromises()
 
-      expect(shoppingDb).toHaveLength(1)
-      expect(shoppingDb[0]).toMatchObject({
-        name: 'bloem',
-        quantity: 375,
-        unit: 'g',
-        source_label: 'Pannenkoeken',
-        recipe_id: 7,
-      })
+      expect(addRequests).toEqual([{ servings: 6, ingredient_ids: [1] }])
+      // De regels die de server teruggeeft, staan in de store (teller in het menu).
+      expect(useShoppingListStore().items).toEqual(serverLines)
       expect(wrapper.find('[role="status"]').text()).toBe('bloem staat op je boodschappenlijst.')
 
       await vi.advanceTimersByTimeAsync(3000)
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })
 
-    it('zet met "Alles op lijst" alle geschaalde ingrediënten op de lijst', async () => {
+    it('vraagt met "Alles op lijst" in één request het hele recept, voor de gekozen porties', async () => {
       const wrapper = await mountPancakes()
       await clickTimes(wrapper, 'Minder porties', 2)
 
       await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
       await flushPromises()
 
-      // Eén request voor het hele recept.
-      expect(shoppingPosts()).toHaveLength(1)
-      expect(shoppingDb.map((i) => [i.name, i.quantity, i.unit])).toEqual([
-        ['bloem', 125, 'g'],
-        ['ei', 0.5, 'stuks'],
-        ['melk', 250, 'ml'],
-        ['zout', null, null],
-      ])
+      // Zonder ingredient_ids: de server neemt alles behalve de optionele.
+      expect(addRequests).toEqual([{ servings: 2 }])
       expect(wrapper.find('[role="status"]').text()).toContain('Alle ingrediënten')
+    })
+
+    it('toont de melding van de server bij een fout in het verzoek (422)', async () => {
+      const wrapper = await mountPancakes()
+      mockFetch(() =>
+        jsonResponse(
+          {
+            error: 'Porties moet minder dan of gelijk zijn aan 50',
+            errors: { servings: ['moet minder dan of gelijk zijn aan 50'] },
+          },
+          422,
+        ),
+      )
+
+      await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').text()).toBe(
+        'Porties moet minder dan of gelijk zijn aan 50',
+      )
     })
 
     it('toont een melding als de lijst op de server niet bijgewerkt kan worden', async () => {
@@ -361,7 +374,7 @@ describe('RecipeDetailView', () => {
         await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
         await flushPromises()
 
-        expect(shoppingDb.map((i) => i.name)).toEqual(['bloem', 'ei', 'melk', 'zout'])
+        expect(addRequests).toEqual([{ servings: 4 }])
         expect(wrapper.find('[role="status"]').text()).toBe(
           'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.',
         )
@@ -373,9 +386,7 @@ describe('RecipeDetailView', () => {
         await button(wrapper, 'poedersuiker op boodschappenlijst').trigger('click')
         await flushPromises()
 
-        expect(shoppingDb.map((i) => [i.name, i.quantity, i.unit])).toEqual([
-          ['poedersuiker', 20, 'g'],
-        ])
+        expect(addRequests).toEqual([{ servings: 4, ingredient_ids: [5] }])
       })
     })
   })

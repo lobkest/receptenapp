@@ -2,19 +2,16 @@ class Api::RecipesController < ApplicationController
   # Every public write counts towards the shared limit (PublicWriteRateLimit); adding a
   # recipe also has its own, stricter limit per hour below.
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update request_deletion ]
+  include AddsToShoppingList
+  limit_public_writes only: %i[ create update request_deletion add_to_shopping_list ]
 
-  before_action :set_recipe, only: %i[ show update request_deletion ]
+  before_action :set_recipe, only: %i[ show update request_deletion add_to_shopping_list ]
 
   # Configurable so the e2e tests can raise it; without the variable it stays 5 per hour.
   SUBMISSIONS_PER_HOUR = Integer(ENV.fetch("RECIPE_SUBMISSIONS_PER_HOUR", 5))
 
   rate_limit to: SUBMISSIONS_PER_HOUR, within: 1.hour, only: :create,
-    with: -> { render json: { error: I18n.t("api.too_many_submissions") }, status: :too_many_requests }
-
-  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
-  rescue_from ActiveRecord::StaleObjectError, with: :render_conflict
-  rescue_from ActiveRecord::RecordInvalid, with: ->(error) { @recipe = error.record; render_errors }
+    with: -> { render_error :too_many_requests, I18n.t("api.too_many_submissions") }
 
   # GET /api/recipes
   # GET /api/recipes?tags=vega,snel  (only recipes with all of these tags)
@@ -36,7 +33,7 @@ class Api::RecipesController < ApplicationController
     if @recipe.save
       render json: RecipeSerializer.detail(@recipe), status: :created
     else
-      render_errors
+      render_invalid(@recipe)
     end
   end
 
@@ -49,7 +46,7 @@ class Api::RecipesController < ApplicationController
     if @recipe.update(update_params)
       render json: RecipeSerializer.detail(Recipe.with_details.find(@recipe.id))
     else
-      render_errors
+      render_invalid(@recipe)
     end
   end
 
@@ -59,6 +56,13 @@ class Api::RecipesController < ApplicationController
     @recipe.request_deletion!(params[:reason])
 
     head :no_content
+  end
+
+  # POST /api/recipes/1/add_to_shopping_list  { "servings": 6 }                       Alles op lijst
+  # POST /api/recipes/1/add_to_shopping_list  { "servings": 6, "ingredient_ids": [12] } + lijst
+  # The browser only says what; the server scales (Quantity) and stores the lines.
+  def add_to_shopping_list
+    add_to_shopping_list_from(@recipe, ingredient_ids: params[:ingredient_ids])
   end
 
   private
@@ -85,17 +89,5 @@ class Api::RecipesController < ApplicationController
         steps_attributes: [ [ :id, :body, :_destroy ] ],
         recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ],
         variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
-    end
-
-    def render_errors
-      render json: { errors: @recipe.errors }, status: :unprocessable_content
-    end
-
-    def render_not_found
-      render json: { error: "Recipe not found" }, status: :not_found
-    end
-
-    def render_conflict
-      render json: { error: I18n.t("recipes.conflict") }, status: :conflict
     end
 end

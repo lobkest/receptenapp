@@ -11,19 +11,15 @@ class Api::Admin::BaseController < ApplicationController
   # Before authenticate_admin!, so a refused request is not even checked. scope: one
   # counter for all admin controllers; by default each controller would have its own.
   rate_limit to: REQUESTS_PER_MINUTE, within: 1.minute, scope: "admin",
-    with: -> { render json: { error: I18n.t("admin.rate_limited") }, status: :too_many_requests }
+    with: -> { render_error :too_many_requests, I18n.t("admin.rate_limited") }
 
   before_action :authenticate_admin!
 
-  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   # E.g. a version the current rules refuse. Everything ran in one transaction, so
-  # nothing has changed.
+  # nothing has changed. Not-found, conflict and the rest: ApiErrors.
   rescue_from ActiveRecord::RecordInvalid do |error|
-    render json: { error: I18n.t("admin.restore_failed", reasons: error.record.errors.full_messages.to_sentence) },
-      status: :unprocessable_content
-  end
-  rescue_from ActiveRecord::StaleObjectError do
-    render json: { error: I18n.t("recipes.conflict") }, status: :conflict
+    render_invalid error.record,
+      message: I18n.t("admin.restore_failed", reasons: error.record.errors.full_messages.to_sentence)
   end
 
   private
@@ -43,10 +39,6 @@ class Api::Admin::BaseController < ApplicationController
 
     def render_unauthorized
       headers["WWW-Authenticate"] = 'Bearer realm="Admin"'
-      render json: { error: "Unauthorized" }, status: :unauthorized
-    end
-
-    def render_not_found
-      render json: { error: "#{controller_name.classify.titleize.capitalize} not found" }, status: :not_found
+      render_error :unauthorized, I18n.t("admin.unauthorized")
     end
 end

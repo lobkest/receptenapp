@@ -1,0 +1,50 @@
+# "Op lijst" for a recipe or a variation: checks what the browser asks for, lets the
+# source say which lines it needs (scaled with Quantity), and stores them all or none.
+# Not a table: a form object. ActiveModel::Model gives it validations and errors like
+# a model, so the controller handles it the same way (render_invalid).
+#
+#   addition = ShoppingListAddition.new(source: recipe, servings: 6, ingredient_ids: [ 12 ])
+#   addition.save  # => true, addition.items are the new ShoppingListItems
+class ShoppingListAddition
+  include ActiveModel::Model
+
+  # source: a Recipe or a RecipeVariation; both answer #shopping_list_items.
+  # servings: as sent ("6", 6 or "veel"), or nil for the recipe's own number; the
+  # validation below says what is wrong with it.
+  # ingredient_ids: rows of the recipe, or nil for everything except the optional ones.
+  attr_accessor :source, :ingredient_ids
+  attr_writer :servings
+  attr_reader :items
+
+  validates :servings, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: Recipe::MAX_SERVINGS }
+  validate :ingredients_of_this_recipe, unless: -> { ingredient_ids.nil? }
+
+  def save
+    return false if invalid?
+
+    lines = source.shopping_list_items(servings: Integer(servings.to_s), only: chosen_ids)
+    @items = ShoppingListItem.transaction { lines.map { |attributes| ShoppingListItem.create!(attributes) } }
+    true
+  end
+
+  def servings
+    @servings.nil? ? recipe.servings : @servings
+  end
+
+  private
+    def recipe
+      source.is_a?(Recipe) ? source : source.recipe
+    end
+
+    def chosen_ids
+      ingredient_ids && Array.wrap(ingredient_ids).map { |id| Integer(id.to_s, exception: false) }
+    end
+
+    def ingredients_of_this_recipe
+      if chosen_ids.empty?
+        errors.add(:ingredient_ids, :blank)
+      elsif (chosen_ids - recipe.recipe_ingredients.map(&:id)).any?
+        errors.add(:ingredient_ids, :other_recipe)
+      end
+    end
+end

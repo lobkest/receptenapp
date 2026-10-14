@@ -96,19 +96,18 @@ class RecipeVariation < ApplicationRecord
 
   # What "Variatie op lijst" puts on the shopping list: the base recipe without the
   # removed rows and without optional ingredients, plus the added ones, all scaled to
-  # servings. Attributes for ShoppingListItem.
-  def shopping_list_items(servings:)
-    factor = BigDecimal(servings) / recipe.servings
+  # servings. Attributes for ShoppingListItem (see ShoppingListAddition).
+  # only: picking single rows is for the recipe itself (Recipe#shopping_list_items).
+  def shopping_list_items(servings:, only: nil)
+    raise ArgumentError, "a variation always goes on the list as a whole" if only
+
     removed = removed_ingredient_ids
     rows = recipe.recipe_ingredients.reject { |row| row.optional || removed.include?(row.id) }
       .map { |row| [ row.ingredient_name, row.quantity, row.unit ] }
     rows += additions.map { |addition| [ addition.name, addition.quantity, addition.unit ] }
 
-    source = "#{recipe.title} (variatie: #{name})"
-    rows.map do |name, quantity, unit|
-      { name: name, quantity: Quantity.scale(quantity, factor, unit), unit: quantity && unit,
-        source_label: source, recipe_id: recipe.id }
-    end
+    ShoppingListItem.lines_for(rows, factor: Rational(servings, recipe.servings),
+      source_label: "#{recipe.title} (variatie: #{name})", recipe_id: recipe.id)
   end
 
   private

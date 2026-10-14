@@ -45,12 +45,43 @@ describe('api/client request', () => {
     expect(error.errors).toEqual({})
   })
 
-  it('401, 404 en 500 houden hun eigen tekst', async () => {
-    expect((await errorFor(jsonResponse({ error: 'Unauthorized' }, 401))).kind).toBe('unauthorized')
-    expect((await errorFor(jsonResponse({ error: 'Not found' }, 404))).message).toBe(
-      'Niet gevonden.',
+  // Het ene foutformaat van de server: { error: '…', errors: { veld: ['…'] } }.
+  it.each([
+    [400, 'validation'],
+    [401, 'unauthorized'],
+    [404, 'not_found'],
+    [409, 'conflict'],
+    [422, 'validation'],
+    [429, 'rate_limited'],
+  ])('%i: kind %s, met de melding en de veldfouten van de server', async (status, kind) => {
+    const error = await errorFor(
+      jsonResponse(
+        { error: 'Melding van de server.', errors: { servings: ['is geen getal'] } },
+        status,
+      ),
     )
-    expect((await errorFor(new Response('', { status: 500 }))).kind).toBe('server')
+    expect(error.kind).toBe(kind)
+    expect(error.status).toBe(status)
+    expect(error.message).toBe('Melding van de server.')
+    expect(error.errors).toEqual({ servings: ['is geen getal'] })
+  })
+
+  it.each([
+    [400, 'Controleer de ingevulde velden.'],
+    [401, 'De beheercode is onjuist of verlopen.'],
+    [404, 'Niet gevonden.'],
+    [409, 'Dit is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.'],
+    [500, 'Er ging iets mis op de server.'],
+  ])('%i zonder body (bijv. een proxy): een eigen Nederlandse tekst', async (status, message) => {
+    const error = await errorFor(new Response('', { status }))
+    expect(error.message).toBe(message)
+    expect(error.errors).toEqual({})
+  })
+
+  it('500 toont nooit de tekst van de server (dat kan een stacktrace zijn)', async () => {
+    const error = await errorFor(jsonResponse({ error: 'NoMethodError in …' }, 500))
+    expect(error.kind).toBe('server')
+    expect(error.message).toBe('Er ging iets mis op de server.')
   })
 
   it('netwerkfout', async () => {

@@ -119,7 +119,7 @@ describe('boodschappenlijst-store', () => {
       fakeServer({ shopping: [{ ...BLOEM, checked: true }] })
       const list = await loadedStore()
 
-      await list.add({ name: 'Bloem', quantity: 100, unit: 'g' }, WAFFLES)
+      await list.addIngredients([{ name: 'Bloem', quantity: 100, unit: 'g' }], WAFFLES)
 
       expect(
         list.items.map((i) => [i.name, i.quantity, i.source_label, i.recipe_id, i.checked]),
@@ -146,7 +146,7 @@ describe('boodschappenlijst-store', () => {
       )
 
       await expect(
-        list.add({ name: 'ei', quantity: 1, unit: 'stuks' }, WAFFLES),
+        list.addIngredients([{ name: 'ei', quantity: 1, unit: 'stuks' }], WAFFLES),
       ).rejects.toMatchObject({ kind: 'rate_limited' })
       expect(list.items.map((i) => i.name)).toEqual(['bloem'])
     })

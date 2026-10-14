@@ -111,7 +111,7 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
     patch api_standard_item_url(id: 0), params: { standard_item: { name: "x" } }, as: :json
 
     assert_response :not_found
-    assert_equal "Standard item not found", response.parsed_body["error"]
+    assert_equal "Standaarditem niet gevonden.", response.parsed_body["error"]
   end
 
   # destroy

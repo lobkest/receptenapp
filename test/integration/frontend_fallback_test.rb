@@ -24,7 +24,7 @@ class FrontendFallbackTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert_equal "application/json", response.media_type
-    assert_equal({ "error" => "Not found" }, response.parsed_body)
+    assert_equal({ "error" => "Dit adres bestaat niet.", "errors" => {} }, response.parsed_body)
   end
 
   test "missing asset is a 404, not index.html" do

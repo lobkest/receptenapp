@@ -51,6 +51,14 @@ describe('TagPicker', () => {
     wrapper.unmount()
   })
 
+  it('heeft geen zichtbaar label "Tag toevoegen", wel een naam voor schermlezers', () => {
+    const wrapper = mountPicker()
+
+    expect(wrapper.find('label').exists()).toBe(false)
+    expect(wrapper.find('select').attributes('aria-label')).toBe('Tag toevoegen')
+    wrapper.unmount()
+  })
+
   it('voegt een tag uit de lijst toe; die verdwijnt dan uit de lijst', async () => {
     const wrapper = mountPicker()
 

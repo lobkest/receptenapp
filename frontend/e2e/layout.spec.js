@@ -65,6 +65,9 @@ async function checkLayout(page, errors, name) {
     innerWidth: window.innerWidth,
   }))
   expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
+  // Is iets te breed, dan zoomt een telefoon uit en groeit innerWidth mee; dan zou de
+  // regel hierboven niets zien. Daarom ook: de pagina is precies schermbreed.
+  expect(innerWidth, 'niet uitgezoomd').toBe(page.viewportSize().width)
 
   await page.screenshot({
     path: `e2e/screenshots/${name}.png`,
@@ -233,8 +236,8 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   // Enter voegde de tag toe, maar verstuurde het recept niet.
   await expect(page).toHaveURL(/\/recepten\/nieuw$/)
   const remove = await page.getByRole('button', { name: 'vega verwijderen' }).boundingBox()
-  expect(remove.width).toBeGreaterThanOrEqual(44)
-  expect(remove.height).toBeGreaterThanOrEqual(44)
+  expect(remove.width).toBeGreaterThanOrEqual(40)
+  expect(remove.height).toBeGreaterThanOrEqual(40)
   await page.locator('.tag-picker').scrollIntoViewIfNeeded()
   await page.screenshot({
     path: 'e2e/screenshots/recept-toevoegen-tags.png',
@@ -477,11 +480,11 @@ test('standaard: toevoegen met nieuwe categorie, verwijderen met bevestiging', a
   await expect(page.getByText('beheercode')).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Inloggen bij Beheer' })).toHaveCount(0)
 
-  // Compact: naam links, drie icoonknoppen van minstens 44×44.
+  // Compact: naam links, drie icoonknoppen van minstens 40×40 (--tap).
   for (const label of ['melk op boodschappenlijst', 'melk bewerken', 'melk verwijderen']) {
     const box = await page.getByRole('button', { name: label }).boundingBox()
-    expect(box.width, label).toBeGreaterThanOrEqual(44)
-    expect(box.height, label).toBeGreaterThanOrEqual(44)
+    expect(box.width, label).toBeGreaterThanOrEqual(40)
+    expect(box.height, label).toBeGreaterThanOrEqual(40)
   }
 
   // Toevoegen met een nieuwe categorie.

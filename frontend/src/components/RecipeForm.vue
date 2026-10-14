@@ -278,10 +278,13 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
 
     <div class="field">
       <label for="description">Beschrijving</label>
+      <!-- Begint op één regel en groeit mee met de tekst, net als de stappen. -->
       <textarea
         id="description"
         v-model="form.description"
-        rows="3"
+        v-autogrow
+        rows="1"
+        class="description"
         :aria-invalid="!!errors.description"
       ></textarea>
       <p v-if="errors.description" class="error">
@@ -289,32 +292,32 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       </p>
     </div>
 
-    <!-- inputmode: de telefoon toont een cijfertoetsenbord; pattern laat iOS dat ook doen. -->
-    <div class="field">
-      <label for="servings">Porties</label>
-      <input
-        id="servings"
-        v-model="form.servings"
-        type="text"
-        inputmode="numeric"
-        pattern="[0-9]*"
-        class="servings"
-        :aria-invalid="!!errors.servings"
-      />
-      <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
-    </div>
+    <!-- Porties (smal) en tags naast elkaar op één rij. -->
+    <div class="meta-row">
+      <!-- inputmode: de telefoon toont een cijfertoetsenbord; pattern laat iOS dat ook doen. -->
+      <div class="field">
+        <label for="servings">Porties</label>
+        <input
+          id="servings"
+          v-model="form.servings"
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          class="servings"
+          :aria-invalid="!!errors.servings"
+        />
+        <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
+      </div>
 
-    <fieldset class="tags field">
-      <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
-      <TagPicker v-model="tags" :options="availableTags" />
-      <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
-    </fieldset>
+      <fieldset class="tags field">
+        <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
+        <TagPicker v-model="tags" :options="availableTags" />
+        <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
+      </fieldset>
+    </div>
 
     <fieldset class="ingredients card">
       <legend>Ingrediënten</legend>
-      <p class="hint muted">
-        Laat de hoeveelheid leeg voor "naar smaak". 1,5 en 1.5 mogen allebei.
-      </p>
 
       <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
       <div
@@ -337,7 +340,6 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
             type="text"
             inputmode="decimal"
             class="quantity"
-            placeholder="naar smaak"
             :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
             :aria-invalid="isInvalid(row, 'quantity')"
           />
@@ -349,7 +351,7 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
           >
             <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
           </select>
-          <!-- Het hele label is het tikvlak (min. 44×44), niet alleen het vakje. -->
+          <!-- Het hele label is het tikvlak (min. --tap×--tap), niet alleen het vakje. -->
           <label class="optional">
             <input v-model="row.optional" type="checkbox" />
             optioneel
@@ -473,7 +475,7 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
 
 fieldset {
   min-width: 0;
-  margin: 0 0 var(--space-5);
+  margin: 0 0 var(--space-4);
 }
 
 legend {
@@ -485,14 +487,10 @@ legend {
   font-size: var(--text-xl);
 }
 
-.hint {
-  clear: both;
-  margin-bottom: var(--space-3);
-  font-size: var(--text-sm);
-}
-
+/* clear: onder de legend, die float: left heeft (anders botst de eerste regel ermee). */
 .row {
-  padding: var(--space-3) 0;
+  clear: both;
+  padding: var(--space-2) 0;
   border-bottom: 1px dashed var(--color-border);
 }
 
@@ -500,11 +498,35 @@ legend {
   border-bottom: 0;
 }
 
+/* Beschrijving: één regel hoog, groeit mee (zie ook vAutogrow voor oudere browsers). */
+.description {
+  field-sizing: content;
+  resize: none;
+}
+
+/* Porties smal links, tags in de rest van de breedte. Beide labels staan bovenaan,
+   zodat het portieveld en de tag-keuzelijst op dezelfde hoogte beginnen. */
+.meta-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  margin-bottom: var(--space-3);
+}
+
+.meta-row .field {
+  margin: 0;
+}
+
 /* Tags: een gewoon veld, geen kaart; legend klein zoals de andere labels. */
 .tags {
-  margin-bottom: var(--space-4);
   padding: 0;
   border: 0;
+}
+
+/* Eerst de keuzelijst (naast porties), de gekozen tags eronder. */
+.tags :deep(.chips) {
+  order: 1;
 }
 
 .tags legend {
@@ -516,11 +538,6 @@ legend {
 
 .optional-label {
   font-weight: 400;
-}
-
-/* Porties: een kort getal, geen veld over de hele breedte. */
-.field .servings {
-  width: 6rem;
 }
 
 /* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */
@@ -592,7 +609,7 @@ legend {
 /* Groeit mee met de tekst, vanaf 2 regels (zie ook vAutogrow voor oudere browsers). */
 .step-row textarea {
   field-sizing: content;
-  min-height: calc(2lh + 2 * var(--space-2) + 2px);
+  min-height: calc(2lh + 2 * var(--control-pad-y) + 2px);
   resize: none;
 }
 
@@ -611,7 +628,7 @@ legend {
 }
 
 .variations {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .variations h2 {
@@ -638,7 +655,7 @@ legend {
   bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
   z-index: 5;
   margin: 0 calc(-1 * var(--space-4));
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
 }

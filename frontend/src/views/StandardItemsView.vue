@@ -171,8 +171,7 @@ async function importLegacy() {
 </script>
 
 <template>
-  <h1>Standaardboodschappen</h1>
-  <p class="muted">Wat je vaak koopt. Zet het met één tik op je boodschappenlijst.</p>
+  <h1 class="page-title">Standaardboodschappen</h1>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
@@ -307,6 +306,15 @@ async function importLegacy() {
 </template>
 
 <style scoped>
+/* "Standaardboodschappen" is één lang woord: op een telefoon (375–390 px) moet het op
+   één regel passen. Daarom schaalt de grootte mee met de schermbreedte, en nooit een
+   afbreekstreepje (hyphens: manual, in plaats van auto uit main.css). */
+.page-title {
+  font-size: clamp(var(--text-xl), 6.5vw, var(--text-2xl));
+  -webkit-hyphens: manual;
+  hyphens: manual;
+}
+
 .list-toolbar {
   display: flex;
   gap: var(--space-3);
@@ -346,7 +354,7 @@ async function importLegacy() {
 
 .items {
   margin: 0;
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   list-style: none;
 }
 
@@ -394,7 +402,7 @@ async function importLegacy() {
   flex-shrink: 0;
 }
 
-/* Icoonknoppen: 44×44, zonder rand, zodat de regel rustig blijft. */
+/* Icoonknoppen: --tap×--tap (40×40), zonder rand, zodat de regel rustig blijft. */
 .icon {
   width: var(--tap);
   padding: 0;

@@ -31,48 +31,38 @@ const shoppingLabel = computed(() =>
 </script>
 
 <template>
-  <header class="site-header">
-    <div class="header-inner">
-      <RouterLink to="/" class="brand">
-        <img src="/icon-192.png" alt="Recepten-logo" width="28" height="28" />
-        Recepten
-      </RouterLink>
-
-      <!-- Eén menu: op mobiel zet CSS het als vaste balk onderaan het scherm,
-           op brede schermen staat het hier in de header. -->
-      <nav class="main-nav" aria-label="Hoofdmenu">
-        <!-- Op brede schermen is het logo de link naar home; daar verbergt CSS deze. -->
-        <RouterLink to="/" class="nav-link nav-home">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Z" />
-            <path d="M4 21a2 2 0 0 1 2-2h13v2H6" />
-          </svg>
-          <span class="nav-label">Recepten</span>
-        </RouterLink>
-        <RouterLink to="/recepten/nieuw" class="nav-link">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span class="nav-label">Recept toevoegen</span>
-        </RouterLink>
-        <RouterLink to="/boodschappen" class="nav-link shopping-link">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M3 4h2l2.4 11h10.2L20 7H6.2" />
-            <circle cx="9" cy="19.5" r="1.5" />
-            <circle cx="17" cy="19.5" r="1.5" />
-          </svg>
-          <span class="nav-label">{{ shoppingLabel }}</span>
-        </RouterLink>
-        <RouterLink to="/standaard" class="nav-link">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M9 6h11M9 12h11M9 18h11" />
-            <path d="M4 6h.01M4 12h.01M4 18h.01" />
-          </svg>
-          <span class="nav-label">Standaard</span>
-        </RouterLink>
-      </nav>
-    </div>
-  </header>
+  <!-- Geen kopbalk met logo: op mobiel is het menu een vaste balk onderaan het scherm,
+       op brede schermen een smalle rij bovenaan. -->
+  <nav class="main-nav" aria-label="Hoofdmenu">
+    <RouterLink to="/" class="nav-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Z" />
+        <path d="M4 21a2 2 0 0 1 2-2h13v2H6" />
+      </svg>
+      <span class="nav-label">Recepten</span>
+    </RouterLink>
+    <RouterLink to="/recepten/nieuw" class="nav-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="nav-label">Recept toevoegen</span>
+    </RouterLink>
+    <RouterLink to="/boodschappen" class="nav-link shopping-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M3 4h2l2.4 11h10.2L20 7H6.2" />
+        <circle cx="9" cy="19.5" r="1.5" />
+        <circle cx="17" cy="19.5" r="1.5" />
+      </svg>
+      <span class="nav-label">{{ shoppingLabel }}</span>
+    </RouterLink>
+    <RouterLink to="/standaard" class="nav-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M9 6h11M9 12h11M9 18h11" />
+        <path d="M4 6h.01M4 12h.01M4 18h.01" />
+      </svg>
+      <span class="nav-label">Standaard</span>
+    </RouterLink>
+  </nav>
   <main>
     <RouterView />
   </main>
@@ -83,16 +73,8 @@ const shoppingLabel = computed(() =>
 </template>
 
 <style scoped>
-/* ---------- Header ---------- */
-
-.site-header {
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
 /* max() met env(): op een telefoon met notch (liggend) schuift de inhoud mee
    naar binnen; anders blijft de gewone marge over. */
-.header-inner,
 main,
 footer {
   max-width: var(--content-width);
@@ -101,32 +83,9 @@ footer {
   padding-right: max(var(--space-4), env(safe-area-inset-right));
 }
 
-.header-inner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: 56px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--tap);
-  font-family: var(--font-heading);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--color-text);
-  text-decoration: none;
-}
-
-.brand img {
-  border-radius: var(--radius-sm);
-}
-
 main {
-  padding-top: var(--space-5);
-  padding-bottom: var(--space-6);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-5);
 }
 
 /* ---------- Menu: mobiel (standaard) = vaste balk onderaan ---------- */
@@ -155,9 +114,9 @@ main {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 0;
   min-height: var(--nav-height);
-  padding: var(--space-1);
+  padding: 1px var(--space-1);
   font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1.15;
@@ -167,8 +126,8 @@ main {
 }
 
 .nav-link svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -202,21 +161,22 @@ footer {
   padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + var(--space-4));
 }
 
-/* ---------- Menu: brede schermen = in de header ---------- */
+/* ---------- Menu: brede schermen = smalle rij bovenaan ---------- */
 
 @media (min-width: 40rem) {
   .main-nav {
     position: static;
     display: flex;
     gap: var(--space-1);
-    margin-left: auto;
-    padding: 0;
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: var(--space-1) max(var(--space-4), env(safe-area-inset-right)) 0
+      max(var(--space-4), env(safe-area-inset-left));
     background: none;
     border: 0;
     box-shadow: none;
   }
 
-  .nav-home,
   .nav-link svg {
     display: none;
   }
@@ -224,7 +184,7 @@ footer {
   .nav-link {
     flex-direction: row;
     min-height: var(--tap);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-1) var(--space-3);
     font-size: var(--text-base);
     color: var(--color-text);
     border-radius: var(--radius-sm);
@@ -250,7 +210,7 @@ footer {
 /* ---------- Footer ---------- */
 
 footer {
-  padding-top: var(--space-4);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
   font-size: var(--text-sm);
 }

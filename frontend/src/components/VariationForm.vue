@@ -236,7 +236,6 @@ function amount(row) {
             type="text"
             inputmode="decimal"
             class="quantity"
-            placeholder="naar smaak"
             :aria-label="`Hoeveelheid extra ingrediënt ${index + 1}`"
             :aria-invalid="isInvalid(row, 'quantity')"
           />
@@ -348,7 +347,7 @@ function amount(row) {
   list-style: none;
 }
 
-/* Het hele label is het tikvlak (min. 44 hoog), niet alleen het vakje. */
+/* Het hele label is het tikvlak (min. --tap hoog), niet alleen het vakje. */
 .check {
   display: inline-flex;
   gap: var(--space-2);

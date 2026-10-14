@@ -67,8 +67,20 @@ describe('RecipeForm', () => {
     })
     const quantity = wrapper.find('.ingredient-row .quantity')
     expect(quantity.attributes()).toMatchObject({ type: 'text', inputmode: 'decimal' })
-    expect(wrapper.find('#description').attributes('rows')).toBe('3')
+    // Geen voorbeeldgetal of "naar smaak" in het veld; leeg laten blijft "naar smaak".
+    expect(quantity.attributes('placeholder')).toBeUndefined()
+    // De beschrijving begint op één regel en groeit mee.
+    expect(wrapper.find('#description').attributes('rows')).toBe('1')
     expect(wrapper.find('.step-row textarea').attributes('rows')).toBe('2')
+  })
+
+  it('zet porties en tags op één rij, zonder uitleg bij de ingrediënten', () => {
+    const wrapper = mount(RecipeForm)
+
+    const row = wrapper.find('.meta-row')
+    expect(row.find('#servings').exists()).toBe(true)
+    expect(row.find('.tag-picker').exists()).toBe(true)
+    expect(wrapper.find('.ingredients').text()).not.toContain('Laat de hoeveelheid leeg')
   })
 
   it('heeft een verwijderknop met een duidelijke naam voor schermlezers', async () => {

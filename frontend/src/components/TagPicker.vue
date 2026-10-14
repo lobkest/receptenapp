@@ -95,10 +95,11 @@ function remove(tag) {
       </li>
     </ul>
 
-    <label :for="`${uid}-select`" class="picker-label">Tag toevoegen</label>
+    <!-- Geen zichtbaar label: de legend erboven ("Tags") zegt het al. -->
     <select
       :id="`${uid}-select`"
       ref="select"
+      aria-label="Tag toevoegen"
       v-model="choice"
       class="tag-select"
       :disabled="full"
@@ -148,7 +149,7 @@ function remove(tag) {
   list-style: none;
 }
 
-/* Een pil met de naam en een × van 44×44; de pil zelf is dus ook 44 hoog. */
+/* Een pil met de naam en een × van --tap×--tap; de pil zelf is dus even hoog. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -181,12 +182,6 @@ function remove(tag) {
 .chip-remove:hover:not(:disabled) {
   color: var(--color-accent-text);
   background: color-mix(in srgb, var(--color-brand) 15%, transparent);
-}
-
-.picker-label {
-  font-weight: 400;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
 }
 
 .new-tag {

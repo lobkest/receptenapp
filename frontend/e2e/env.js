@@ -5,5 +5,5 @@ export const VITE_PORT = 5174
 export const RAILS_URL = `http://localhost:${RAILS_PORT}`
 export const APP_URL = `http://localhost:${VITE_PORT}`
 
-// Alleen voor deze lokale testserver; met dit token keurt de test zijn eigen recepten goed.
+// Alleen voor deze lokale testserver; met dit token handelt de test verwijderverzoeken af.
 export const ADMIN_TOKEN = 'e2e-admin-token'

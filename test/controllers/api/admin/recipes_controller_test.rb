@@ -51,15 +51,17 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
 
   # Deletion requests
 
-  test "deletion_requests lists hidden recipes, newest request first, with the reason" do
+  test "deletion_requests lists hidden recipes and variations, newest request first, with the reason" do
     @visible.request_deletion!("Lijkt op flensjes")
 
     get api_admin_deletion_requests_url, headers: auth_headers, as: :json
 
     assert_response :ok
-    assert_equal [ [ "Pannenkoeken", "Lijkt op flensjes" ], [ "Erwtensoep", "dubbel recept" ] ],
-      response.parsed_body.map { |row| [ row["title"], row["deletion_reason"] ] }
-    assert_equal "recipe", response.parsed_body.first["type"]
+    # Erwtensoep was requested an hour ago, the variation Glutenvrij two hours ago.
+    assert_equal [ [ "recipe", "Pannenkoeken", "Lijkt op flensjes" ], [ "recipe", "Erwtensoep", "dubbel recept" ],
+      [ "variation", "Glutenvrij", "werkt niet" ] ],
+      response.parsed_body.map { |row| [ row["type"], row["title"], row["deletion_reason"] ] }
+    assert_equal [ @visible.id, "Pannenkoeken" ], response.parsed_body.last.values_at("recipe_id", "recipe_title")
     assert response.parsed_body.first["deletion_requested_at"].present?
   end
 

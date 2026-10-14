@@ -1,0 +1,17 @@
+# "Met spek": without the milk, with 100 g spek.
+spek_zonder_melk:
+  recipe_variation: spek
+  kind: remove
+  recipe_ingredient: pannenkoeken_melk
+
+spek_met_spek:
+  recipe_variation: spek
+  kind: add
+  name: spek
+  quantity: 100
+  unit: g
+
+glutenvrij_zonder_bloem:
+  recipe_variation: glutenvrij
+  kind: remove
+  recipe_ingredient: pannenkoeken_bloem

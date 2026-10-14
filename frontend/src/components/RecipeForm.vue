@@ -1,9 +1,10 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
 import TagPicker from '@/components/TagPicker.vue'
+import VariationForm from '@/components/VariationForm.vue'
 import { UNITS } from '@/utils/quantity'
 
-// Props: data die de ouder (RecipeNewView of AdminRecipeEditView) naar dit component stuurt.
+// Props: data die de ouder (RecipeNewView of RecipeEditView) naar dit component stuurt.
 const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
@@ -75,6 +76,24 @@ const steps = ref(props.initial.steps?.length ? props.initial.steps.map(stepFrom
 const tags = ref([...(props.initial.tags ?? [])])
 const lists = { recipe_ingredients: ingredients, steps }
 
+// Een nieuwe variatie, opgeslagen samen met het recept. Standaard ingeklapt: de meeste
+// recepten krijgen er geen bij het invullen. Bestaande variaties bewerk je op de receptpagina.
+const variationOpen = ref(false)
+const variationForm = useTemplateRef('variationForm')
+
+// "−" kan alleen bij regels die al opgeslagen zijn (met id) en die je niet net weghaalt;
+// bij een nieuw recept zijn dat er nog geen, en toont VariationForm een korte uitleg.
+const savedIngredients = computed(() =>
+  ingredients.value
+    .filter((row) => row.id)
+    .map((row) => ({
+      id: row.id,
+      name: row.ingredient_name,
+      quantity: row.quantity.trim() ? row.quantity : null,
+      unit: row.unit,
+    })),
+)
+
 // Ids van bestaande regels die je hebt weggehaald. Die gaan bij versturen mee als
 // { id, _destroy: true }, zodat de server ze verwijdert.
 const removedIds = reactive({ recipe_ingredients: [], steps: [] })
@@ -142,6 +161,9 @@ function buildRequest() {
 
   // tag_names gaat altijd mee: een lege lijst betekent "geen tags meer".
   const body = { ...form, servings: form.servings.trim(), tag_names: [...tags.value] }
+  if (variationOpen.value && variationForm.value) {
+    body.variations_attributes = [variationForm.value.buildRequest().body]
+  }
   const keys = {}
   for (const kind of ['recipe_ingredients', 'steps']) {
     const removed = removedIds[kind].map((id) => ({ id, _destroy: true }))
@@ -168,13 +190,26 @@ const sentKeys = ref({ recipe_ingredients: [], steps: [] })
 function onSubmit() {
   const { body, keys } = buildRequest()
   sentKeys.value = keys
+  if (body.variations_attributes) body.variations_attributes = [variationForm.value.submitted()]
   emit('submit', body)
 }
 
 const FORM_FIELDS = ['title', 'description', 'servings', 'tag_names']
+const VARIATION_PREFIX = 'variations[0].'
+
+// De fouten van de variatie ("variations[0].name") gaan, zonder dat voorvoegsel, naar
+// het variatieformulier zelf.
+const variationErrors = computed(() =>
+  Object.fromEntries(
+    Object.entries(props.errors)
+      .filter(([attribute]) => attribute.startsWith(VARIATION_PREFIX))
+      .map(([attribute, messages]) => [attribute.slice(VARIATION_PREFIX.length), messages]),
+  ),
+)
 const LABELS = {
   recipe_ingredients: 'Ingrediënten',
   steps: 'Stappen',
+  variations: 'Variaties',
   ingredient_name: 'Naam',
   quantity: 'Hoeveelheid',
   unit: 'Eenheid',
@@ -190,7 +225,7 @@ const sortedErrors = computed(() => {
   const general = []
 
   for (const [attribute, messages] of Object.entries(props.errors)) {
-    if (FORM_FIELDS.includes(attribute)) continue
+    if (FORM_FIELDS.includes(attribute) || attribute.startsWith(VARIATION_PREFIX)) continue
 
     const match = attribute.match(ROW_ERROR)
     const key = match && sentKeys.value[match[1]][Number(match[2])]
@@ -392,6 +427,26 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       <button type="button" class="add" @click="addStep">+ stap</button>
     </fieldset>
 
+    <section class="variations card">
+      <h2>Variaties</h2>
+      <template v-if="variationOpen">
+        <VariationForm
+          ref="variationForm"
+          embedded
+          :base-ingredients="savedIngredients"
+          :base-tags="tags"
+          :available-tags="availableTags"
+          :errors="variationErrors"
+        />
+        <button type="button" class="close-variation" @click="variationOpen = false">
+          Variatie weghalen
+        </button>
+      </template>
+      <button v-else type="button" class="add" @click="variationOpen = true">
+        + Variatie toevoegen
+      </button>
+    </section>
+
     <!-- Blijft onderaan in beeld zolang je in het formulier bent (sticky), en staat aan
          het eind gewoon op zijn eigen plek, dus er verdwijnt nooit iets onder. -->
     <div class="submit-bar">
@@ -552,6 +607,18 @@ legend {
 }
 
 .step-actions button {
+  font-size: var(--text-sm);
+}
+
+.variations {
+  margin-bottom: var(--space-5);
+}
+
+.variations h2 {
+  font-size: var(--text-xl);
+}
+
+.close-variation {
   font-size: var(--text-sm);
 }
 

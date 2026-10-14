@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/shoppingList'
+import { addVariationToShoppingList } from '@/api/variations'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Deze store praat alleen met de API. Regels worden nooit
@@ -124,6 +125,12 @@ export const useShoppingListStore = defineStore('shoppingList', {
 
     add(ingredient, source) {
       return this.addIngredients([ingredient], source)
+    },
+
+    // "Variatie op lijst": de server stelt de regels samen en geeft ze terug.
+    async addVariation(recipeId, variationId, servings) {
+      this.changes++
+      this.items.push(...(await addVariationToShoppingList(recipeId, variationId, servings)))
     },
 
     // Optimistisch: het vinkje staat er meteen, het request volgt. Mislukt het, dan

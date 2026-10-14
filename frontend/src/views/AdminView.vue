@@ -4,8 +4,9 @@ import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAdminStore } from '@/stores/admin'
 
-// Beheer is er nog voor twee dingen: verwijderverzoeken afhandelen en versies terugzetten
-// (via de receptpagina of de link hieronder). Toevoegen en bewerken kan iedereen.
+// Beheer is er nog voor twee dingen: verwijderverzoeken afhandelen (van recepten en van
+// variaties) en versies terugzetten (via de receptpagina of de link hieronder). Toevoegen
+// en bewerken kan iedereen.
 const admin = useAdminStore()
 const confirmDialog = useTemplateRef('confirmDialog')
 
@@ -45,8 +46,24 @@ async function focusCodeField() {
 const requests = ref([])
 const loading = ref(false)
 const error = ref(null)
-// id van het recept waarvoor een request loopt; die knoppen zijn dan uitgeschakeld.
-const busyId = ref(null)
+// Sleutel van het verzoek waarvoor een request loopt; die knoppen zijn dan uitgeschakeld.
+// Een recept en een variatie kunnen hetzelfde id hebben, dus de soort hoort erbij.
+const busyKey = ref(null)
+
+function keyOf(request) {
+  return `${request.type}-${request.id}`
+}
+
+function isVariation(request) {
+  return request.type === 'variation'
+}
+
+// "Pannenkoeken" of "Met spek" (variatie op Pannenkoeken).
+function nameOf(request) {
+  return isVariation(request)
+    ? `"${request.title}" (variatie op ${request.recipe_title})`
+    : `"${request.title}"`
+}
 // Een flash van een andere pagina: een bevestiging als je ingelogd bent,
 // anders de reden waarom je uitgelogd bent.
 const flash = admin.takeFlash()
@@ -67,7 +84,7 @@ async function load() {
 
 // Voert een actie uit op één verzoek, toont een bevestiging en laadt de lijst opnieuw.
 async function act(request, action, successMessage) {
-  busyId.value = request.id
+  busyKey.value = keyOf(request)
   message.value = null
   error.value = null
   try {
@@ -77,21 +94,26 @@ async function act(request, action, successMessage) {
   } catch (e) {
     error.value = e.message
   } finally {
-    busyId.value = null
+    busyKey.value = null
   }
 }
 
 function restore(request) {
-  act(request, admin.restore, `"${request.title}" is teruggezet en weer zichtbaar.`)
+  const action = isVariation(request) ? admin.restoreVariation : admin.restore
+  act(request, action, `${nameOf(request)} is teruggezet en weer zichtbaar.`)
 }
 
 async function destroy(request) {
   const sure = await confirmDialog.value.ask({
-    title: `"${request.title}" definitief verwijderen?`,
-    text: 'Het recept en al zijn versies verdwijnen. Dit kan niet ongedaan worden gemaakt.',
+    title: `${nameOf(request)} definitief verwijderen?`,
+    text: isVariation(request)
+      ? 'De variatie verdwijnt. Ze staat nog wel in de versies van het recept. Dit kan niet ongedaan worden gemaakt.'
+      : 'Het recept en al zijn versies verdwijnen. Dit kan niet ongedaan worden gemaakt.',
     confirmLabel: 'Definitief verwijderen',
   })
-  if (sure) act(request, admin.destroy, `"${request.title}" is definitief verwijderd.`)
+  if (!sure) return
+  const action = isVariation(request) ? admin.destroyVariation : admin.destroy
+  act(request, action, `${nameOf(request)} is definitief verwijderd.`)
 }
 
 function formatDate(iso) {
@@ -162,8 +184,8 @@ onMounted(() => {
 
     <h2>Verwijderverzoeken</h2>
     <p class="muted intro">
-      Deze recepten zijn verborgen omdat iemand ze wil verwijderen. Verwijder ze definitief, of zet
-      ze terug.
+      Deze recepten en variaties zijn verborgen omdat iemand ze wil verwijderen. Verwijder ze
+      definitief, of zet ze terug.
     </p>
 
     <p v-if="message" class="message notice notice-success" role="status">{{ message }}</p>
@@ -174,7 +196,19 @@ onMounted(() => {
     <p v-else-if="!error && requests.length === 0" class="empty card">Geen verwijderverzoeken.</p>
 
     <ul v-else class="requests">
-      <li v-for="request in requests" :key="request.id" class="card" :data-id="request.id">
+      <li
+        v-for="request in requests"
+        :key="keyOf(request)"
+        class="card"
+        :class="request.type"
+        :data-id="request.id"
+      >
+        <p v-if="isVariation(request)" class="kind">
+          Variatie op
+          <RouterLink :to="{ name: 'recipe', params: { id: request.recipe_id } }">
+            {{ request.recipe_title }}
+          </RouterLink>
+        </p>
         <h3>{{ request.title }}</h3>
         <p class="meta">
           Aangevraagd op
@@ -191,12 +225,13 @@ onMounted(() => {
           <button
             type="button"
             class="restore btn-primary"
-            :disabled="busyId === request.id"
+            :disabled="busyKey === keyOf(request)"
             @click="restore(request)"
           >
             Terugzetten
           </button>
           <RouterLink
+            v-if="!isVariation(request)"
             :to="{ name: 'admin-recipe-versions', params: { id: request.id } }"
             class="btn versions"
           >
@@ -205,7 +240,7 @@ onMounted(() => {
           <button
             type="button"
             class="destroy btn-danger"
-            :disabled="busyId === request.id"
+            :disabled="busyKey === keyOf(request)"
             @click="destroy(request)"
           >
             Definitief verwijderen
@@ -246,6 +281,21 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Het label "Variatie op …" boven de naam, klein en in hoofdletters zoals een rubriek. */
+.kind {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.kind a {
+  color: inherit;
 }
 
 h3 {

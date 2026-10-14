@@ -80,8 +80,11 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
   test "show loads ingredients without one query per row" do
     queries = count_queries { get api_recipe_url(@recipe), as: :json }
 
-    # recipe, recipe_tags, tags, steps, recipe_ingredients and ingredients: the same for 4 or 40 rows.
-    assert_operator queries, :<=, 6
+    # recipe, recipe_tags, tags, steps, recipe_ingredients and ingredients, plus for the
+    # variations: recipe_variations, their removals (with recipe_ingredients and ingredients),
+    # additions, tag changes and tags. The same for 4 or 40 rows; see also
+    # RecipeVariationsTest for many variations.
+    assert_operator queries, :<=, 13
   end
 
   test "show with unknown id returns 404" do

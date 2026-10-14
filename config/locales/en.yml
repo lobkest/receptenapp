@@ -31,6 +31,8 @@ en:
   hello: "Hello world"
   recipes:
     conflict: "Someone else changed this recipe in the meantime. Reload and try again."
+  variations:
+    conflict: "Someone else changed this variation in the meantime. Reload and try again."
   errors:
     messages:
       too_many: "has too many rows (maximum is %{count})"
@@ -44,3 +46,24 @@ en:
               too_many_tags: "has too many tags (maximum is %{count})"
               tag_too_long: "has a tag that is too long: \"%{name}\" (maximum is %{count} characters)"
               tag_with_comma: "has a tag with a comma: \"%{name}\""
+        recipe_variation:
+          attributes:
+            base:
+              too_many_variations: "This recipe already has %{count} variations, the maximum"
+            added_tag_names:
+              too_many_tags: "are too many (maximum is %{count})"
+              tag_on_recipe: "contains \"%{name}\", but the recipe already has that tag"
+              tag_too_long: "has a tag that is too long: \"%{name}\" (maximum is %{count} characters)"
+              tag_with_comma: "has a tag with a comma: \"%{name}\""
+            removed_tag_names:
+              tag_not_on_recipe: "contains \"%{name}\", but the recipe does not have that tag"
+        variation_change:
+          attributes:
+            recipe_ingredient:
+              other_recipe: "does not belong to this recipe"
+              being_removed: "is being removed from the recipe at the same time"
+        variation_tag_change:
+          attributes:
+            tag:
+              on_recipe: "is already on the recipe"
+              not_on_recipe: "is not on the recipe"

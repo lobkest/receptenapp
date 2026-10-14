@@ -23,7 +23,19 @@ const REQUESTS = [
   },
 ]
 
-// Een nep-beheer-API: verzoeken lijst, terugzetten en definitief verwijderen.
+// Een variatie met hetzelfde id als een recept: de soort hoort bij de sleutel.
+const VARIATION_REQUEST = {
+  id: 1,
+  title: 'Met kip',
+  deletion_requested_at: '2026-10-15T10:00:00Z',
+  deletion_reason: 'smaakt niet',
+  type: 'variation',
+  recipe_id: 4,
+  recipe_title: 'Curry',
+}
+
+// Een nep-beheer-API: verzoeken lijst, terugzetten en definitief verwijderen, voor
+// recepten (/api/admin/recipes) en variaties (/api/admin/variations).
 // db is de lijst met verzoeken; tests kunnen erin kijken.
 function fakeAdminApi(initial = REQUESTS) {
   const db = initial.map((request) => ({ ...request }))
@@ -32,8 +44,9 @@ function fakeAdminApi(initial = REQUESTS) {
       return jsonResponse({ error: 'Unauthorized' }, 401)
     }
     if (url === '/api/admin/deletion_requests') return jsonResponse(db)
-    const match = url.match(/^\/api\/admin\/recipes\/(\d+)(\/restore)?$/)
-    const index = db.findIndex((request) => request.id === Number(match?.[1]))
+    const match = url.match(/^\/api\/admin\/(recipes|variations)\/(\d+)(\/restore)?$/)
+    const type = match?.[1] === 'variations' ? 'variation' : 'recipe'
+    const index = db.findIndex((r) => r.type === type && r.id === Number(match?.[2]))
     if (index === -1) return jsonResponse({ error: 'Not found' }, 404)
     const [request] = db.splice(index, 1)
     if (method === 'DELETE') return new Response(null, { status: 204 })
@@ -222,5 +235,61 @@ describe('AdminView', () => {
 
     expect(wrapper.find('.tabs').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Goedkeuren')
+  })
+
+  describe('variaties', () => {
+    async function mountWithVariation() {
+      sessionStorage.setItem('adminCode', CODE)
+      const api = fakeAdminApi([VARIATION_REQUEST, ...REQUESTS])
+      wrapper = mountView()
+      await flushPromises()
+      return api
+    }
+
+    it('staan in dezelfde lijst, gelabeld als variatie met de receptnaam, zonder Versies', async () => {
+      await mountWithVariation()
+
+      const card = wrapper.find('.requests li.variation')
+      expect(card.find('.kind').text()).toBe('Variatie op Curry')
+      expect(card.findComponent(RouterLinkStub).props('to')).toEqual({
+        name: 'recipe',
+        params: { id: 4 },
+      })
+      expect(card.find('h3').text()).toBe('Met kip')
+      expect(card.find('.reason').text()).toBe('Reden: smaakt niet')
+      expect(card.find('.versions').exists()).toBe(false)
+      // Het recept met hetzelfde id is een eigen kaart.
+      expect(wrapper.findAll('.requests li')).toHaveLength(3)
+    })
+
+    it('Terugzetten gaat naar /api/admin/variations/1/restore', async () => {
+      const { fetch, db } = await mountWithVariation()
+
+      await wrapper.find('.requests li.variation .restore').trigger('click')
+      await flushPromises()
+
+      const call = fetch.mock.calls.find(([, o]) => o.method === 'PATCH')
+      expect(call[0]).toBe('/api/admin/variations/1/restore')
+      expect(wrapper.find('[role="status"]').text()).toBe(
+        '"Met kip" (variatie op Curry) is teruggezet en weer zichtbaar.',
+      )
+      expect(db.map((r) => r.type)).toEqual(['recipe', 'recipe'])
+    })
+
+    it('Definitief verwijderen vraagt eerst om bevestiging', async () => {
+      const { fetch } = await mountWithVariation()
+
+      await wrapper.find('.requests li.variation .destroy').trigger('click')
+      await flushPromises()
+      const dialog = wrapper.find('dialog')
+      expect(dialog.find('h2').text()).toBe('"Met kip" (variatie op Curry) definitief verwijderen?')
+      await dialog.find('.confirm').trigger('click')
+      await flushPromises()
+
+      const call = fetch.mock.calls.find(([, o]) => o.method === 'DELETE')
+      expect(call[0]).toBe('/api/admin/variations/1')
+      expect(authHeaderOf(call)).toBe(`Bearer ${CODE}`)
+      expect(wrapper.findAll('.requests h3').map((h) => h.text())).toEqual(['Tomatensoep', 'Snert'])
+    })
   })
 })

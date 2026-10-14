@@ -16,6 +16,9 @@ nl:
       shopping_list_item: boodschap
       tag: tag
       recipe_tag: tag van recept
+      recipe_variation: variatie
+      variation_change: ingrediëntwijziging
+      variation_tag_change: tagwijziging
     attributes:
       recipe:
         title: Titel
@@ -28,6 +31,28 @@ nl:
         lock_version: Versie
         deletion_reason: Reden
         deletion_requested_at: Verwijderen aangevraagd op
+        variations: Variaties
+      recipe_variation:
+        name: Naam
+        notes: Notities
+        position: Positie
+        lock_version: Versie
+        removals: Weggelaten ingrediënten
+        removed_ingredient_ids: Weggelaten ingrediënten
+        additions: Extra ingrediënten
+        added_tag_names: Tags erbij
+        removed_tag_names: Tags eraf
+        deletion_reason: Reden
+        deletion_requested_at: Verwijderen aangevraagd op
+      variation_change:
+        kind: Soort
+        recipe_ingredient: Ingrediënt
+        name: Naam
+        quantity: Hoeveelheid
+        unit: Eenheid
+      variation_tag_change:
+        kind: Soort
+        tag: Tag
       recipe_version:
         recipe: Recept
         snapshot: Inhoud
@@ -66,8 +91,31 @@ nl:
               too_many_tags: "heeft te veel tags (maximaal %{count})"
               tag_too_long: "bevat een te lange tag: \"%{name}\" (maximaal %{count} tekens)"
               tag_with_comma: "bevat een tag met een komma: \"%{name}\""
+        recipe_variation:
+          attributes:
+            base:
+              too_many_variations: "Dit recept heeft al %{count} variaties, het maximum"
+            added_tag_names:
+              too_many_tags: "zijn er te veel (maximaal %{count})"
+              tag_on_recipe: "bevat \"%{name}\", maar die tag heeft het recept al"
+              tag_too_long: "bevat een te lange tag: \"%{name}\" (maximaal %{count} tekens)"
+              tag_with_comma: "bevat een tag met een komma: \"%{name}\""
+            removed_tag_names:
+              tag_not_on_recipe: "bevat \"%{name}\", maar die tag heeft het recept niet"
+        variation_change:
+          attributes:
+            recipe_ingredient:
+              other_recipe: "hoort niet bij dit recept"
+              being_removed: "wordt tegelijk uit het recept gehaald"
+        variation_tag_change:
+          attributes:
+            tag:
+              on_recipe: "staat al op het recept"
+              not_on_recipe: "staat niet op het recept"
   recipes:
     conflict: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
+  variations:
+    conflict: "Deze variatie is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
   errors:
     messages:
       too_many: "heeft te veel regels (maximaal %{count})"

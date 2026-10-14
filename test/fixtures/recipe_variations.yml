@@ -1,0 +1,14 @@
+# Variations of pannenkoeken; see variation_changes.yml and variation_tag_changes.yml.
+spek:
+  recipe: pannenkoeken
+  name: Met spek
+  notes: Spek eerst uitbakken.
+  position: 1
+
+# Someone asked to delete it: hidden from the public until the admin decides.
+glutenvrij:
+  recipe: pannenkoeken
+  name: Glutenvrij
+  position: 2
+  deletion_requested_at: <%= 2.hours.ago.to_fs(:db) %>
+  deletion_reason: werkt niet

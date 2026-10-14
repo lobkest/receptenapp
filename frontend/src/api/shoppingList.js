@@ -11,9 +11,9 @@ export function fetchShoppingList() {
   return request(BASE)
 }
 
-// items: [{ name, quantity, unit, source_label, recipe_id, checked? }]. Dezelfde naam met
-// dezelfde eenheid telt de server op bij de regel die er al staat. Geeft de regels terug
-// waar de items op terechtkwamen (elk één keer). Alles of niets.
+// items: [{ name, quantity, unit, source_label, recipe_id, checked? }]. Elk item wordt een
+// nieuwe regel, ook als dezelfde naam er al staat. Geeft de nieuwe regels terug, in de
+// volgorde van items. Alles of niets.
 export function addShoppingListItems(items) {
   return request(BASE, { method: 'POST', body: JSON.stringify({ shopping_list_items: items }) })
 }

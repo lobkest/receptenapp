@@ -219,6 +219,7 @@ describe('StandardItemsView', () => {
     expect(server.shoppingDb[0]).toMatchObject({ quantity: null, source_label: 'standaard' })
     expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (1)')
     expect(wrapper.find('[role="status"]').text()).toContain('melk staat op je boodschappenlijst.')
+    expect(wrapper.find('[role="status"] a').text()).toBe('Bekijk lijst')
     await vi.advanceTimersByTimeAsync(3000)
     expect(wrapper.find('.bottom-bar').exists()).toBe(false)
   })
@@ -289,6 +290,8 @@ describe('StandardItemsView', () => {
       expect(JSON.parse(posts[0][1].body).ids.sort()).toEqual([1, 2, 3])
       expect(lines(wrapper)).toEqual(['wc-papier'])
       expect(wrapper.find('[role="status"]').text()).toContain('3 items verwijderd.')
+      // Na verwijderen is er niets op de boodschappenlijst gezet: geen link erheen.
+      expect(wrapper.find('[role="status"] a').exists()).toBe(false)
       expect(wrapper.findAll('.items input[type="checkbox"]')).toHaveLength(0)
     })
 

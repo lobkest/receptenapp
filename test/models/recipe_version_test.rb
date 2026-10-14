@@ -15,7 +15,8 @@ class RecipeVersionTest < ActiveSupport::TestCase
     assert_equal({
       "title" => "Tosti", "description" => nil, "servings" => 1, "tag_names" => [ "snel" ],
       "ingredients" => [ { "ingredient_name" => "kaas", "quantity" => "1.5", "unit" => "stuks", "optional" => true } ],
-      "steps" => [ { "body" => "Beleggen." }, { "body" => "Bakken." } ]
+      "steps" => [ { "body" => "Beleggen." }, { "body" => "Bakken." } ],
+      "variations" => []
     }, version.snapshot)
   end
 
@@ -33,7 +34,9 @@ class RecipeVersionTest < ActiveSupport::TestCase
 
     @recipe.update!(tag_names: %w[ zoet ], recipe_ingredients_attributes: [ { id: zout.id, _destroy: "1" } ])
 
-    assert_equal "Gewijzigd: tags en ingrediënten", @recipe.versions.newest_first.first.summary
+    # Without vega, the variation "Met spek" no longer takes vega off: that changes it too.
+    assert_equal "Gewijzigd: tags, ingrediënten en variaties", @recipe.versions.newest_first.first.summary
+    assert_empty recipe_variations(:spek).tag_changes
   end
 
   test "saving without a change makes no new version" do

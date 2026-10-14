@@ -103,8 +103,7 @@ class Api::ShoppingListItemsController < ApplicationController
     end
 
     def serialize(item)
-      item.slice("id", "name", "unit", "source_label", "recipe_id", "checked")
-        .merge("quantity" => RecipeSerializer.number(item.quantity))
+      ShoppingListItemSerializer.item(item)
     end
 
     def render_not_found

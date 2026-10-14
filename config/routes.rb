@@ -9,6 +9,13 @@ Rails.application.routes.draw do
     # Public: anyone may add and edit. Deleting is only a request; see admin below.
     resources :recipes, only: %i[ index show create update ] do
       post :request_deletion, on: :member
+
+      resources :variations, only: %i[ create update ], controller: "recipe_variations" do
+        member do
+          post :request_deletion
+          post :add_to_shopping_list
+        end
+      end
     end
     resources :tags, only: :index
 
@@ -28,6 +35,10 @@ Rails.application.routes.draw do
     # Only with the admin code: deletion requests and versions.
     namespace :admin do
       resources :deletion_requests, only: :index
+
+      resources :variations, only: :destroy, controller: "recipe_variations" do
+        patch :restore, on: :member
+      end
 
       resources :recipes, only: :destroy do
         patch :restore, on: :member

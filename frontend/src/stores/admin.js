@@ -99,6 +99,15 @@ export const useAdminStore = defineStore('admin', {
       return recipe
     },
 
+    // Een variatie verandert de receptenlijst niet; verversen is niet nodig.
+    destroyVariation(id) {
+      return this.call(api.deleteVariation, id)
+    },
+
+    restoreVariation(id) {
+      return this.call(api.restoreVariation, id)
+    },
+
     fetchVersions(id) {
       return this.call(api.fetchRecipeVersions, id)
     },

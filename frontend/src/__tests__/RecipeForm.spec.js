@@ -511,3 +511,89 @@ describe('RecipeForm: niet-opgeslagen wijzigingen (dirty-change)', () => {
     expect(lastDirty(wrapper)).toBe(true)
   })
 })
+
+describe('RecipeForm: variatie toevoegen', () => {
+  function sectionOf(wrapper) {
+    return wrapper.find('section.variations')
+  }
+
+  async function openVariation(wrapper) {
+    await sectionOf(wrapper).find('button').trigger('click')
+  }
+
+  it('is standaard ingeklapt achter "+ Variatie toevoegen", en stuurt dan geen variatie mee', async () => {
+    const wrapper = mount(RecipeForm)
+
+    expect(sectionOf(wrapper).find('button').text()).toBe('+ Variatie toevoegen')
+    expect(wrapper.findComponent({ name: 'VariationForm' }).exists()).toBe(false)
+    expect(await submit(wrapper)).not.toHaveProperty('variations_attributes')
+  })
+
+  it('legt bij een nieuw recept uit dat weglaten pas na opslaan kan, en stuurt de variatie mee', async () => {
+    const wrapper = mount(RecipeForm, { props: { availableTags: ['vega', 'vis'] } })
+    await fillIngredient(ingredientRows(wrapper)[0], { quantity: '200', name: 'tofu' })
+    await openVariation(wrapper)
+
+    const variation = sectionOf(wrapper)
+    expect(variation.find('form').exists()).toBe(false) // geen formulier in een formulier
+    expect(variation.text()).toContain(
+      'Ingrediënten weglaten kan pas als het recept is opgeslagen.',
+    )
+    await variation.find('input[type="text"]').setValue('Met kip')
+    await variation.find('[aria-label="Naam extra ingrediënt 1"]').setValue('kip')
+    await variation.find('[aria-label="Hoeveelheid extra ingrediënt 1"]').setValue('150')
+
+    expect((await submit(wrapper)).variations_attributes).toEqual([
+      {
+        name: 'Met kip',
+        notes: '',
+        removed_ingredient_ids: [],
+        added_ingredients: [{ name: 'kip', quantity: '150', unit: 'g' }],
+        added_tag_names: [],
+        removed_tag_names: [],
+      },
+    ])
+  })
+
+  it('biedt bij bewerken de opgeslagen regels om weg te laten, behalve een regel die je weghaalt', async () => {
+    const wrapper = mount(RecipeForm, { props: { initial: PANCAKES, submitLabel: 'Opslaan' } })
+    await ingredientRows(wrapper)[2].find('.remove').trigger('click') // olie
+    await openVariation(wrapper)
+
+    const labels = sectionOf(wrapper)
+      .findAll('label.check')
+      .map((l) => l.text())
+    expect(labels).toEqual(['bloem 250 g', 'zout naar smaak'])
+  })
+
+  it('laat "Tag eraf" kiezen uit de tags in het formulier', async () => {
+    const wrapper = mount(RecipeForm, { props: { initial: { ...PANCAKES, tags: ['zoet'] } } })
+    await openVariation(wrapper)
+
+    const group = sectionOf(wrapper)
+      .findAll('fieldset')
+      .find((f) => f.find('legend').text() === 'Tag eraf')
+    expect(group.findAll('label.check').map((l) => l.text())).toEqual(['zoet'])
+  })
+
+  it('toont de fouten van de variatie in het variatieformulier, niet bovenaan', async () => {
+    const wrapper = mount(RecipeForm)
+    await openVariation(wrapper)
+    await submit(wrapper)
+
+    await wrapper.setProps({ errors: { 'variations[0].name': ['moet opgegeven zijn'] } })
+
+    expect(sectionOf(wrapper).find('.error').text()).toBe('Naam moet opgegeven zijn')
+    expect(wrapper.find('.general-errors').exists()).toBe(false)
+  })
+
+  it('"Variatie weghalen" klapt de sectie weer in', async () => {
+    const wrapper = mount(RecipeForm)
+    await openVariation(wrapper)
+
+    await sectionOf(wrapper).find('.close-variation').trigger('click')
+
+    expect(sectionOf(wrapper).find('button').text()).toBe('+ Variatie toevoegen')
+    expect(await submit(wrapper)).not.toHaveProperty('variations_attributes')
+  })
+})

@@ -19,13 +19,20 @@ class Recipe < ApplicationRecord
   has_many :recipe_tags, dependent: :destroy
   has_many :tags, through: :recipe_tags
 
-  # The database deletes versions together with the recipe (on_delete: :cascade).
+  # The database deletes versions and variations together with the recipe (on_delete: :cascade).
   has_many :versions, class_name: "RecipeVersion", dependent: nil
+  has_many :variations, -> { order(:position, :id) }, class_name: "RecipeVariation",
+    inverse_of: :recipe, dependent: nil, index_errors: :nested_attributes_order
+  # Without the ones whose deletion was requested: what the recipe page shows.
+  has_many :visible_variations, -> { visible.order(:position, :id) }, class_name: "RecipeVariation"
 
   accepts_nested_attributes_for :steps, allow_destroy: true, limit: MAX_NESTED_ROWS
   accepts_nested_attributes_for :recipe_ingredients, allow_destroy: true, limit: MAX_NESTED_ROWS
+  # Only new variations (the "+ Variatie toevoegen" section of the recipe form). Existing
+  # ones are edited through their own endpoint, with their own lock_version.
+  accepts_nested_attributes_for :variations, limit: RecipeVariation::MAX_PER_RECIPE
 
-  scope :with_details, -> { includes(:tags, :steps, recipe_ingredients: :ingredient) }
+  scope :with_details, -> { includes(:tags, :steps, recipe_ingredients: :ingredient, visible_variations: RecipeVariation::DETAILS) }
 
   # Recipes that have ALL of the given tags. One subquery: take the recipe_tags rows whose
   # tag is one of the names, group them per recipe, and keep the recipes with as many
@@ -55,11 +62,8 @@ class Recipe < ApplicationRecord
   before_save :link_tags, if: -> { @tag_names }
   before_save :touch_for_locking, if: :persisted?
 
-  after_save :record_version
+  after_save :record_version, unless: :restoring?
   after_save :forget_submitted_lists
-
-  # Set before saving to describe the next version yourself (see restore_version!).
-  attr_accessor :version_note
 
   # Remembers each step's place in the request, so positions follow the submitted order.
   def steps_attributes=(attributes)
@@ -75,6 +79,12 @@ class Recipe < ApplicationRecord
     super
   end
 
+  # A variation saved together with the recipe is part of the recipe's own version.
+  def variations_attributes=(attributes)
+    super
+    variations.each { |variation| variation.skip_recipe_version = true if variation.new_record? }
+  end
+
   # tag_names: ["Vega", "snel"]. Replaces all tags of the recipe. Normalized like Tag#name,
   # empty names and doubles left out. Without tag_names in a request, tags stay as they are.
   def tag_names=(names)
@@ -85,13 +95,18 @@ class Recipe < ApplicationRecord
     @tag_names || tags.map(&:name)
   end
 
-  # Puts an older version back: title, description, servings, tags, ingredients and steps.
-  # Existing rows are replaced by new ones. This is a change like any other, so it makes
-  # a new version too ("Teruggezet naar ...").
+  # Puts an older version back: title, description, servings, tags, ingredients, steps
+  # and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
+  # That also deletes the variations' removals (on_delete: :cascade), so the variations are
+  # rebuilt afterwards, with each removal linked again by ingredient name.
+  # This is a change like any other, so it makes a new version too ("Teruggezet naar ...").
   def restore_version!(version)
     snapshot = version.snapshot
+    # A version from before variations existed says nothing about them: keep the current ones.
+    variations_snapshot = snapshot["variations"] || RecipeVersion.snapshot_of(self)["variations"]
 
     transaction do
+      @restoring = true
       assign_attributes(snapshot.slice("title", "description", "servings"))
       self.tag_names = snapshot["tag_names"]
 
@@ -102,12 +117,36 @@ class Recipe < ApplicationRecord
       steps.each(&:mark_for_destruction)
       snapshot["steps"].each.with_index(1) { |step, position| steps.build(body: step["body"], position: position) }
 
-      self.version_note = "Teruggezet naar de versie van #{version.label}"
       save!
+      restore_variations!(variations_snapshot)
+      RecipeVersion.record!(self, note: "Teruggezet naar de versie van #{version.label}")
+    ensure
+      @restoring = false
     end
   end
 
   private
+    def restoring?
+      @restoring
+    end
+
+    # Variations that still exist are updated in place (same id, deletion request kept);
+    # deleted ones come back; ones made after the version go.
+    def restore_variations!(list)
+      row_ids = recipe_ingredients.reload.to_h { |row| [ row.ingredient_name, row.id ] }
+      current = variations.reload.index_by(&:id)
+      RecipeVariation.where(recipe_id: id).where.not(id: list.map { |data| data["id"] }).delete_all
+
+      list.each do |data|
+        variation = current[data["id"]] || variations.build
+        variation.skip_recipe_version = true
+        variation.update!(name: data["name"], notes: data["notes"], position: data["position"],
+          removed_ingredient_ids: data["removed"].filter_map { |name| row_ids[name] },
+          added_ingredients: data["added"],
+          added_tag_names: data["tags_added"], removed_tag_names: data["tags_removed"])
+      end
+      variations.reset
+    end
     # Optimistic locking only checks lock_version when the recipes row itself is updated.
     # A change to only an ingredient or a step would skip that, so every save touches the row.
     def touch_for_locking
@@ -119,8 +158,7 @@ class Recipe < ApplicationRecord
     end
 
     def record_version
-      RecipeVersion.record!(self, note: version_note)
-      self.version_note = nil
+      RecipeVersion.record!(self)
     end
 
     # Positions are always 1..n, decided here. Steps in the request come first, in request
@@ -150,9 +188,18 @@ class Recipe < ApplicationRecord
       end
     end
 
-    # Existing tags are reused; new ones created (see Tag.named).
+    # Existing tags are reused; new ones created (see Tag.named). Variations that added a
+    # tag the recipe now has, or took off one it no longer has, lose that tag change.
     def link_tags
       self.tags = @tag_names.map { |name| Tag.named(name) }
+      forget_outdated_variation_tag_changes if persisted?
+    end
+
+    def forget_outdated_variation_tag_changes
+      changes = VariationTagChange.joins(:recipe_variation).where(recipe_variations: { recipe_id: id })
+      changes.kind_add.where(tag_id: tag_ids)
+        .or(changes.kind_remove.where.not(tag_id: tag_ids))
+        .delete_all
     end
 
     # New recipes need at least one ingredient and one step. Older recipes have neither,

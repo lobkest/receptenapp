@@ -8,8 +8,6 @@ import { ADMIN_TOKEN, APP_URL, RAILS_URL } from './env.js'
 const LONG_TITLE = 'Standaardboodschappenovenschotelmetextralangetitelzonderspatiesdienietpast'
 const TITLES = [LONG_TITLE, 'Pannenkoeken', 'Erwtensoep met roggebrood']
 
-const ADMIN_HEADERS = { Authorization: `Bearer ${ADMIN_TOKEN}` }
-
 let api
 const recipeIds = []
 

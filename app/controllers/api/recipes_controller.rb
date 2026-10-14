@@ -69,18 +69,22 @@ class Api::RecipesController < ApplicationController
 
     # A new recipe only creates new rows, so no ids, _destroy or positions.
     # [ [ ... ] ] means "an array of hashes with these keys".
+    # variations_attributes: new variations only (no id), from "+ Variatie toevoegen".
     def create_params
       params.expect(recipe: [ :title, :description, :servings, tag_names: [],
         steps_attributes: [ [ :body ] ],
-        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional ] ] ])
+        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional ] ],
+        variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
     end
 
     # Editing may change existing rows (id) and remove them (_destroy). Rails checks that
-    # every id belongs to this recipe. Positions still come from the order.
+    # every id belongs to this recipe. Positions still come from the order. Existing rows
+    # keep their id, so a variation that leaves out a row ("− tofu") stays attached to it.
     def update_params
       params.expect(recipe: [ :title, :description, :servings, :lock_version, tag_names: [],
         steps_attributes: [ [ :id, :body, :_destroy ] ],
-        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ] ])
+        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ],
+        variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
     end
 
     def render_errors

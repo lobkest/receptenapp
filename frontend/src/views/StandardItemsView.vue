@@ -47,12 +47,13 @@ async function attempt(action, setErrors = () => {}) {
   }
 }
 
-// Korte bevestiging onderaan, zoals op de receptpagina.
+// Korte bevestiging onderaan, zoals op de receptpagina. toList: het ging om de
+// boodschappenlijst, dus een link "Bekijk lijst" erachter; na verwijderen niet.
 const message = ref(null)
 let messageTimer = null
 
-function confirm(text) {
-  message.value = text
+function confirm(text, { toList = false } = {}) {
+  message.value = { text, toList }
   clearTimeout(messageTimer)
   messageTimer = setTimeout(() => (message.value = null), 3000)
 }
@@ -102,7 +103,7 @@ async function saveEdit(id, fields) {
 
 async function addOne(item) {
   if (await attempt(() => standard.addToShoppingList([item.id]))) {
-    confirm(`${item.name} staat op je boodschappenlijst.`)
+    confirm(`${item.name} staat op je boodschappenlijst.`, { toList: true })
   }
 }
 
@@ -134,7 +135,7 @@ async function addSelected() {
   const ok = await attempt(async () => (count = await standard.addToShoppingList(selected.value)))
   if (!ok) return
   stopSelecting()
-  confirm(`${countText(count)} op je boodschappenlijst gezet.`)
+  confirm(`${countText(count)} op je boodschappenlijst gezet.`, { toList: true })
 }
 
 async function removeSelected() {
@@ -278,7 +279,8 @@ async function importLegacy() {
   <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
   <div v-if="selecting || message" class="bottom-bar card">
     <p v-if="message" class="added notice notice-success" role="status">
-      {{ message }} <RouterLink to="/boodschappen">Bekijk lijst</RouterLink>
+      {{ message.text }}
+      <RouterLink v-if="message.toList" to="/boodschappen">Bekijk lijst</RouterLink>
     </p>
     <div v-if="selecting" class="selection-actions">
       <button

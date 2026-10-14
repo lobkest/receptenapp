@@ -1,0 +1,5 @@
+# "Met spek" is no longer vega.
+spek_zonder_vega:
+  recipe_variation: spek
+  tag: vega
+  kind: remove

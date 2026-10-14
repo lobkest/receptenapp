@@ -62,6 +62,6 @@ class Api::Admin::RecipesController < Api::Admin::BaseController
     def recipe_params
       params.expect(recipe: [ :title, :description, :servings,
         steps_attributes: [ [ :id, :body, :_destroy ] ],
-        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :note, :_destroy ] ] ])
+        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ] ])
     end
 end

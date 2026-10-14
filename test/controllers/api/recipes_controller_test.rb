@@ -40,9 +40,9 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 2, 3 ], body["steps"].map { |step| step["position"] }
     assert_equal steps(:pannenkoeken_beslag).id, body["steps"].first["id"]
     assert_match "glad beslag", body["steps"].first["body"]
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_bloem).id, "name" => "bloem", "quantity" => 250, "unit" => "g", "note" => nil }
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_ei).id, "name" => "ei", "quantity" => 2, "unit" => "stuks", "note" => "op kamertemperatuur" }
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_zout).id, "name" => "zout", "quantity" => nil, "unit" => nil, "note" => nil }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_bloem).id, "name" => "bloem", "quantity" => 250, "unit" => "g", "optional" => false }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_ei).id, "name" => "ei", "quantity" => 2, "unit" => "stuks", "optional" => false }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_zout).id, "name" => "zout", "quantity" => nil, "unit" => nil, "optional" => true }
   end
 
   test "show loads ingredients without one query per row" do
@@ -94,8 +94,8 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     post api_recipes_url, params: { recipe: recipe_params(
       recipe_ingredients_attributes: [
         { ingredient_name: "  Wortel ", quantity: "1000", unit: "g" },
-        { ingredient_name: "ui", quantity: 2, unit: "stuks", note: "grof gesneden" },
-        { ingredient_name: "peper", quantity: "", unit: "g" }
+        { ingredient_name: "ui", quantity: "1,5", unit: "stuks" },
+        { ingredient_name: "peper", quantity: "", unit: "g", optional: true }
       ],
       steps_attributes: [ { body: "Schillen." }, { body: "Koken." }, { body: "Stampen." } ]
     ) }, as: :json
@@ -105,9 +105,9 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ [ 1, "Schillen." ], [ 2, "Koken." ], [ 3, "Stampen." ] ],
       body["steps"].map { |step| [ step["position"], step["body"] ] }
     assert_equal [
-      { "name" => "wortel", "quantity" => 1000, "unit" => "g", "note" => nil },
-      { "name" => "ui", "quantity" => 2, "unit" => "stuks", "note" => "grof gesneden" },
-      { "name" => "peper", "quantity" => nil, "unit" => nil, "note" => nil }
+      { "name" => "wortel", "quantity" => 1000, "unit" => "g", "optional" => false },
+      { "name" => "ui", "quantity" => 1.5, "unit" => "stuks", "optional" => false },
+      { "name" => "peper", "quantity" => nil, "unit" => nil, "optional" => true }
     ], body["ingredients"].map { |row| row.except("id") }
     assert_equal [ 1, 2, 3 ], Recipe.find(body["id"]).steps.pluck(:position)
   end

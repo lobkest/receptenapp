@@ -197,9 +197,9 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
           { id: melk.id, _destroy: true }
         ],
         recipe_ingredients_attributes: [
-          { id: bloem.id, ingredient_name: "bloem", quantity: 300, unit: "g", note: "" },
-          { id: ei.id, ingredient_name: "ei", quantity: 2, unit: "stuks", note: "op kamertemperatuur" },
-          { ingredient_name: "suiker", quantity: 25, unit: "g", note: "" },
+          { id: bloem.id, ingredient_name: "bloem", quantity: 300, unit: "g", optional: true },
+          { id: ei.id, ingredient_name: "ei", quantity: 2, unit: "stuks" },
+          { ingredient_name: "suiker", quantity: 25, unit: "g" },
           { id: zout.id, _destroy: true }
         ]
       } }, headers: auth_headers, as: :json
@@ -215,6 +215,7 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
     # Ingredients have no position (sorted by id, and fixture ids are hashes), so compare without order.
     assert_equal({ "bloem" => 300, "melk" => 500, "ei" => 2, "suiker" => 25 },
       recipe.recipe_ingredients.to_h { |row| [ row.ingredient_name, row.quantity ] })
+    assert bloem.reload.optional
     assert_not RecipeIngredient.exists?(zout.id)
     assert Ingredient.exists?(name: "zout"), "the ingredient itself stays"
   end

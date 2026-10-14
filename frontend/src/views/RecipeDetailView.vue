@@ -91,10 +91,9 @@ const scaledIngredients = computed(() => {
 
 // "200 g bloem", "2 stuks ei", "zout — naar smaak"; getallen als 0,5 in plaats van 0.5.
 function ingredientLine(ingredient) {
-  const name = ingredient.note ? `${ingredient.name}, ${ingredient.note}` : ingredient.name
-  if (ingredient.quantity == null) return `${name} — naar smaak`
+  if (ingredient.quantity == null) return `${ingredient.name} — naar smaak`
 
-  return `${formatQuantity(ingredient.quantity)} ${ingredient.unit} ${name}`
+  return `${formatQuantity(ingredient.quantity)} ${ingredient.unit} ${ingredient.name}`
 }
 
 // Boodschappenlijst: we voegen de geschaalde hoeveelheden toe, dus precies wat
@@ -116,9 +115,15 @@ function addToList(ingredient) {
   confirmAdded(`${ingredient.name} staat op je boodschappenlijst.`)
 }
 
+// Optionele ingrediënten slaan we over: die zet je los op de lijst met "+ lijst".
 function addAllToList() {
-  shoppingList.addIngredients(scaledIngredients.value, recipe.value)
-  confirmAdded('Alle ingrediënten staan op je boodschappenlijst.')
+  const required = scaledIngredients.value.filter((ingredient) => !ingredient.optional)
+  shoppingList.addIngredients(required, recipe.value)
+  confirmAdded(
+    required.length < scaledIngredients.value.length
+      ? 'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.'
+      : 'Alle ingrediënten staan op je boodschappenlijst.',
+  )
 }
 
 // Van /recepten/1 naar /recepten/2 hergebruikt Vue hetzelfde component,
@@ -169,7 +174,10 @@ watch(() => props.id, load, { immediate: true })
       <h2>Ingrediënten</h2>
       <ul>
         <li v-for="ingredient in scaledIngredients" :key="ingredient.id">
-          <span class="line">{{ ingredientLine(ingredient) }}</span>
+          <span class="line">
+            {{ ingredientLine(ingredient) }}
+            <span v-if="ingredient.optional" class="optional muted">(optioneel)</span>
+          </span>
           <button
             type="button"
             class="add-one"
@@ -265,6 +273,10 @@ watch(() => props.id, load, { immediate: true })
 
 .ingredients li:last-child {
   border-bottom: 0;
+}
+
+.optional {
+  font-size: var(--text-sm);
 }
 
 .ingredients .add-one {

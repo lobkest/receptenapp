@@ -65,16 +65,33 @@ class RecipeIngredientTest < ActiveSupport::TestCase
     end
   end
 
-  test "notitie wordt getrimd, en een lege notitie wordt nil" do
-    assert_equal "fijn gesneden", RecipeIngredient.new(note: "  fijn   gesneden ").note
-    assert_nil RecipeIngredient.new(note: "   ").note
+  test "optioneel staat standaard uit" do
+    assert_equal false, RecipeIngredient.new.optional
+    assert row(ingredient_name: "peterselie", quantity: 5, unit: "g", optional: true).optional
   end
 
-  test "notitie is maximaal 100 tekens" do
-    row = row(ingredient_name: "ui", quantity: 1, unit: "stuks", note: "a" * 101)
+  test "een komma in de hoeveelheid wordt een decimale punt" do
+    assert_equal BigDecimal("1.5"), row(ingredient_name: "ui", quantity: "1,5", unit: "stuks").quantity
+    assert_equal BigDecimal("0.25"), row(ingredient_name: "ui", quantity: " 0,25 ", unit: "stuks").quantity
+    assert_equal BigDecimal("1.5"), row(ingredient_name: "ui", quantity: "1.5", unit: "stuks").quantity
+    assert row(ingredient_name: "ui", quantity: "1,5", unit: "stuks").valid?
+  end
 
-    assert_not row.valid?
-    assert row.errors[:note].any?
+  test "een ongeldige hoeveelheid geeft een fout, geen 0 of nil" do
+    [ "abc", "1,2,3", "1.000,5", "1/2", "2 stuks" ].each do |input|
+      row = row(ingredient_name: "ui", quantity: input, unit: "stuks")
+      assert_not row.valid?, input
+      assert row.errors.added?(:quantity, :not_a_number, value: row.quantity_before_type_cast), input
+    end
+  end
+
+  test "een lege hoeveelheid is naar smaak" do
+    [ "", "  ", nil ].each do |input|
+      row = row(ingredient_name: "zout", quantity: input, unit: "g")
+      assert row.valid?, input.inspect
+      assert_nil row.quantity
+      assert_nil row.unit
+    end
   end
 
   private

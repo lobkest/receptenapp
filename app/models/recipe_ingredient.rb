@@ -1,5 +1,4 @@
 class RecipeIngredient < ApplicationRecord
-  MAX_NOTE_LENGTH = 100
   MAX_QUANTITY = 100_000
 
   belongs_to :recipe
@@ -9,8 +8,6 @@ class RecipeIngredient < ApplicationRecord
   # prefix: unit_g? instead of g?, and no scope called RecipeIngredient.g.
   enum :unit, { g: "g", ml: "ml", stuks: "stuks" }, prefix: true, validate: { allow_nil: true }
 
-  normalizes :note, with: ->(note) { note.squish.presence }
-
   before_validation :clear_unit_without_quantity
   before_validation :link_ingredient
   # prepend: runs before the belongs_to autosave would insert the new ingredient itself.
@@ -19,10 +16,16 @@ class RecipeIngredient < ApplicationRecord
   validates :ingredient_name, presence: true, length: { maximum: Ingredient::MAX_NAME_LENGTH }
   validates :quantity, numericality: { greater_than: 0, less_than: MAX_QUANTITY }, allow_nil: true
   validates :unit, presence: true, if: -> { quantity.present? }
-  validates :note, length: { maximum: MAX_NOTE_LENGTH }
   validate :ingredient_not_repeated
 
   attr_writer :ingredient_name
+
+  # "1,5" from a Dutch keyboard means 1.5. Only the comma changes, before Rails casts the
+  # string to a decimal, so "abc" or "1,2,3" still fail the numericality validation
+  # instead of quietly becoming 0. Empty stays empty: nil, "naar smaak".
+  def quantity=(value)
+    super(value.is_a?(String) ? value.strip.tr(",", ".") : value)
+  end
 
   # The submitted name, normalized like Ingredient#name, or the linked ingredient's name.
   def ingredient_name

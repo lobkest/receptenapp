@@ -20,7 +20,7 @@ module RecipeSerializer
   end
 
   def ingredient(row)
-    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "note" => row.note }
+    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "optional" => row.optional }
   end
 
   # Rails turns a BigDecimal into the string "200.0"; the API sends the number 200 or 0.5.

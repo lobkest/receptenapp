@@ -4,6 +4,8 @@ class Recipe < ApplicationRecord
   # Hard cap, checked before any row is built. Above this the request gets a 422 at once.
   MAX_NESTED_ROWS = 100
   MAX_DESCRIPTION_LENGTH = 5000
+  # Same as the most the recipe page lets you scale to.
+  MAX_SERVINGS = 50
 
   enum :status, { pending: "pending", approved: "approved", rejected: "rejected" }, default: :pending, validate: true
 
@@ -22,7 +24,7 @@ class Recipe < ApplicationRecord
 
   validates :title, presence: true, length: { maximum: 150 }
   validates :description, length: { maximum: MAX_DESCRIPTION_LENGTH }
-  validates :servings, numericality: { only_integer: true, greater_than: 0 }
+  validates :servings, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_SERVINGS }
   validate :row_counts
 
   after_save :forget_submitted_lists

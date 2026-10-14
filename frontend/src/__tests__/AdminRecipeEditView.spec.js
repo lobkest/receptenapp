@@ -24,8 +24,8 @@ const PANCAKES = {
   id: 6,
   title: 'Pannenkoeken',
   ingredients: [
-    { id: 21, name: 'bloem', quantity: 250, unit: 'g', note: null },
-    { id: 22, name: 'zout', quantity: null, unit: null, note: null },
+    { id: 21, name: 'bloem', quantity: 250, unit: 'g', optional: false },
+    { id: 22, name: 'zout', quantity: null, unit: null, optional: false },
   ],
   steps: [
     { id: 11, position: 1, body: 'Beslag maken.' },
@@ -84,7 +84,7 @@ describe('AdminRecipeEditView', () => {
     expect(patch[0]).toBe('/api/admin/recipes/5')
     expect(authHeaderOf(patch)).toBe(`Bearer ${CODE}`)
     expect(JSON.parse(patch[1].body)).toEqual({
-      recipe: { title: 'Pompoensoep', description: 'Lekker.', servings: 6 },
+      recipe: { title: 'Pompoensoep', description: 'Lekker.', servings: '6' },
     })
     expect(router.currentRoute.value.name).toBe('admin')
     expect(wrapper.find('[role="status"]').text()).toBe('"Pompoensoep" is opgeslagen.')
@@ -116,9 +116,9 @@ describe('AdminRecipeEditView', () => {
       recipe: {
         title: 'Pannenkoeken',
         description: 'Lekker.',
-        servings: 4,
+        servings: '4',
         recipe_ingredients_attributes: [
-          { id: 21, ingredient_name: 'bloem', quantity: 300, unit: 'g', note: '' },
+          { id: 21, ingredient_name: 'bloem', quantity: '300', unit: 'g', optional: false },
           { id: 22, _destroy: true },
         ],
         steps_attributes: [

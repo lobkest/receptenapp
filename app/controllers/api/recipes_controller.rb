@@ -41,7 +41,7 @@ class Api::RecipesController < ApplicationController
     def recipe_params
       params.expect(recipe: [ :title, :description, :servings,
         steps_attributes: [ [ :body ] ],
-        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :note ] ] ])
+        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional ] ] ])
     end
 
     def render_not_found

@@ -16,8 +16,8 @@ pannenkoeken_ei:
   ingredient: ei
   quantity: 2
   unit: stuks
-  note: op kamertemperatuur
 
 pannenkoeken_zout:
   recipe: pannenkoeken
   ingredient: zout
+  optional: true

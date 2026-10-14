@@ -15,13 +15,20 @@ const props = defineProps({
 // Emits: berichten die dit component terugstuurt naar de ouder.
 const emit = defineEmits(['submit', 'dirty-change'])
 
+// Getallen staan in het formulier als tekst, precies zoals je ze typt ("1,5"), en gaan
+// zo naar de server. Die zet de komma om en meldt "abc" als fout; type="number" zou
+// "1,5" in sommige browsers stilletjes leeg laten. Van de API: 0.5 → "0,5".
+function numberText(value) {
+  return value == null ? '' : String(value).replace('.', ',')
+}
+
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.
 // Geen eigen validatie: de server beslist wat geldig is.
 const form = reactive({
   title: props.initial.title ?? '',
   description: props.initial.description ?? '',
-  servings: props.initial.servings ?? 4,
+  servings: numberText(props.initial.servings ?? 4),
 })
 
 // Elke regel krijgt bij het aanmaken een eigen, vaste key. Die blijft bij de regel,
@@ -30,7 +37,7 @@ const form = reactive({
 let nextKey = 1
 
 function newIngredient() {
-  return { key: nextKey++, id: null, quantity: '', unit: 'g', ingredient_name: '', note: '' }
+  return { key: nextKey++, id: null, quantity: '', unit: 'g', ingredient_name: '', optional: false }
 }
 
 function newStep() {
@@ -43,10 +50,10 @@ function ingredientFrom(row) {
   return {
     key: nextKey++,
     id: row.id,
-    quantity: row.quantity ?? '',
+    quantity: numberText(row.quantity),
     unit: row.unit ?? 'g',
     ingredient_name: row.name,
-    note: row.note ?? '',
+    optional: row.optional ?? false,
   }
 }
 
@@ -67,9 +74,10 @@ const lists = { recipe_ingredients: ingredients, steps }
 // { id, _destroy: true }, zodat de server ze verwijdert.
 const removedIds = reactive({ recipe_ingredients: [], steps: [] })
 
-// Helemaal niets ingevuld? De eenheid telt niet mee, die heeft altijd een standaardwaarde.
+// Helemaal niets ingevuld? De eenheid en het vinkje tellen niet mee, die hebben altijd
+// een standaardwaarde.
 function ingredientIsEmpty(row) {
-  return row.quantity === '' && !row.ingredient_name.trim() && !row.note.trim()
+  return !row.quantity.trim() && !row.ingredient_name.trim()
 }
 
 function stepIsEmpty(step) {
@@ -119,15 +127,15 @@ function buildRequest() {
     recipe_ingredients: sent.recipe_ingredients.map((row) =>
       withId(row, {
         ingredient_name: row.ingredient_name,
-        quantity: row.quantity === '' ? null : row.quantity,
+        quantity: row.quantity.trim() || null,
         unit: row.unit,
-        note: row.note,
+        optional: row.optional,
       }),
     ),
     steps: sent.steps.map((step) => withId(step, { body: step.body })),
   }
 
-  const body = { ...form }
+  const body = { ...form, servings: form.servings.trim() }
   const keys = {}
   for (const kind of ['recipe_ingredients', 'steps']) {
     const removed = removedIds[kind].map((id) => ({ id, _destroy: true }))
@@ -164,14 +172,15 @@ const LABELS = {
   ingredient_name: 'Naam',
   quantity: 'Hoeveelheid',
   unit: 'Eenheid',
-  note: 'Notitie',
   body: 'Stap',
 }
 const ROW_ERROR = /^(recipe_ingredients|steps)\[(\d+)\]\.(\w+)$/
 
 // Verdeelt de serverfouten: per regel (op key) en algemeen (bovenaan het formulier).
+// invalid onthoudt per regel welke velden fout zijn, voor de rode rand (aria-invalid).
 const sortedErrors = computed(() => {
   const byRow = {}
+  const invalid = {}
   const general = []
 
   for (const [attribute, messages] of Object.entries(props.errors)) {
@@ -182,6 +191,8 @@ const sortedErrors = computed(() => {
     if (key) {
       byRow[key] ??= []
       byRow[key].push(`${LABELS[match[3]] ?? match[3]} ${messages.join(', ')}`)
+      invalid[key] ??= {}
+      invalid[key][match[3]] = true
     } else if (attribute === 'base') {
       general.push(...messages)
     } else {
@@ -189,8 +200,27 @@ const sortedErrors = computed(() => {
     }
   }
 
-  return { byRow, general }
+  return { byRow, invalid, general }
 })
+
+function isInvalid(row, field) {
+  return !!sortedErrors.value.invalid[row.key]?.[field]
+}
+
+// Stappen groeien mee met de tekst. CSS doet dat met field-sizing: content; browsers
+// die dat (nog) niet kennen, krijgen de hoogte hier: eerst 'auto' zodat hij ook kan
+// krimpen, dan de hoogte van de inhoud plus de rand. Vanaf 2 regels (rows="2").
+const fieldSizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')
+
+function grow(textarea) {
+  textarea.style.height = 'auto'
+  const border = textarea.offsetHeight - textarea.clientHeight
+  if (textarea.scrollHeight) textarea.style.height = `${textarea.scrollHeight + border}px`
+}
+
+// Een eigen directive (v-autogrow): Vue roept hem aan als de textarea op het scherm komt
+// en na elke wijziging, ook van v-model.
+const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
 </script>
 
 <template>
@@ -210,7 +240,7 @@ const sortedErrors = computed(() => {
       <textarea
         id="description"
         v-model="form.description"
-        rows="6"
+        rows="3"
         :aria-invalid="!!errors.description"
       ></textarea>
       <p v-if="errors.description" class="error">
@@ -218,12 +248,16 @@ const sortedErrors = computed(() => {
       </p>
     </div>
 
+    <!-- inputmode: de telefoon toont een cijfertoetsenbord; pattern laat iOS dat ook doen. -->
     <div class="field">
       <label for="servings">Porties</label>
       <input
         id="servings"
-        v-model.number="form.servings"
-        type="number"
+        v-model="form.servings"
+        type="text"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        class="servings"
         :aria-invalid="!!errors.servings"
       />
       <p v-if="errors.servings" class="error">Porties {{ errors.servings.join(', ') }}</p>
@@ -231,7 +265,9 @@ const sortedErrors = computed(() => {
 
     <fieldset class="ingredients card">
       <legend>Ingrediënten</legend>
-      <p class="hint muted">Laat de hoeveelheid leeg voor "naar smaak".</p>
+      <p class="hint muted">
+        Laat de hoeveelheid leeg voor "naar smaak". 1,5 en 1.5 mogen allebei.
+      </p>
 
       <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
       <div
@@ -242,37 +278,43 @@ const sortedErrors = computed(() => {
       >
         <div class="inputs">
           <input
-            v-model="row.quantity"
-            type="number"
-            step="any"
-            min="0"
-            class="quantity"
-            :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
-          />
-          <select v-model="row.unit" class="unit" :aria-label="`Eenheid ingrediënt ${index + 1}`">
-            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
-          </select>
-          <input
             v-model="row.ingredient_name"
             type="text"
             class="name"
             placeholder="bijv. bloem"
             :aria-label="`Naam ingrediënt ${index + 1}`"
+            :aria-invalid="isInvalid(row, 'ingredient_name')"
           />
           <input
-            v-model="row.note"
+            v-model="row.quantity"
             type="text"
-            class="note"
-            placeholder="notitie, bijv. fijngesneden"
-            :aria-label="`Notitie ingrediënt ${index + 1}`"
+            inputmode="decimal"
+            class="quantity"
+            placeholder="naar smaak"
+            :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
+            :aria-invalid="isInvalid(row, 'quantity')"
           />
+          <select
+            v-model="row.unit"
+            class="unit"
+            :aria-label="`Eenheid ingrediënt ${index + 1}`"
+            :aria-invalid="isInvalid(row, 'unit')"
+          >
+            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+          </select>
+          <!-- Het hele label is het tikvlak (min. 44×44), niet alleen het vakje. -->
+          <label class="optional">
+            <input v-model="row.optional" type="checkbox" />
+            optioneel
+          </label>
           <button
             type="button"
             class="remove btn-danger"
             :disabled="ingredients.length === 1"
+            :aria-label="`Ingrediënt ${index + 1} verwijderen`"
             @click="remove('recipe_ingredients', index)"
           >
-            verwijderen
+            ×
           </button>
         </div>
         <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
@@ -294,7 +336,13 @@ const sortedErrors = computed(() => {
           :data-key="step.key"
         >
           <label :for="`step-${step.key}`">Stap {{ index + 1 }}</label>
-          <textarea :id="`step-${step.key}`" v-model="step.body" rows="3"></textarea>
+          <textarea
+            :id="`step-${step.key}`"
+            v-model="step.body"
+            v-autogrow
+            rows="2"
+            :aria-invalid="isInvalid(step, 'body')"
+          ></textarea>
           <div class="step-actions">
             <button
               type="button"
@@ -332,9 +380,13 @@ const sortedErrors = computed(() => {
       <button type="button" class="add" @click="addStep">+ stap</button>
     </fieldset>
 
-    <button type="submit" class="btn-primary btn-block" :disabled="submitting">
-      {{ submitting ? 'Versturen…' : submitLabel }}
-    </button>
+    <!-- Blijft onderaan in beeld zolang je in het formulier bent (sticky), en staat aan
+         het eind gewoon op zijn eigen plek, dus er verdwijnt nooit iets onder. -->
+    <div class="submit-bar">
+      <button type="submit" class="btn-primary btn-block" :disabled="submitting">
+        {{ submitting ? 'Versturen…' : submitLabel }}
+      </button>
+    </div>
   </form>
 </template>
 
@@ -381,36 +433,61 @@ legend {
   border-bottom: 0;
 }
 
-/* Mobiel: hoeveelheid en eenheid naast elkaar, daaronder naam en notitie. */
-.inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
+/* Porties: een kort getal, geen veld over de hele breedte. */
+.field .servings {
+  width: 6rem;
 }
 
-.inputs .name,
-.inputs .note,
-.inputs .remove {
+/* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */
+.inputs {
+  display: grid;
+  /* De eenheid minstens zo breed dat "stuks" helemaal zichtbaar is. */
+  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 1fr) auto auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.inputs .name {
   grid-column: 1 / -1;
 }
 
-.inputs .remove {
-  justify-self: end;
+/* Mogen smaller worden dan hun standaardbreedte, anders past de rij niet op 390 px. */
+.inputs .quantity,
+.inputs .unit {
+  min-width: 0;
 }
 
-/* Breed: hoeveelheid, eenheid, naam en verwijderen op één regel, notitie eronder. */
+.inputs .unit {
+  padding-right: var(--space-1);
+}
+
+.optional {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.inputs .remove {
+  width: var(--tap);
+  padding: 0;
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+/* Breed: alles op één regel. */
 @media (min-width: 40rem) {
   .inputs {
-    grid-template-columns: 6rem 7rem 1fr auto;
+    grid-template-columns: 1fr 6rem 6rem auto auto;
   }
 
-  .inputs .name,
-  .inputs .remove {
+  .inputs .name {
     grid-column: auto;
-  }
-
-  .inputs .note {
-    grid-column: 1 / 4;
   }
 }
 
@@ -427,6 +504,13 @@ legend {
   gap: var(--space-2);
 }
 
+/* Groeit mee met de tekst, vanaf 2 regels (zie ook vAutogrow voor oudere browsers). */
+.step-row textarea {
+  field-sizing: content;
+  min-height: calc(2lh + 2 * var(--space-2) + 2px);
+  resize: none;
+}
+
 .step-actions {
   display: flex;
   flex-wrap: wrap;
@@ -437,7 +521,6 @@ legend {
   margin-left: auto;
 }
 
-.inputs .remove,
 .step-actions button {
   font-size: var(--text-sm);
 }
@@ -448,5 +531,25 @@ legend {
   margin-top: var(--space-2);
   color: var(--color-accent-text);
   border-style: dashed;
+}
+
+/* Opslaan blijft in beeld: sticky boven de vaste menubalk (en de thuisbalk van de
+   iPhone). De achtergrond loopt door tot de rand, zodat de inhoud er netjes onder
+   wegschuift. De negatieve marge heft de zijmarge van <main> op. */
+.submit-bar {
+  position: sticky;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+  z-index: 5;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Breed staat het menu in de header: dan gewoon tegen de onderrand. */
+@media (min-width: 40rem) {
+  .submit-bar {
+    bottom: 0;
+  }
 }
 </style>

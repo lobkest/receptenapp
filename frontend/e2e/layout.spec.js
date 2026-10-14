@@ -82,12 +82,86 @@ test('recepten: grid met twee kolommen', async ({ page }) => {
   await checkLayout(page, errors, 'recepten')
 })
 
-test('recept insturen', async ({ page }) => {
+// De opslaan-knop staat helemaal in beeld, boven de menubalk, zonder te scrollen.
+async function expectSubmitInView(page) {
+  const submit = await page.getByRole('button', { name: 'Recept insturen' }).boundingBox()
+  const nav = await page.locator('.main-nav').boundingBox()
+  expect(submit.y, 'knop niet boven het scherm').toBeGreaterThanOrEqual(0)
+  expect(submit.y + submit.height, 'knop boven de menubalk').toBeLessThanOrEqual(nav.y)
+}
+
+test('recept insturen: komma, optioneel ingrediënt, en daarna de receptpagina', async ({
+  page,
+}) => {
   const errors = collectErrors(page)
   await page.goto('/recepten/nieuw')
   await expect(page.getByRole('heading', { name: 'Recept insturen' })).toBeVisible()
+  await expectSubmitInView(page)
+
+  await page.getByLabel('Titel').fill('Uiensoep')
+  await page.getByLabel('Beschrijving').fill('Snel en goedkoop.')
+  await page.getByLabel('Porties').fill('3')
+  await page.getByLabel('Naam ingrediënt 1').fill('ui')
+  await page.getByLabel('Hoeveelheid ingrediënt 1').fill('1,5')
+  await page.getByLabel('Eenheid ingrediënt 1').selectOption('stuks')
+  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.getByLabel('Naam ingrediënt 2').fill('peterselie')
+  await page.getByLabel('Hoeveelheid ingrediënt 2').fill('10')
+  await page.locator('.ingredient-row').nth(1).getByLabel('optioneel').check()
+  await page.getByLabel('Stap 1', { exact: true }).fill('Uien snijden.')
+  await page.getByRole('button', { name: '+ stap' }).click()
+  await page
+    .getByLabel('Stap 2', { exact: true })
+    .fill(
+      'Uien zacht laten worden in boter, bouillon erbij, twintig minuten zachtjes laten ' +
+        'koken en op het laatst de peterselie erover strooien.',
+    )
+
+  // Bereidingsstappen beginnen op 2 regels en groeien mee met de tekst.
+  const [short, long] = await page
+    .locator('.step-row textarea')
+    .evaluateAll((areas) => areas.map((area) => area.offsetHeight))
+  expect(long).toBeGreaterThan(short)
+
+  // Midden in het formulier: de knop blijft in beeld.
+  await page.getByLabel('Naam ingrediënt 2').scrollIntoViewIfNeeded()
+  await expectSubmitInView(page)
+  await page.screenshot({ path: 'e2e/screenshots/recept-insturen-scherm.png' })
+
+  // Helemaal onderaan: de laatste inhoud ("+ stap") verdwijnt niet onder de knop.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  const addStep = await page.getByRole('button', { name: '+ stap' }).boundingBox()
+  const bar = await page.locator('.submit-bar').boundingBox()
+  expect(addStep.y + addStep.height).toBeLessThanOrEqual(bar.y)
+  await expectSubmitInView(page)
 
   await checkLayout(page, errors, 'recept-insturen')
+
+  const response = page.waitForResponse(
+    (r) => r.url().endsWith('/api/recipes') && r.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Recept insturen' }).click()
+  expect((await response).status()).toBe(201)
+  await expect(page.getByText('Bedankt! Je recept wacht op goedkeuring.')).toBeVisible()
+
+  // Goedkeuren via de beheer-API, anders is het recept niet te zien.
+  const { id } = await (await response).json()
+  const approved = await api.patch(`/api/admin/recipes/${id}/approve`, { headers: ADMIN_HEADERS })
+  expect(approved.ok(), await approved.text()).toBe(true)
+
+  await page.goto(`/recepten/${id}`)
+  const lines = page.locator('.ingredients .line')
+  await expect(lines).toHaveText(['1,5 stuks ui', '10 g peterselie (optioneel)'])
+  const optional = lines.nth(1).locator('.optional')
+  const color = await optional.evaluate((el) => getComputedStyle(el).color)
+  expect(color, 'muted kleur (--color-text-muted)').toBe('rgb(107, 101, 92)')
+  await checkLayout(page, errors, 'recept-optioneel')
+
+  // "Alles op lijst" laat de peterselie weg.
+  await page.getByRole('button', { name: 'Alles op lijst' }).click()
+  await page.goto('/boodschappen')
+  await expect(page.locator('.items input[type="checkbox"]')).toHaveCount(1)
+  await expect(page.getByText('peterselie')).toHaveCount(0)
 })
 
 test('receptdetail met lange titel', async ({ page }) => {

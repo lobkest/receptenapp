@@ -17,6 +17,17 @@ class RecipeTest < ActiveSupport::TestCase
     assert recipe.errors[:servings].any?
   end
 
+  test "porties zijn alleen hele getallen van 1 tot en met 50" do
+    [ "1", "4", "50", 12 ].each { |servings| assert new_recipe(servings: servings).valid?, servings.inspect }
+
+    { "0" => :greater_than, "-2" => :greater_than, "51" => :less_than_or_equal_to,
+      "2,5" => :not_a_number, "2.5" => :not_an_integer, "abc" => :not_a_number, "" => :not_a_number }.each do |servings, error|
+      recipe = new_recipe(servings: servings)
+      assert_not recipe.valid?, servings.inspect
+      assert_includes recipe.errors.details[:servings].pluck(:error), error, servings.inspect
+    end
+  end
+
   test "fixture is geldig" do
     assert recipes(:pannenkoeken).valid?
   end

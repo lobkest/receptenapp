@@ -43,9 +43,9 @@ describe('RecipeNewView', () => {
       recipe: {
         title: 'Pannenkoeken',
         description: 'Beslag maken en bakken.',
-        servings: 6,
+        servings: '6',
         recipe_ingredients_attributes: [
-          { ingredient_name: 'bloem', quantity: 250, unit: 'g', note: '' },
+          { ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
         ],
         steps_attributes: [{ body: 'Beslag maken.' }],
       },

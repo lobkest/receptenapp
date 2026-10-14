@@ -14,11 +14,11 @@ function stepTexts(wrapper) {
   return stepRows(wrapper).map((row) => row.find('textarea').element.value)
 }
 
-async function fillIngredient(row, { quantity = '', unit = 'g', name = '', note = '' }) {
+async function fillIngredient(row, { quantity = '', unit = 'g', name = '', optional = false }) {
   await row.find('.quantity').setValue(quantity)
   await row.find('.unit').setValue(unit)
   await row.find('.name').setValue(name)
-  await row.find('.note').setValue(note)
+  await row.find('.optional input').setValue(optional)
 }
 
 // Vult de stappen in het formulier; voegt zo nodig rijen toe.
@@ -54,6 +54,52 @@ describe('RecipeForm', () => {
 
     const options = wrapper.findAll('.ingredient-row .unit option').map((o) => o.element.value)
     expect(options).toEqual(['g', 'ml', 'stuks'])
+  })
+
+  it('gebruikt tekstvelden met een cijfertoetsenbord voor porties en hoeveelheid', () => {
+    const wrapper = mount(RecipeForm)
+
+    const servings = wrapper.find('#servings')
+    expect(servings.attributes()).toMatchObject({
+      type: 'text',
+      inputmode: 'numeric',
+      pattern: '[0-9]*',
+    })
+    const quantity = wrapper.find('.ingredient-row .quantity')
+    expect(quantity.attributes()).toMatchObject({ type: 'text', inputmode: 'decimal' })
+    expect(wrapper.find('#description').attributes('rows')).toBe('3')
+    expect(wrapper.find('.step-row textarea').attributes('rows')).toBe('2')
+  })
+
+  it('heeft een verwijderknop met een duidelijke naam voor schermlezers', async () => {
+    const wrapper = mount(RecipeForm)
+    await wrapper.find('.ingredients .add').trigger('click')
+
+    const remove = ingredientRows(wrapper)[1].find('.remove')
+    expect(remove.text()).toBe('×')
+    expect(remove.attributes('aria-label')).toBe('Ingrediënt 2 verwijderen')
+  })
+
+  it('stuurt optional mee, standaard false', async () => {
+    const wrapper = mount(RecipeForm)
+    await wrapper.find('.ingredients .add').trigger('click')
+    await fillIngredient(ingredientRows(wrapper)[0], { quantity: '200', name: 'bloem' })
+    await fillIngredient(ingredientRows(wrapper)[1], { name: 'peterselie', optional: true })
+
+    expect((await submit(wrapper)).recipe_ingredients_attributes).toEqual([
+      { ingredient_name: 'bloem', quantity: '200', unit: 'g', optional: false },
+      { ingredient_name: 'peterselie', quantity: null, unit: 'g', optional: true },
+    ])
+  })
+
+  it('stuurt ongeldige getallen zoals getypt, zodat de server een fout kan melden', async () => {
+    const wrapper = mount(RecipeForm)
+    await wrapper.find('#servings').setValue('2,5')
+    await fillIngredient(ingredientRows(wrapper)[0], { quantity: '1,2,3', name: 'ui' })
+
+    const body = await submit(wrapper)
+    expect(body.servings).toBe('2,5')
+    expect(body.recipe_ingredients_attributes[0].quantity).toBe('1,2,3')
   })
 
   it('voegt regels toe en nummert de stappen automatisch', async () => {
@@ -116,19 +162,21 @@ describe('RecipeForm', () => {
     const rows = ingredientRows(wrapper)
     await fillIngredient(rows[0], { quantity: '250', name: 'bloem' })
     // rows[1] blijft helemaal leeg en gaat niet mee.
-    await fillIngredient(rows[2], { quantity: '', name: 'zout' })
-    await fillIngredient(rows[3], { quantity: '2', unit: 'stuks', name: 'ei', note: 'losgeklopt' })
+    await fillIngredient(rows[2], { quantity: '  ', name: 'zout', optional: true })
+    await fillIngredient(rows[3], { quantity: ' 1,5 ', unit: 'stuks', name: 'ei' })
     await fillSteps(wrapper, ['Beslag maken.', '   ', 'Bakken.'])
     await stepRows(wrapper)[2].find('.up').trigger('click')
 
     expect(await submit(wrapper)).toEqual({
       title: 'Pannenkoeken',
       description: 'Dun en goudbruin.',
-      servings: 4,
+      servings: '4',
       recipe_ingredients_attributes: [
-        { ingredient_name: 'bloem', quantity: 250, unit: 'g', note: '' },
-        { ingredient_name: 'zout', quantity: null, unit: 'g', note: '' },
-        { ingredient_name: 'ei', quantity: 2, unit: 'stuks', note: 'losgeklopt' },
+        { ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
+        // Leeg (ook alleen spaties) is "naar smaak": null.
+        { ingredient_name: 'zout', quantity: null, unit: 'g', optional: true },
+        // Precies zoals getypt, met komma: de server zet die om.
+        { ingredient_name: 'ei', quantity: '1,5', unit: 'stuks', optional: false },
       ],
       steps_attributes: [{ body: 'Beslag maken.' }, { body: 'Bakken.' }],
     })
@@ -141,7 +189,7 @@ describe('RecipeForm', () => {
     const body = await submit(wrapper)
 
     expect(body.recipe_ingredients_attributes).toEqual([
-      { ingredient_name: '', quantity: 3, unit: 'g', note: '' },
+      { ingredient_name: '', quantity: '3', unit: 'g', optional: false },
     ])
   })
 
@@ -149,14 +197,14 @@ describe('RecipeForm', () => {
     const wrapper = mount(RecipeForm)
     for (let i = 0; i < 2; i++) await wrapper.find('.ingredients .add').trigger('click')
     await fillIngredient(ingredientRows(wrapper)[0], { quantity: '250', name: 'bloem' })
-    await fillIngredient(ingredientRows(wrapper)[2], { quantity: '-1', name: 'suiker' })
+    await fillIngredient(ingredientRows(wrapper)[2], { quantity: 'abc', name: 'suiker' })
     await fillSteps(wrapper, ['', 'Bakken.', 'Leeg?'])
     await submit(wrapper)
 
     // Index 1 = de tweede verstuurde regel = de derde in het formulier.
     await wrapper.setProps({
       errors: {
-        'recipe_ingredients[1].quantity': ['must be greater than 0'],
+        'recipe_ingredients[1].quantity': ['is not a number'],
         'steps[1].body': ['is too long (maximum is 2000 characters)'],
       },
     })
@@ -164,7 +212,10 @@ describe('RecipeForm', () => {
     const ingredients = ingredientRows(wrapper)
     expect(ingredients[0].find('.error').exists()).toBe(false)
     expect(ingredients[1].find('.error').exists()).toBe(false)
-    expect(ingredients[2].find('.error').text()).toBe('Hoeveelheid must be greater than 0')
+    expect(ingredients[2].find('.error').text()).toBe('Hoeveelheid is not a number')
+    // Het foute veld krijgt een rode rand, de andere velden van die regel niet.
+    expect(ingredients[2].find('.quantity').attributes('aria-invalid')).toBe('true')
+    expect(ingredients[2].find('.name').attributes('aria-invalid')).toBe('false')
 
     const steps = stepRows(wrapper)
     expect(steps[1].find('.error').exists()).toBe(false)
@@ -216,8 +267,9 @@ const PANCAKES = {
   servings: 4,
   status: 'approved',
   ingredients: [
-    { id: 21, name: 'bloem', quantity: 250, unit: 'g', note: null },
-    { id: 22, name: 'zout', quantity: null, unit: null, note: null },
+    { id: 21, name: 'bloem', quantity: 250, unit: 'g', optional: false },
+    { id: 22, name: 'zout', quantity: null, unit: null, optional: true },
+    { id: 23, name: 'olie', quantity: 0.5, unit: 'ml', optional: false },
   ],
   steps: [
     { id: 11, position: 1, body: 'Beslag maken.' },
@@ -240,9 +292,16 @@ describe('RecipeForm bij bewerken', () => {
 
     expect(stepTexts(wrapper)).toEqual(['Beslag maken.', 'Laten rusten.', 'Bakken.'])
     const rows = ingredientRows(wrapper)
-    expect(rows.map((row) => row.find('.name').element.value)).toEqual(['bloem', 'zout'])
+    expect(rows.map((row) => row.find('.name').element.value)).toEqual(['bloem', 'zout', 'olie'])
     expect(rows[0].find('.quantity').element.value).toBe('250')
     expect(rows[1].find('.quantity').element.value).toBe('')
+    // Een decimaal getal van de API verschijnt met een komma.
+    expect(rows[2].find('.quantity').element.value).toBe('0,5')
+    expect(rows.map((row) => row.find('.optional input').element.checked)).toEqual([
+      false,
+      true,
+      false,
+    ])
     expect(wrapper.find('button[type="submit"]').text()).toBe('Opslaan')
   })
 
@@ -250,8 +309,9 @@ describe('RecipeForm bij bewerken', () => {
     const body = await submit(mountEdit())
 
     expect(body.recipe_ingredients_attributes).toEqual([
-      { id: 21, ingredient_name: 'bloem', quantity: 250, unit: 'g', note: '' },
-      { id: 22, ingredient_name: 'zout', quantity: null, unit: 'g', note: '' },
+      { id: 21, ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
+      { id: 22, ingredient_name: 'zout', quantity: null, unit: 'g', optional: true },
+      { id: 23, ingredient_name: 'olie', quantity: '0,5', unit: 'ml', optional: false },
     ])
     expect(body.steps_attributes).toEqual([
       { id: 11, body: 'Beslag maken.' },
@@ -268,8 +328,9 @@ describe('RecipeForm bij bewerken', () => {
     await stepRows(wrapper)[1].find('.up').trigger('click')
     await stepRows(wrapper)[1].find('textarea').setValue('Beslag maken met melk.')
     await fillSteps(wrapper, ['Bakken.', 'Beslag maken met melk.', 'Opdienen.'])
-    // Ingrediënten: bloem wijzigen, zout weg, suiker erbij.
+    // Ingrediënten: bloem wijzigen, zout en olie weg, suiker erbij.
     await ingredientRows(wrapper)[0].find('.quantity').setValue('300')
+    await ingredientRows(wrapper)[2].find('.remove').trigger('click')
     await ingredientRows(wrapper)[1].find('.remove').trigger('click')
     await wrapper.find('.ingredients .add').trigger('click')
     await fillIngredient(ingredientRows(wrapper)[1], { quantity: '25', name: 'suiker' })
@@ -277,10 +338,11 @@ describe('RecipeForm bij bewerken', () => {
     expect(await submit(wrapper)).toEqual({
       title: 'Pannenkoeken',
       description: 'Dun.',
-      servings: 4,
+      servings: '4',
       recipe_ingredients_attributes: [
-        { id: 21, ingredient_name: 'bloem', quantity: 300, unit: 'g', note: '' },
-        { ingredient_name: 'suiker', quantity: 25, unit: 'g', note: '' },
+        { id: 21, ingredient_name: 'bloem', quantity: '300', unit: 'g', optional: false },
+        { ingredient_name: 'suiker', quantity: '25', unit: 'g', optional: false },
+        { id: 23, _destroy: true },
         { id: 22, _destroy: true },
       ],
       steps_attributes: [
@@ -332,7 +394,7 @@ describe('RecipeForm bij bewerken', () => {
     })
 
     expect(stepRows(wrapper)).toHaveLength(1)
-    expect(await submit(wrapper)).toEqual({ title: 'Soep', description: '', servings: 2 })
+    expect(await submit(wrapper)).toEqual({ title: 'Soep', description: '', servings: '2' })
   })
 })
 
@@ -348,11 +410,20 @@ describe('RecipeForm: niet-opgeslagen wijzigingen (dirty-change)', () => {
     expect(lastDirty(wrapper)).toBe(false)
   })
 
-  it('meldt een gewijzigd ingrediënt', async () => {
+  it('meldt een gewijzigd ingrediënt, ook als alleen "optioneel" verandert', async () => {
     const wrapper = mountEdit()
-    await ingredientRows(wrapper)[1].find('.note').setValue('grof')
-
+    await ingredientRows(wrapper)[0].find('.optional input').setValue(true)
     expect(lastDirty(wrapper)).toBe(true)
+
+    await ingredientRows(wrapper)[0].find('.optional input').setValue(false)
+    expect(lastDirty(wrapper)).toBe(false)
+  })
+
+  it('telt een ongewijzigd decimaal getal niet als wijziging', async () => {
+    const wrapper = mountEdit()
+    await ingredientRows(wrapper)[2].find('.quantity').setValue('0,5')
+
+    expect(wrapper.emitted('dirty-change')).toBeUndefined()
   })
 
   it('meldt herschikken, en terugschuiven maakt het weer ongewijzigd', async () => {

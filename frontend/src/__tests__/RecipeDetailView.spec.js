@@ -72,11 +72,11 @@ describe('RecipeDetailView', () => {
       jsonResponse({
         ...SOUP,
         ingredients: [
-          { id: 1, name: 'bloem', quantity: 200, unit: 'g', note: null },
-          { id: 2, name: 'ei', quantity: 2, unit: 'stuks', note: null },
-          { id: 3, name: 'olie', quantity: 0.5, unit: 'ml', note: null },
-          { id: 4, name: 'ui', quantity: 1, unit: 'stuks', note: 'fijngesneden' },
-          { id: 5, name: 'zout', quantity: null, unit: null, note: null },
+          { id: 1, name: 'bloem', quantity: 200, unit: 'g', optional: false },
+          { id: 2, name: 'ei', quantity: 2, unit: 'stuks', optional: false },
+          { id: 3, name: 'olie', quantity: 0.5, unit: 'ml', optional: false },
+          { id: 4, name: 'ui', quantity: 1, unit: 'stuks', optional: false },
+          { id: 5, name: 'zout', quantity: null, unit: null, optional: false },
         ],
         steps: [
           { id: 11, position: 1, body: 'Snijden.' },
@@ -90,7 +90,7 @@ describe('RecipeDetailView', () => {
       '200 g bloem',
       '2 stuks ei',
       '0,5 ml olie',
-      '1 stuks ui, fijngesneden',
+      '1 stuks ui',
       'zout — naar smaak',
     ])
     expect(wrapper.find('.steps ol').exists()).toBe(true)
@@ -113,10 +113,10 @@ describe('RecipeDetailView', () => {
       description: null,
       servings: 4,
       ingredients: [
-        { id: 1, name: 'bloem', quantity: 250, unit: 'g', note: null },
-        { id: 2, name: 'ei', quantity: 1, unit: 'stuks', note: null },
-        { id: 3, name: 'melk', quantity: 500, unit: 'ml', note: null },
-        { id: 4, name: 'zout', quantity: null, unit: null, note: null },
+        { id: 1, name: 'bloem', quantity: 250, unit: 'g', optional: false },
+        { id: 2, name: 'ei', quantity: 1, unit: 'stuks', optional: false },
+        { id: 3, name: 'melk', quantity: 500, unit: 'ml', optional: false },
+        { id: 4, name: 'zout', quantity: null, unit: null, optional: false },
       ],
       steps: [],
     }
@@ -237,6 +237,55 @@ describe('RecipeDetailView', () => {
         ['zout', null, null],
       ])
       expect(wrapper.find('[role="status"]').text()).toContain('Alle ingrediënten')
+    })
+
+    describe('met een optioneel ingrediënt', () => {
+      const WITH_OPTIONAL = {
+        ...PANCAKES,
+        ingredients: [
+          ...PANCAKES.ingredients,
+          { id: 5, name: 'poedersuiker', quantity: 20, unit: 'g', optional: true },
+        ],
+      }
+
+      async function mountWithOptional() {
+        mockFetch(() => jsonResponse(WITH_OPTIONAL))
+        return (await mountAt('/recepten/7')).wrapper
+      }
+
+      it('toont "(optioneel)" achter de naam, in muted kleur', async () => {
+        const wrapper = await mountWithOptional()
+
+        expect(lines(wrapper).at(-1)).toBe('20 g poedersuiker (optioneel)')
+        const label = wrapper.findAll('.ingredients .line').at(-1).find('.optional')
+        expect(label.text()).toBe('(optioneel)')
+        expect(label.classes()).toContain('muted')
+        // Alleen bij het optionele ingrediënt.
+        expect(wrapper.findAll('.ingredients .optional')).toHaveLength(1)
+      })
+
+      it('"Alles op lijst" slaat optionele ingrediënten over', async () => {
+        const wrapper = await mountWithOptional()
+
+        await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
+
+        const list = useShoppingListStore()
+        expect(list.items.map((i) => i.name)).toEqual(['bloem', 'ei', 'melk', 'zout'])
+        expect(wrapper.find('[role="status"]').text()).toBe(
+          'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.',
+        )
+      })
+
+      it('"+ lijst" werkt ook voor een optioneel ingrediënt', async () => {
+        const wrapper = await mountWithOptional()
+
+        await button(wrapper, 'poedersuiker op boodschappenlijst').trigger('click')
+
+        const list = useShoppingListStore()
+        expect(list.items.map((i) => [i.name, i.quantity, i.unit])).toEqual([
+          ['poedersuiker', 20, 'g'],
+        ])
+      })
     })
   })
 })

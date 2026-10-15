@@ -117,15 +117,16 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 ### B13. N+1-queries – geen gevonden
 `index` gebruikt `includes(:tags)` (`recipes_controller.rb:22`), `show` en `update` gebruiken `with_details` (`recipe.rb:35`), de beheerlijst `includes(:recipe)` (`deletion_requests_controller.rb:8`). `RecipeVersion.snapshot_of` laadt het recept bij elke opslag opnieuw met al zijn relaties (`recipe_version.rb:28`). Dat is bewust en voor deze aantallen prima.
 
-### B14. Dode code en verouderde commentaren – **laag**, moeite **klein**
-- `app/models/concerns/deletion_requestable.rb:5`: "meant for recipe variations later on as well". `RecipeVariation` gebruikt het al (`recipe_variation.rb:10`).
+### B14. Dode code en verouderde commentaren – **laag**, moeite **klein** – ✅ afgerond
+> De vijf punten over commentaar en vertaling zijn opgelost: de vier commentaren zijn bijgewerkt en `api.servings_out_of_range` is uit `nl.yml` gehaald (grep vond hem alleen in `nl.yml` en in dit document; er is ook geen dynamisch opgebouwde `api.*`-sleutel). Daarnaast is het commentaar in `config/puma.rb` gecorrigeerd: het zei dat de standaard al 1 worker is, maar Puma 8 draait zonder `WEB_CONCURRENCY` met 0 workers in single mode (`workers: 0` in `Puma::Configuration`, `Launcher#clustered?` geldt pas vanaf 1). Geen gedragswijziging. Buiten dit punt gebleven: `rails/all` en de ongebruikte frameworks en gems (onderdeel van top-10 stap 10, ⛔ vervallen) en de lege `db/seeds.rb`.
+- ✅ `app/models/concerns/deletion_requestable.rb:5`: "meant for recipe variations later on as well". `RecipeVariation` gebruikt het al (`recipe_variation.rb:10`).
 - `config/application.rb:3` laadt `rails/all` (Active Storage, Action Mailer, Action Cable, Action Text), terwijl de app daar niets van gebruikt. Hetzelfde geldt voor `app/mailers/`, `app/views/layouts/mailer.*`, `app/jobs/`, de gem `image_processing` (`Gemfile:33`), Kamal (`Gemfile:27`, `config/deploy.yml`, `.kamal/`; jullie deployen op Render) en solid_queue/solid_cable (productie gebruikt `:async` en `:memory_store`). Opruimen raakt deels productieconfiguratie (`cable.yml`, `cache.yml`), dus **alleen met toestemming**.
 - `db/seeds.rb` is leeg. Wat voorbeeldrecepten zouden lokaal ontwikkelen makkelijker maken.
 - Nieuw gevonden op 15 oktober (alleen commentaar en een vertaling, gedrag klopt):
-  - `app/serializers/shopping_list_item_serializer.rb:1-2`: "Shared by the shopping list itself and "Variatie op lijst" (Api::RecipeVariationsController)". Sinds blok 2 is het `AddsToShoppingList`, voor recept én variatie.
-  - `app/models/shopping_list_item.rb:10`: "items from the standard list or an old browser list have no recipe". De import van de oude browserlijst is weg (F6).
-  - `frontend/src/api/client.js:1` noemt de API-modules, maar `variations.js` ontbreekt.
-  - `config/locales/nl.yml:141`: `api.servings_out_of_range` wordt nergens meer gebruikt; de porties worden nu gecontroleerd door `ShoppingListAddition` (`validates :servings, numericality: ...`).
+  - ✅ `app/serializers/shopping_list_item_serializer.rb:1-2`: "Shared by the shopping list itself and "Variatie op lijst" (Api::RecipeVariationsController)". Sinds blok 2 is het `AddsToShoppingList`, voor recept én variatie.
+  - ✅ `app/models/shopping_list_item.rb:10`: "items from the standard list or an old browser list have no recipe". De import van de oude browserlijst is weg (F6).
+  - ✅ `frontend/src/api/client.js:1` noemt de API-modules, maar `variations.js` ontbreekt.
+  - ✅ `config/locales/nl.yml:141`: `api.servings_out_of_range` wordt nergens meer gebruikt; de porties worden nu gecontroleerd door `ShoppingListAddition` (`validates :servings, numericality: ...`).
 
 ### B15. Wat open is, en of dat zo hoort
 Bewust open (zie de commentaren in `config/routes.rb:9` en `:25`): recepten en variaties toevoegen en bewerken, verwijderen *aanvragen*, de boodschappenlijst en de standaardlijst (ook "Alles wissen"). Twee gevolgen om je bewust van te zijn:
@@ -251,7 +252,7 @@ Alle kleuren, afstanden en lettergroottes zijn tokens in `src/assets/main.css:19
 | I7 | Ingrediëntnaam | FK naar `ingredients` | losse string (D2) |
 | I8 | Cascade | database (`on_delete`) | Rails (`dependent:`) (D3) |
 | I9 ✅ | Database-constraints | `recipe_ingredients` en `variation_changes` hebben ze | `shopping_list_items` niet (D1) |
-| I10 | Commentaar | `DeletionRequestable` zegt "later ook variaties" | variaties gebruiken het al (B14) |
+| I10 ✅ | Commentaar | `DeletionRequestable` zegt "later ook variaties" | variaties gebruiken het al (B14) |
 
 ---
 
@@ -268,7 +269,7 @@ Elke stap staat op zichzelf, laat de API voor de gebruiker gelijk (tenzij vermel
 | 5 🟡 (tags ✅ via concern `TagNames`; `normalizes` overal nog niet) | **Tagregels op één plek** (`Tag.normalize_names` en `Tag.name_errors`) en `normalizes` overal | B6, B9, I4, I5 | middel | middel | `recipe_test`, `recipe_variation_test` en `tag_test` blijven groen; test voor `StandardItem.find_by(name: " Melk ")` |
 | 6 🟡 (`useServerErrors` ✅; `useTimedMessage`, `useResource`, `utils/format.js` nog niet) | **Frontend-composables**: `useServerErrors`, `useTimedMessage`, `useResource` en `utils/format.js` | F2, F3 | middel | klein | de bestaande Vitest-specs van RecipeForm, VariationForm en de views blijven groen; nieuwe specs voor de composables |
 | 7 ✅ (in vijf `RecipeDetail*`-componenten) | **`RecipeDetailView` opsplitsen** in `RecipeVariations.vue` + `useServings` | F1 | middel | middel | `RecipeDetailView.spec.js` en `RecipeDetailVariations.spec.js` blijven groen, en e2e `variations.spec.js` ook |
-| 8 | **Kleine opschoonronde**: `RecipeCard` (image_url, tagName, named route), het commentaar in `DeletionRequestable`, de UI-teksten "is verwijderd" en "terugzetten", `window.confirm` → `ConfirmDialog`, één flash-store | F4, F7, F9, F10, B14 (alleen code) | laag | klein | Vitest en e2e; de screenshots bekijken |
+| 8 🟡 (commentaar in `DeletionRequestable` ✅ via B14; de rest nog open) | **Kleine opschoonronde**: `RecipeCard` (image_url, tagName, named route), het commentaar in `DeletionRequestable`, de UI-teksten "is verwijderd" en "terugzetten", `window.confirm` → `ConfirmDialog`, één flash-store | F4, F7, F9, F10, B14 (alleen code) | laag | klein | Vitest en e2e; de screenshots bekijken |
 | 9 ✅ | **Legacy localStorage-import verwijderen** (alleen als jij zegt dat alle apparaten zijn overgezet) | F6 | laag | klein | de e2e-importtest gaat mee weg; de rest blijft groen |
 | 10 ⛔ | **Productie- en gem-opruiming** (vervallen) (alleen met jouw toestemming): `solid_cache` voor de rate limit, `rails/all` vervangen door alleen de gebruikte frameworks, Kamal en `image_processing` weg | B2, B14 | laag/middel | middel | alle CI-commando's; een deploy op Render controleren |
 

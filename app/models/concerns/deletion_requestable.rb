@@ -2,7 +2,7 @@
 # hidden from the public (scope :visible) and listed for the admin (scope :deletion_requested).
 # Needs the columns deletion_requested_at (datetime) and deletion_reason (string).
 #
-# Used by Recipe; meant for recipe variations later on as well.
+# Used by Recipe and RecipeVariation.
 module DeletionRequestable
   extend ActiveSupport::Concern
 

@@ -1,5 +1,5 @@
 # One line of the shopping list, as the API sends it. Shared by the shopping list itself
-# and "Variatie op lijst" (Api::RecipeVariationsController).
+# and "op lijst" for a recipe or a variation (AddsToShoppingList).
 module ShoppingListItemSerializer
   module_function
 

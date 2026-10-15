@@ -138,7 +138,6 @@ nl:
     too_many_requests: "Te veel verzoeken. Probeer het over een minuut opnieuw."
     too_many_submissions: "Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw."
     too_many_items: "Maximaal %{count} regels tegelijk."
-    servings_out_of_range: "Kies tussen 1 en %{max} porties."
     bulk_destroy_failed: "Niet alle items konden worden verwijderd, dus er is niets verwijderd."
   admin:
     unauthorized: "De beheercode is onjuist of verlopen."

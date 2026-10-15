@@ -2,13 +2,17 @@
 # are invoked here are part of Puma's configuration DSL. For more information
 # about methods provided by the DSL, see https://puma.io/puma/Puma/DSL.html.
 #
-# Puma starts a configurable number of processes (workers) and each process
-# serves each request in a thread from an internal thread pool.
+# Puma serves each request in a thread from an internal thread pool. It can also start
+# several processes (workers), each with its own thread pool.
 #
-# You can control the number of workers using ENV["WEB_CONCURRENCY"]. You
-# should only set this value when you want to run 2 or more workers. The
-# default is already 1. You can set it to `auto` to automatically start a worker
-# for each available processor.
+# You can control the number of workers using ENV["WEB_CONCURRENCY"]. Without it (or
+# with 0) Puma runs in single mode: one process, no workers. Any value of 1 or more
+# starts cluster mode: a master process plus that many workers; `auto` starts a
+# worker for each available processor.
+#
+# Production on Render sets WEB_CONCURRENCY=0 on purpose: the rate limits keep their
+# counters in Rails.cache (:memory_store), which lives inside one process. With several
+# workers every worker would count on its own.
 #
 # The ideal number of threads per worker depends both on how much time the
 # application spends waiting for IO operations and on how much you wish to

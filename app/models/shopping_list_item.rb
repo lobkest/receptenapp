@@ -7,7 +7,7 @@ class ShoppingListItem < ApplicationRecord
   MAX_LENGTH = 100
   MAX_SOURCE_LENGTH = 255
 
-  # Optional: items from the standard list or an old browser list have no recipe, and
+  # Optional: items from the standard list (or any POST without recipe_id) have no recipe, and
   # deleting a recipe sets recipe_id to NULL (foreign key with on_delete: :nullify).
   belongs_to :recipe, optional: true
 

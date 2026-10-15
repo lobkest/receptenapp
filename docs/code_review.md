@@ -7,6 +7,8 @@ Stand van 14 oktober 2026 (commit `5fd7d55`). Alleen gelezen en gemeten, niets g
 > **Bijgewerkt na refactorblok 2** (één bron van waarheid). Afgerond: ✅ I1, ✅ B3, ✅ B4, ✅ T2, ✅ top-10 stap 2 en 3; deels: 🟡 B11, 🟡 T5. Nieuw: B17 (rate limit en X-Forwarded-For op Render; ✅ afgerond na meting, zie B17). Correctie: T3 was al gedekt.
 >
 > **Bijgewerkt na refactorblok 3** (dubbele code, puur refactoren). Afgerond: ✅ B6, ✅ B8, ✅ F1, ✅ F2, ✅ I5, ✅ top-10 stap 7; deels: 🟡 F3, 🟡 top-10 stap 5 en 6. Gedrag gelijk: alle bestaande tests groen zonder aangepaste verwachtingen; screenshots vóór en na zijn pixel voor pixel gelijk (op tijdstempels na).
+>
+> **Gecontroleerd tegen commit `bb44e2a` op 15 oktober 2026** (na de rate limits per bezoeker). Bijgewerkt: ✅ T7 (er is nu `test/models/quantity_test.rb`), top-10 stap 4 ✅ (`HasQuantity` was in blok 3 al af), B2 (single mode beperkt het probleem), B11, B12, B15 en F3 (verouderde verwijzingen). Nieuw in B14: drie verouderde commentaren en een ongebruikte vertaalsleutel.
 
 **Legenda** – prioriteit: **hoog** / **middel** / **laag**; moeite: **klein** (< 1 uur), **middel** (een dagdeel), **groot** (meer dan een dag).
 Regelnummers in de oorspronkelijke bevindingen verwijzen naar de stand van commit `5fd7d55`; door de refactorblokken kunnen ze nu verschoven zijn.
@@ -29,6 +31,8 @@ Alle CI-commando's uit `.github/workflows/ci.yml` zijn lokaal gedraaid, precies 
 | Build | `npm run build` | ✅ |
 | Playwright | `npm run test:e2e` | ✅ 20 tests geslaagd |
 
+Nameting 15 oktober (commit `bb44e2a`): alle CI-commando's hierboven ✅; Rails-tests 300 runs, 1705 assertions, 0 failures/errors/skips; Vitest 24 bestanden, 311 tests. Playwright is daarbij niet opnieuw gedraaid (alleen documentatie gewijzigd).
+
 Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De bevindingen hieronder gaan vooral over **dubbele code en verschillen tussen de onderdelen die tegelijk zijn gebouwd**, niet over kapotte functionaliteit.
 
 ---
@@ -45,6 +49,7 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - **Wat/waar**: `config/environments/production.rb:48` zet `config.cache_store = :memory_store`. Rails' `rate_limit` bewaart zijn tellers in `Rails.cache`.
 - **Waarom**: de tellers gelden per proces en zijn weg na elke herstart of deploy. Draait Puma met meerdere workers, dan heeft elke worker zijn eigen teller, en is de echte limiet dus hoger dan ingesteld.
 - **Voorstel**: `:solid_cache_store` gebruiken (de gem en `db/cache_schema.rb` staan er al). Dit is productieconfiguratie: **alleen met jouw expliciete toestemming**.
+- **Stand 15 oktober**: het probleem met meerdere workers speelt niet meer, want Puma draait op Render in single mode (`WEB_CONCURRENCY=0`, zie B17): één proces, één teller. Wat blijft: de tellers beginnen na elke deploy of herstart opnieuw. Voor deze app aanvaardbaar.
 
 ### B3. Foutresponses hebben drie vormen en twee talen – **middel**, moeite **middel** – ✅ afgerond (blok 2)
 > Blok 2: elke fout is nu `{ "error": "<Nederlandse melding>", "errors": { "<veld>": ["…"] } }`, ook 400, 401, 404, 409 en 429. De bulk-insert noemt de regel in de veldnaam (`shopping_list_items[2].name`) in plaats van een los `index`. Alle teksten staan in `config/locales/nl.yml` (`api.*`, `admin.*`). `client.js` leest dit op één plek uit; een 500 toont nooit de servertekst.
@@ -103,11 +108,11 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 
 ### B11. Controllers zijn dun, op twee plekken na – **laag**, moeite **klein** – 🟡 deels
 > "Op lijst" zit nu in het form object `ShoppingListAddition` en de concern `AddsToShoppingList`; beide controlleracties zijn één regel. `create_many` in `ShoppingListItemsController` staat er nog.
-- `ShoppingListItemsController#create_many` (`shopping_list_items_controller.rb:81-103`) en `RecipeVariationsController#add_to_shopping_list` (`recipe_variations_controller.rb:58-70`) doen allebei "veel regels in één transactie". Voorstel: `ShoppingListItem.create_all!(list)` in het model en die op beide plekken gebruiken.
+- ~~`ShoppingListItemsController#create_many` (`shopping_list_items_controller.rb:81-103`) en `RecipeVariationsController#add_to_shopping_list` (`recipe_variations_controller.rb:58-70`) doen allebei "veel regels in één transactie".~~ De variatie gaat nu via `ShoppingListAddition`. Over: `create_many` (de bulk-insert voor de standaardlijst) doet nog zelf een transactie met `save` per regel; `ShoppingListAddition#save` gebruikt `create!`. Twee manieren, maar met een andere foutafhandeling (veldnaam met index tegenover één fout); samenvoegen is niet nodig.
 - `Api::RecipesController` gebruikt `Api::RecipeVariationsController::FIELDS` (`recipes_controller.rb:77` en `:87`). Een controller die van een andere afhangt is ongebruikelijk. Beter: `RecipeVariation::PERMITTED_ATTRIBUTES`.
 
 ### B12. Strong parameters – in orde
-`params.expect` (Rails 8) wordt overal gebruikt, met aparte `create_params` en `update_params` (`recipes_controller.rb:73-88`). `lock_version` is verplicht bij een update (`recipes_controller.rb:47`, `recipe_variations_controller.rb:39`). Een kleinigheid: `rescue_from ActiveRecord::RecordInvalid` in `recipes_controller.rb:17` zet `@recipe = error.record`. Is dat record een `Tag` (uit `Tag.named`), dan stuurt de API de fouten van de tag terug alsof het om het recept gaat. **laag**.
+`params.expect` (Rails 8) wordt overal gebruikt, met aparte `create_params` en `update_params` (`recipes_controller.rb:73-88`). `lock_version` is verplicht bij een update (`recipes_controller.rb:47`, `recipe_variations_controller.rb:39`). Een kleinigheid: `rescue_from ActiveRecord::RecordInvalid` (nu in `app/controllers/concerns/api_errors.rb:18`) stuurt de fouten van `error.record`. Is dat record een `Tag` (uit `Tag.named`), dan stuurt de API de fouten van de tag terug alsof het om het recept gaat. Dat kan nauwelijks meer: `TagNames` controleert de namen vóór `Tag.named` met dezelfde regels. **laag**.
 
 ### B13. N+1-queries – geen gevonden
 `index` gebruikt `includes(:tags)` (`recipes_controller.rb:22`), `show` en `update` gebruiken `with_details` (`recipe.rb:35`), de beheerlijst `includes(:recipe)` (`deletion_requests_controller.rb:8`). `RecipeVersion.snapshot_of` laadt het recept bij elke opslag opnieuw met al zijn relaties (`recipe_version.rb:28`). Dat is bewust en voor deze aantallen prima.
@@ -116,10 +121,15 @@ Algemeen beeld: de code is netjes, goed becommentarieerd en zeer goed getest. De
 - `app/models/concerns/deletion_requestable.rb:5`: "meant for recipe variations later on as well". `RecipeVariation` gebruikt het al (`recipe_variation.rb:10`).
 - `config/application.rb:3` laadt `rails/all` (Active Storage, Action Mailer, Action Cable, Action Text), terwijl de app daar niets van gebruikt. Hetzelfde geldt voor `app/mailers/`, `app/views/layouts/mailer.*`, `app/jobs/`, de gem `image_processing` (`Gemfile:33`), Kamal (`Gemfile:27`, `config/deploy.yml`, `.kamal/`; jullie deployen op Render) en solid_queue/solid_cable (productie gebruikt `:async` en `:memory_store`). Opruimen raakt deels productieconfiguratie (`cable.yml`, `cache.yml`), dus **alleen met toestemming**.
 - `db/seeds.rb` is leeg. Wat voorbeeldrecepten zouden lokaal ontwikkelen makkelijker maken.
+- Nieuw gevonden op 15 oktober (alleen commentaar en een vertaling, gedrag klopt):
+  - `app/serializers/shopping_list_item_serializer.rb:1-2`: "Shared by the shopping list itself and "Variatie op lijst" (Api::RecipeVariationsController)". Sinds blok 2 is het `AddsToShoppingList`, voor recept én variatie.
+  - `app/models/shopping_list_item.rb:10`: "items from the standard list or an old browser list have no recipe". De import van de oude browserlijst is weg (F6).
+  - `frontend/src/api/client.js:1` noemt de API-modules, maar `variations.js` ontbreekt.
+  - `config/locales/nl.yml:141`: `api.servings_out_of_range` wordt nergens meer gebruikt; de porties worden nu gecontroleerd door `ShoppingListAddition` (`validates :servings, numericality: ...`).
 
 ### B15. Wat open is, en of dat zo hoort
-Bewust open (zie de commentaren in `config/routes.rb:170` en `:183`): recepten en variaties toevoegen en bewerken, verwijderen *aanvragen*, de boodschappenlijst en de standaardlijst (ook "Alles wissen"). Twee gevolgen om je bewust van te zijn:
-- Iedereen kan met `POST /api/recipes/:id/request_deletion` alle recepten in één keer verbergen (begrensd door 120 schrijfacties per minuut per IP). De beheerder moet ze daarna één voor één terugzetten; terugzetten in bulk bestaat niet. **middel**, als het ooit misbruikt wordt.
+Bewust open (zie de commentaren in `config/routes.rb:9` en `:25`): recepten en variaties toevoegen en bewerken, verwijderen *aanvragen*, de boodschappenlijst en de standaardlijst (ook "Alles wissen"). Twee gevolgen om je bewust van te zijn:
+- Iedereen kan met `POST /api/recipes/:id/request_deletion` alle recepten in één keer verbergen (begrensd door 120 schrijfacties per minuut per bezoeker, zie B17). De beheerder moet ze daarna één voor één terugzetten; terugzetten in bulk bestaat niet. **middel**, als het ooit misbruikt wordt.
 - `FrontendController` gebruikt `html_safe` op `index.html` (`frontend_controller.rb:10`). Dat is veilig, want het bestand komt uit je eigen build (Brakeman meldt ook niets).
 - De beheercode staat in `sessionStorage` (`frontend/src/stores/admin.js:5-27`) en gaat alleen in de `Authorization`-header (`frontend/src/api/admin.js:8-13`). Dat is goed.
 
@@ -156,8 +166,8 @@ Code, tabellen en routes zijn Engels; UI, frontend-routes (`/recepten`, `/boodsc
 
 ### F3. Kleine dubbele hulpfuncties – **laag**, moeite **klein** – 🟡 deels (`numberText` gedeeld; `formatDate`, `useTimedMessage`, `useResource` en `attempt()` nog niet)
 - `formatDate` is identiek in `views/AdminView.vue:119-127` en `views/AdminRecipeVersionsView.vue:45-53`. Kan naar `src/utils/format.js`.
-- Naam normaliseren: `normalizeName` in `stores/shoppingList.js:20-22` en `normalize` in `components/TagPicker.vue:31-33`.
-- Een melding die na 3 seconden verdwijnt (timer plus `onUnmounted`) staat er drie keer: `RecipeDetailView.vue:120-130`, `ShoppingListView.vue:54-69` en `StandardItemsView.vue:52-61`. Kan worden: composable `useTimedMessage()`.
+- ~~Naam normaliseren: `normalizeName` in `stores/shoppingList.js:20-22` en `normalize` in `components/TagPicker.vue:31-33`.~~ `normalizeName` is met de localStorage-import verdwenen (F6).
+- Een melding die na 3 seconden verdwijnt (timer plus `onUnmounted`) staat er nu nog twee keer: `components/RecipeDetailIngredients.vue` (was `RecipeDetailView.vue`) en `views/StandardItemsView.vue`. Kan worden: composable `useTimedMessage()`.
 - "laden / niet gevonden / fout" staat drie keer: `RecipeDetailView.vue:61-80`, `RecipeEditView.vue:30-49` en `AdminRecipeVersionsView.vue:26-43`. Kan worden: composable `useResource(fetchFn)`.
 - Een `attempt()`-hulpfunctie met elk een eigen vorm: `ShoppingListView.vue:17-26` en `StandardItemsView.vue:34-48`.
 
@@ -224,7 +234,7 @@ Alle kleuren, afstanden en lettergroottes zijn tokens in `src/assets/main.css:19
 | T4 🟡 | Versie terugzetten met een ongeldig snapshot (nu getest) of bij een conflict (nog niet: minitest 6 heeft geen ingebouwde `stub` meer, en een echte race is lastig na te bootsen) | middel |
 | T5 🟡 (`client.spec.js` bestaat nu; `stores/recipes.js` nog niet) | Geen eigen spec voor `src/api/client.js` (welke status welke `ApiError.kind` geeft) en voor `stores/recipes.js` (de "laatste load wint"-logica, regels 4-6 en 42-55) | laag |
 | T6 | `App.vue`: de lijst verversen bij `visibilitychange` (regels 12-25) heeft geen unit-test | laag |
-| T7 | Geen aparte Ruby-unit-test voor de module `Quantity`; die wordt alleen indirect getest via `recipe_variation_test.rb` en `recipe_variations_test.rb` | laag |
+| T7 ✅ (`test/models/quantity_test.rb`, met de gedeelde gevallen uit `quantity_cases.json`) | Geen aparte Ruby-unit-test voor de module `Quantity`; die wordt alleen indirect getest via `recipe_variation_test.rb` en `recipe_variations_test.rb` | laag |
 
 ---
 
@@ -254,7 +264,7 @@ Elke stap staat op zichzelf, laat de API voor de gebruiker gelijk (tenzij vermel
 | 1 ✅ | **Rate limit op de beheer-endpoints** | B1, T1 | **hoog** | klein | nieuwe controllertest: de 11e foute code binnen een minuut geeft 429 |
 | 2 ✅ | **Uniforme foutafhandeling** (blok 1 en 2): `rescue_from` voor NotFound, RecordInvalid en Stale in `ApplicationController` en de admin-basecontroller; alle `error`-teksten via `nl.yml`; `client.js` toont `body.error` als die er is | B3, B4, B5, T4, I2, I3 | **hoog** | middel | bestaande controllertests aanpassen op de Nederlandse tekst; nieuwe test voor terugzetten met een ongeldig snapshot; Vitest voor `client.js` |
 | 3 ✅ | **Eén pad naar de boodschappenlijst**: `Recipe#shopping_list_items(servings:)` en `POST /api/recipes/:id/add_to_shopping_list`, door `RecipeVariation` hergebruikt; de frontend roept voor "Alles op lijst" dat endpoint aan. `quantity.js` blijft alleen voor de weergave | I1, T2, B11 | **hoog** | middel | modeltest dat recept en variatie dezelfde regels geven; de e2e "variatie op lijst" en "Alles op lijst" blijven groen |
-| 4 🟡 | **Database-constraints op `shopping_list_items`** (✅ af) + concern `HasQuantity` voor de drie modellen (open) | D1, B8, I9 | middel | middel | migratie draaien; de bestaande modeltests van alle drie blijven groen; een test dat een onbekende eenheid ook in SQL faalt |
+| 4 ✅ | **Database-constraints op `shopping_list_items`** (✅ blok 1) + concern `HasQuantity` voor de drie modellen (✅ blok 3) | D1, B8, I9 | middel | middel | migratie draaien; de bestaande modeltests van alle drie blijven groen; een test dat een onbekende eenheid ook in SQL faalt |
 | 5 🟡 (tags ✅ via concern `TagNames`; `normalizes` overal nog niet) | **Tagregels op één plek** (`Tag.normalize_names` en `Tag.name_errors`) en `normalizes` overal | B6, B9, I4, I5 | middel | middel | `recipe_test`, `recipe_variation_test` en `tag_test` blijven groen; test voor `StandardItem.find_by(name: " Melk ")` |
 | 6 🟡 (`useServerErrors` ✅; `useTimedMessage`, `useResource`, `utils/format.js` nog niet) | **Frontend-composables**: `useServerErrors`, `useTimedMessage`, `useResource` en `utils/format.js` | F2, F3 | middel | klein | de bestaande Vitest-specs van RecipeForm, VariationForm en de views blijven groen; nieuwe specs voor de composables |
 | 7 ✅ (in vijf `RecipeDetail*`-componenten) | **`RecipeDetailView` opsplitsen** in `RecipeVariations.vue` + `useServings` | F1 | middel | middel | `RecipeDetailView.spec.js` en `RecipeDetailVariations.spec.js` blijven groen, en e2e `variations.spec.js` ook |

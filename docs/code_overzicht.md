@@ -52,7 +52,7 @@ flowchart LR
 | `app/controllers/concerns/public_write_rate_limit.rb` | Gedeelde limiet op schrijfacties per IP |
 | `app/models/` | ActiveRecord-modellen: de tabellen plus hun regels (validaties, callbacks) |
 | `app/models/concerns/` | Gedeelde stukjes modelgedrag: `DeletionRequestable` (verwijderverzoeken), `DecimalComma` ("1,5"), `TagNames` (tagnamen normaliseren en controleren), `HasQuantity` (hoeveelheid met eenheid) |
-| `app/controllers/concerns/` | Gedeeld controllergedrag: `ApiErrors` (foutformaat), `PublicWriteRateLimit`, `AddsToShoppingList` |
+| `app/controllers/concerns/` | Gedeeld controllergedrag: `ApiErrors` (foutformaat), `ClientIp` (bezoeker achter Cloudflare, voor de rate limits), `PublicWriteRateLimit`, `AddsToShoppingList` |
 | `app/models/quantity.rb` | Hoeveelheden schalen en afronden voor de boodschappenlijst (gespiegeld in `frontend/src/utils/quantity.js` voor het scherm; beide getest met `test/fixtures/files/quantity_cases.json`) |
 | `app/models/shopping_list_addition.rb` | "Op lijst" voor een recept of variatie: valideren, schalen, alles-of-niets opslaan |
 | `app/controllers/concerns/api_errors.rb` | Eén foutformaat voor de hele API (`rescue_from`) |

@@ -4,7 +4,7 @@ Stand van 14 oktober 2026 (commit `5fd7d55`). Alleen gelezen en gemeten, niets g
 
 > **Bijgewerkt na refactorblok 1** (bugs, veiligheid, opruimen). Afgerond: ✅ B1, ✅ B5, ✅ D1/I9, ✅ F6, ✅ T1; deels: 🟡 B3, 🟡 B8, 🟡 T4. Vervallen: ⛔ B2 en stap 10 (geen wijzigingen aan de productieconfiguratie). Zie de markeringen bij elk punt en in de top 10.
 >
-> **Bijgewerkt na refactorblok 2** (één bron van waarheid). Afgerond: ✅ I1, ✅ B3, ✅ B4, ✅ T2, ✅ top-10 stap 2 en 3; deels: 🟡 B11, 🟡 T5. Nieuw: ⚠️ B17 (rate limit en X-Forwarded-For op Render, nog open, wacht op jouw keuze). Correctie: T3 was al gedekt.
+> **Bijgewerkt na refactorblok 2** (één bron van waarheid). Afgerond: ✅ I1, ✅ B3, ✅ B4, ✅ T2, ✅ top-10 stap 2 en 3; deels: 🟡 B11, 🟡 T5. Nieuw: B17 (rate limit en X-Forwarded-For op Render; ✅ afgerond na meting, zie B17). Correctie: T3 was al gedekt.
 >
 > **Bijgewerkt na refactorblok 3** (dubbele code, puur refactoren). Afgerond: ✅ B6, ✅ B8, ✅ F1, ✅ F2, ✅ I5, ✅ top-10 stap 7; deels: 🟡 F3, 🟡 top-10 stap 5 en 6. Gedrag gelijk: alle bestaande tests groen zonder aangepaste verwachtingen; screenshots vóór en na zijn pixel voor pixel gelijk (op tijdstempels na).
 
@@ -126,7 +126,12 @@ Bewust open (zie de commentaren in `config/routes.rb:170` en `:183`): recepten e
 ### B16. Naamgeving – in orde
 Code, tabellen en routes zijn Engels; UI, frontend-routes (`/recepten`, `/boodschappen`) en foutteksten via I18n zijn Nederlands. Commentaar is Engels in de backend en Nederlands in de frontend. Dat is consequent per laag, dus geen actie nodig.
 
-### B17. Rate limit en X-Forwarded-For op Render – ⚠️ **hoog als scenario B klopt**, nog open
+### B17. Rate limit en X-Forwarded-For op Render – ✅ afgerond (meting 15 oktober, fix in code; nog na te meten na deploy)
+> **Meting** (live, foute code, alleen lezen): 11 verzoeken met vervalst `X-Forwarded-For` én 11 zonder gaven allemaal 401, nooit 429. Verklaring: scenario C plus workers. Rails vertrouwt de Cloudflare-servers (172.64.0.0/13) niet als proxy, dus `remote_ip` was het Cloudflare-adres, en elke Puma-worker had zijn eigen `memory_store`-teller. Spoofen via X-Forwarded-For kon niet, maar de limiet werkte per Cloudflare-server in plaats van per bezoeker.
+> **Fix**: `WEB_CONCURRENCY=0` op Render (door de eigenaar). Puma 8 draait dan in single mode: één proces, dus één `memory_store`-teller; zie `puma_options_from_env` en `Launcher#clustered?` in de gem, `config/puma.rb` zet zelf geen workers. Daarnaast `app/controllers/concerns/client_ip.rb`: `CF-Connecting-IP`, anders `request.remote_ip`, als `by:` in alle drie de limieten: beheer, `PublicWriteRateLimit` en de inzendlimiet voor recepten (scope en aantallen gelijk). Tests: `test/controllers/api/client_ip_rate_limit_test.rb`.
+> **Aanname**: al het verkeer loopt via Cloudflare. Is de app ooit zonder Cloudflare bereikbaar, dan kan een client per verzoek een andere `CF-Connecting-IP` sturen en is de limiet zwakker dan per `remote_ip`.
+>
+> **Open punt (bewust nog niet gedaan, besluit eigenaar 15 oktober)** – prioriteit **middel**, moeite **klein**: `CF-Connecting-IP` alleen geloven als `request.remote_ip` in de Cloudflare-bereiken valt (https://www.cloudflare.com/ips-v4/ en `/ips-v6/`). Bij directe toegang buiten Cloudflare om is `remote_ip` dan het echte adres en telt de header niet mee. Nadeel: de lijst met Cloudflare-bereiken moet bijgehouden worden.
 - **Wat**: `rate_limit` gebruikt `request.remote_ip`, niet de ruwe header (`by: -> { request.remote_ip }` in actionpack, `rate_limiting.rb`). `remote_ip` (`ActionDispatch::RemoteIp`) loopt X-Forwarded-For van rechts naar links af, slaat vertrouwde adressen over (localhost en privé-reeksen; de app stelt geen eigen `trusted_proxies` in) en neemt het eerste andere adres.
 - **Lokaal nagerekend** met `REMOTE_ADDR` 10.0.0.5:
   - A. Render zet het echte IP **achteraan** (`vervalst, echt`): `remote_ip` = echt → veilig.

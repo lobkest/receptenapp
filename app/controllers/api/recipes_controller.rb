@@ -10,7 +10,8 @@ class Api::RecipesController < ApplicationController
   # Configurable so the e2e tests can raise it; without the variable it stays 5 per hour.
   SUBMISSIONS_PER_HOUR = Integer(ENV.fetch("RECIPE_SUBMISSIONS_PER_HOUR", 5))
 
-  rate_limit to: SUBMISSIONS_PER_HOUR, within: 1.hour, only: :create,
+  # Per visitor (client_ip, see ClientIp), like the other limits.
+  rate_limit to: SUBMISSIONS_PER_HOUR, within: 1.hour, only: :create, by: -> { client_ip },
     with: -> { render_error :too_many_requests, I18n.t("api.too_many_submissions") }
 
   # GET /api/recipes

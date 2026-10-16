@@ -1,0 +1,37 @@
+[
+  {
+    "title": "Pien orzo",
+    "servings": 4,
+    "category": "Diner",
+    "description": "Hoeveelheden met * zijn geschat.",
+    "tags": [],
+    "ingredients": [
+      { "name": "Diepvriesspinazie", "quantity": 450, "unit": "g" },
+      { "name": "Orzo", "quantity": 320, "unit": "g" },
+      { "name": "Spinazie", "quantity": 200, "unit": "g" },
+      { "name": "Cherrytomaatjes", "quantity": 250, "unit": "g" },
+      { "name": "Kipfilet", "quantity": 300, "unit": "g" },
+      { "name": "Feta", "quantity": 200, "unit": "g" },
+      { "name": "Burrata", "quantity": 125, "unit": "g" },
+      { "name": "Parmaham", "quantity": 90, "unit": "g" },
+      { "name": "Doperwten", "quantity": 200, "unit": "g" },
+      { "name": "Pesto", "quantity": 100, "unit": "g" },
+      { "name": "Citroen", "quantity": 50, "unit": "g" }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met zalm",
+        "remove": ["Parmaham"],
+        "add": [{ "name": "Zalm", "quantity": 90, "unit": "g" }]
+      },
+      {
+        "name": "Met mozzarella",
+        "remove": ["Burrata"],
+        "add": [{ "name": "Mozzarella", "quantity": 125, "unit": "g" }]
+      }
+    ]
+  }
+]

@@ -1,0 +1,350 @@
+[
+  {
+    "name": "Tomaten",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Kiwi",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Kiwi gold",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Bananen",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Appels",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Blauwe bessen",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Aardbeien",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Druiven",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Mandarijnen",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Fruit",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Courgette",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Spinazie",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Zoete aardappel",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Uien",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Bosui",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Knoflook",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Gember",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Avocado",
+    "category": "Groente & fruit"
+  },
+  {
+    "name": "Mozzarella",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Kaas",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Kruidenkaas",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Feta",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Kwark",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Yoghurt",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Griekse yoghurt",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Boter",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Crème fraîche",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Eieren",
+    "category": "Zuivel & eieren"
+  },
+  {
+    "name": "Brood",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Broodjes",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Afbakbroodjes",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Stokbrood",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Glutenvrije broodjes",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Pitabroodjes",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Flatbread",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Toastjes",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Crackers",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Rijstwafels",
+    "category": "Brood & bakkerij"
+  },
+  {
+    "name": "Kip",
+    "category": "Vlees, vis & vega"
+  },
+  {
+    "name": "Vleeswaren",
+    "category": "Vlees, vis & vega"
+  },
+  {
+    "name": "Carpaccio",
+    "category": "Vlees, vis & vega"
+  },
+  {
+    "name": "Tofu",
+    "category": "Vlees, vis & vega"
+  },
+  {
+    "name": "Havermout",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Orzo",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Quinoa",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Gevulde pasta",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Kikkererwten",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Sojasaus",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Olijfolie",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Pindakaas",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Hummus",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Maplesiroop",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Chiazaden",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Lijnzaad",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Cashewnoten",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Nootjes",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Zout",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Pannenkoekenmix",
+    "category": "Voorraadkast"
+  },
+  {
+    "name": "Bloem",
+    "category": "Bakken"
+  },
+  {
+    "name": "Zelfrijzend bakmeel",
+    "category": "Bakken"
+  },
+  {
+    "name": "Suiker",
+    "category": "Bakken"
+  },
+  {
+    "name": "Maïzena",
+    "category": "Bakken"
+  },
+  {
+    "name": "Smeltchocolade",
+    "category": "Bakken"
+  },
+  {
+    "name": "Bakpapier",
+    "category": "Bakken"
+  },
+  {
+    "name": "Knoflookpoeder",
+    "category": "Kruiden"
+  },
+  {
+    "name": "Tijm",
+    "category": "Kruiden"
+  },
+  {
+    "name": "Rozemarijn",
+    "category": "Kruiden"
+  },
+  {
+    "name": "Koekjes",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Chocolade",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Sultana",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Zoute stengels",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Snacks",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Vullende avondsnack",
+    "category": "Snacks & zoet"
+  },
+  {
+    "name": "Diepvriesfruit",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Ovengroenten",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Gyoza",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Vissticks",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Diepvries aardappelproduct",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Flammkuchen",
+    "category": "Diepvries"
+  },
+  {
+    "name": "Koffie",
+    "category": "Dranken"
+  },
+  {
+    "name": "Theezakjes",
+    "category": "Dranken"
+  },
+  {
+    "name": "Roosvicee",
+    "category": "Dranken"
+  },
+  {
+    "name": "Wc-papier",
+    "category": "Huishouden"
+  },
+  {
+    "name": "Grote vuilniszakken",
+    "category": "Huishouden"
+  },
+  {
+    "name": "Colorwasmiddel",
+    "category": "Huishouden"
+  },
+  {
+    "name": "Plastic zakjes",
+    "category": "Huishouden"
+  },
+  {
+    "name": "Vaseline",
+    "category": "Huishouden"
+  }
+]

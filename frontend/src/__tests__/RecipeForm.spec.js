@@ -423,61 +423,55 @@ describe('RecipeForm bij bewerken', () => {
 describe('RecipeForm: categorie', () => {
   const CATEGORIES = [
     { id: 1, name: 'Ontbijt', position: 1 },
+    { id: 2, name: 'Lunch', position: 2 },
     { id: 3, name: 'Diner', position: 3 },
+    { id: 4, name: 'Snacks', position: 4 },
+    { id: 5, name: 'Bijgerecht', position: 5 },
   ]
 
-  function options(wrapper) {
-    return wrapper.findAll('#category option').map((option) => option.text())
+  function button(wrapper, name) {
+    return wrapper.findAll('.category-picker .buttons button').find((b) => b.text() === name)
   }
 
-  it('biedt geen categorie, de bestaande op volgorde, en "Nieuwe categorie…"', async () => {
+  it('stuurt de gekozen knop als category_name mee, en zonder keuze een lege naam', async () => {
     const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
-
-    expect(options(wrapper)).toEqual(['Geen categorie', 'Ontbijt', 'Diner', 'Nieuwe categorie…'])
     expect((await submit(wrapper)).category_name).toBe('')
 
-    await wrapper.find('#category').setValue('3')
+    await button(wrapper, 'Diner').trigger('click')
     expect((await submit(wrapper)).category_name).toBe('Diner')
   })
 
-  it('toont bij "Nieuwe categorie…" een tekstveld en stuurt die naam mee', async () => {
+  it('stuurt een nieuwe categorie via "+" mee', async () => {
     const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
-    expect(wrapper.find('#new-category').exists()).toBe(false)
 
-    await wrapper.find('#category').setValue('new')
-    await wrapper.find('#new-category').setValue('  Bijgerecht ')
+    await button(wrapper, '+').trigger('click')
+    await wrapper.find('.category-picker select').setValue('new')
+    await wrapper.find('.category-picker input').setValue('  Zondag ')
 
-    expect((await submit(wrapper)).category_name).toBe('Bijgerecht')
+    expect((await submit(wrapper)).category_name).toBe('Zondag')
   })
 
   it('verstuurt niet met een lege nieuwe categorie', async () => {
     const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
 
-    await wrapper.find('#category').setValue('new')
+    await button(wrapper, '+').trigger('click')
+    await wrapper.find('.category-picker select').setValue('new')
     await wrapper.find('form').trigger('submit')
 
     expect(wrapper.emitted('submit')).toBeUndefined()
-    expect(wrapper.find('.category-error').text()).toBe('Vul een naam voor de nieuwe categorie in.')
+    expect(wrapper.find('.category-picker .error').text()).toBe(
+      'Vul een naam voor de nieuwe categorie in.',
+    )
   })
 
-  it('zet bij bewerken de categorie van het recept klaar, ook als die niet in de lijst staat', async () => {
-    const brunch = { id: 9, name: 'Brunch', position: 5 }
-    const wrapper = mount(RecipeForm, {
-      props: { initial: { ...PANCAKES, category: brunch }, availableCategories: CATEGORIES },
-    })
-
-    expect(wrapper.find('#category').element.value).toBe('9')
-    expect(options(wrapper)).toContain('Brunch')
-    expect((await submit(wrapper)).category_name).toBe('Brunch')
-  })
-
-  it('stuurt een lege naam als je de categorie weghaalt', async () => {
+  it('zet bij bewerken de categorie van het recept klaar, en weghalen stuurt een lege naam', async () => {
     const wrapper = mount(RecipeForm, {
       props: { initial: { ...PANCAKES, category: CATEGORIES[0] }, availableCategories: CATEGORIES },
     })
+    expect(button(wrapper, 'Ontbijt').attributes('aria-pressed')).toBe('true')
+    expect((await submit(wrapper)).category_name).toBe('Ontbijt')
 
-    await wrapper.find('#category').setValue('')
-
+    await button(wrapper, 'Ontbijt').trigger('click')
     expect((await submit(wrapper)).category_name).toBe('')
   })
 
@@ -486,7 +480,9 @@ describe('RecipeForm: categorie', () => {
       props: { errors: { category_name: ['is te lang (maximaal 30 tekens)'] } },
     })
 
-    expect(wrapper.find('.category-error').text()).toBe('Categorie is te lang (maximaal 30 tekens)')
+    expect(wrapper.find('.category-picker .error').text()).toBe(
+      'Categorie is te lang (maximaal 30 tekens)',
+    )
     expect(wrapper.find('.general-errors').exists()).toBe(false)
   })
 })
@@ -649,7 +645,7 @@ describe('RecipeForm: variatie toevoegen', () => {
     const labels = sectionOf(wrapper)
       .findAll('label.check')
       .map((l) => l.text())
-    expect(labels).toEqual(['bloem 250 g', 'zout naar smaak'])
+    expect(labels).toEqual(['bloem 250 g', 'zout'])
   })
 
   it('laat "Tag eraf" kiezen uit de tags in het formulier', async () => {

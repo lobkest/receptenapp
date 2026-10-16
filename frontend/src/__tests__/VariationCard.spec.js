@@ -30,7 +30,7 @@ describe('VariationCard', () => {
     expect(removed.find('s').text()).toBe('tofu')
     expect(wrapper.findAll('.change.added').map((c) => c.text())).toEqual([
       '+ 150 g kip',
-      '+ peper (naar smaak)',
+      '+ peper',
     ])
   })
 
@@ -51,7 +51,7 @@ describe('VariationCard', () => {
 
     expect(wrapper.findAll('.change.added').map((c) => c.text())).toEqual([
       '+ 225 g kip',
-      '+ peper (naar smaak)',
+      '+ peper',
     ])
   })
 

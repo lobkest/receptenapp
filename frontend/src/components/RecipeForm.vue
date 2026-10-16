@@ -1,5 +1,6 @@
 <script setup>
-import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
+import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
+import CategoryPicker from '@/components/CategoryPicker.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
@@ -73,38 +74,9 @@ const steps = ref(props.initial.steps?.length ? props.initial.steps.map(stepFrom
 const tags = ref([...(props.initial.tags ?? [])])
 const lists = { recipe_ingredients: ingredients, steps }
 
-// Categorie: een keuzelijst met de bestaande, plus "Nieuwe categorie…" met een tekstveld
-// (zoals bij de standaardboodschappen). De waarde is het id als tekst, '' voor geen
-// categorie, of NEW_CATEGORY. Die kan niet botsen: een id is altijd een getal.
-const NEW_CATEGORY = 'new'
-const category = ref(props.initial.category ? String(props.initial.category.id) : '')
-const newCategory = ref('')
-const newCategoryError = ref(null)
-
-// Ook de eigen categorie van het recept, voor het geval die (nog) niet in de lijst staat.
-const categoryOptions = computed(() => {
-  const own = props.initial.category
-  return own && !props.availableCategories.some((option) => option.id === own.id)
-    ? [...props.availableCategories, own]
-    : props.availableCategories
-})
-
-const newCategoryInput = useTemplateRef('newCategoryInput')
-
-// Kies je "Nieuwe categorie…", dan verschijnt het tekstveld en krijgt het meteen de focus.
-async function onCategoryChange() {
-  newCategoryError.value = null
-  if (category.value !== NEW_CATEGORY) return
-  await nextTick()
-  newCategoryInput.value?.focus()
-}
-
-// De server kent een categorie op naam (category_name), net als tags: een bestaande naam
-// kiest die categorie, een nieuwe maakt hem aan, '' betekent geen.
-function categoryName() {
-  if (category.value === NEW_CATEGORY) return newCategory.value.trim()
-  return categoryOptions.value.find((option) => String(option.id) === category.value)?.name ?? ''
-}
+// De naam van de categorie ('' = geen); kiezen gebeurt in CategoryPicker.
+const category = ref(props.initial.category?.name ?? '')
+const categoryPicker = useTemplateRef('categoryPicker')
 
 // Een nieuwe variatie, opgeslagen samen met het recept. Standaard ingeklapt: de meeste
 // recepten krijgen er geen bij het invullen. Bestaande variaties bewerk je op de receptpagina.
@@ -193,7 +165,7 @@ function buildRequest() {
   const body = {
     ...form,
     servings: form.servings.trim(),
-    category_name: categoryName(),
+    category_name: category.value,
     tag_names: [...tags.value],
   }
   if (variationOpen.value && variationForm.value) {
@@ -224,12 +196,7 @@ const sentKeys = ref({ recipe_ingredients: [], steps: [] })
 
 function onSubmit() {
   // "Nieuwe categorie…" zonder naam zou stilletjes "geen categorie" worden.
-  if (category.value === NEW_CATEGORY && !newCategory.value.trim()) {
-    newCategoryError.value = 'Vul een naam voor de nieuwe categorie in.'
-    newCategoryInput.value?.focus()
-    return
-  }
-  newCategoryError.value = null
+  if (categoryPicker.value && !categoryPicker.value.validate()) return
 
   const { body, keys } = buildRequest()
   sentKeys.value = keys
@@ -304,41 +271,15 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       </p>
     </div>
 
-    <div class="field">
-      <label for="category">Categorie <span class="muted optional-label">(optioneel)</span></label>
-      <select
-        id="category"
+    <fieldset class="category field">
+      <legend>Categorie <span class="muted optional-label">(optioneel)</span></legend>
+      <CategoryPicker
+        ref="categoryPicker"
         v-model="category"
-        :aria-invalid="!!errors.category_name && category !== NEW_CATEGORY"
-        @change="onCategoryChange"
-      >
-        <option value="">Geen categorie</option>
-        <option v-for="option in categoryOptions" :key="option.id" :value="String(option.id)">
-          {{ option.name }}
-        </option>
-        <option :value="NEW_CATEGORY">Nieuwe categorie…</option>
-      </select>
-    </div>
-
-    <div v-if="category === NEW_CATEGORY" class="field">
-      <label for="new-category">Nieuwe categorie</label>
-      <input
-        id="new-category"
-        ref="newCategoryInput"
-        v-model="newCategory"
-        type="text"
-        placeholder="bijv. Bijgerecht"
-        :aria-invalid="!!(newCategoryError || errors.category_name)"
-        :aria-describedby="newCategoryError || errors.category_name ? 'category-error' : undefined"
+        :options="availableCategories"
+        :error="errors.category_name ? `Categorie ${errors.category_name.join(', ')}` : null"
       />
-    </div>
-    <p
-      v-if="newCategoryError || errors.category_name"
-      id="category-error"
-      class="error category-error"
-    >
-      {{ newCategoryError ?? `Categorie ${errors.category_name.join(', ')}` }}
-    </p>
+    </fieldset>
 
     <!-- Porties (smal) en tags naast elkaar op één rij. -->
     <div class="meta-row">
@@ -598,9 +539,17 @@ legend {
   font-weight: 400;
 }
 
-/* Direct onder het veld, zoals bij de standaardboodschappen. */
-.category-error {
-  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+/* Categorie: een gewoon veld zoals de tags, geen kaart. */
+.category {
+  padding: 0;
+  border: 0;
+}
+
+.category legend {
+  float: none;
+  margin-bottom: var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
 }
 
 /* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */

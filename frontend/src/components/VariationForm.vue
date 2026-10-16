@@ -142,8 +142,9 @@ const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
   },
 })
 
+// "250 g"; zonder hoeveelheid niets.
 function amount(row) {
-  return row.quantity == null ? 'naar smaak' : `${formatQuantity(row.quantity)} ${row.unit}`
+  return row.quantity == null ? '' : `${formatQuantity(row.quantity)} ${row.unit}`
 }
 </script>
 
@@ -187,7 +188,8 @@ function amount(row) {
           <label class="check">
             <input v-model="removedIds" type="checkbox" :value="row.id" />
             <span>
-              {{ row.name }} <span class="muted light">{{ amount(row) }}</span>
+              {{ row.name }}
+              <span v-if="amount(row)" class="muted light">{{ amount(row) }}</span>
             </span>
           </label>
         </li>

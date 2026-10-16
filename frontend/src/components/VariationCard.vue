@@ -23,9 +23,9 @@ const additions = computed(() =>
     .map((c) => ({ ...c, quantity: scaleQuantity(c.quantity, props.factor, c.unit) })),
 )
 
-// "150 g kip", of "peper (naar smaak)".
+// "150 g kip"; zonder hoeveelheid alleen de naam ("peper").
 function additionText(addition) {
-  if (addition.quantity == null) return `${addition.name} (naar smaak)`
+  if (addition.quantity == null) return addition.name
   return `${formatQuantity(addition.quantity)} ${addition.unit} ${addition.name}`
 }
 </script>

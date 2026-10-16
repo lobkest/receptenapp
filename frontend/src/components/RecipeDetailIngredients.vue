@@ -21,9 +21,10 @@ const scaledIngredients = computed(() => {
   }))
 })
 
-// "200 g bloem", "2 stuks ei", "zout — naar smaak"; getallen als 0,5 in plaats van 0.5.
+// "200 g bloem", "2 stuks ei"; zonder hoeveelheid alleen de naam ("zout"). Getallen als
+// 0,5 in plaats van 0.5.
 function ingredientLine(ingredient) {
-  if (ingredient.quantity == null) return `${ingredient.name} — naar smaak`
+  if (ingredient.quantity == null) return ingredient.name
 
   return `${formatQuantity(ingredient.quantity)} ${ingredient.unit} ${ingredient.name}`
 }

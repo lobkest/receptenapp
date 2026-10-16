@@ -156,7 +156,7 @@ describe('RecipeDetailView', () => {
       '2 stuks ei',
       '0,5 ml olie',
       '1 stuks ui',
-      'zout — naar smaak',
+      'zout',
     ])
     expect(wrapper.find('.steps ol').exists()).toBe(true)
     expect(wrapper.findAll('.steps ol li').map((li) => li.text())).toEqual(['Snijden.', 'Koken.'])
@@ -234,26 +234,16 @@ describe('RecipeDetailView', () => {
 
       expect(wrapper.find('.servings-count').text()).toBe('4 porties')
       expect(buttonWithText(wrapper, 'Terug naar origineel')).toBeUndefined()
-      expect(lines(wrapper)).toEqual([
-        '250 g bloem',
-        '1 stuks ei',
-        '500 ml melk',
-        'zout — naar smaak',
-      ])
+      expect(lines(wrapper)).toEqual(['250 g bloem', '1 stuks ei', '500 ml melk', 'zout'])
     })
 
-    it('schaalt alle hoeveelheden mee, behalve "naar smaak"', async () => {
+    it('schaalt alle hoeveelheden mee, behalve die zonder hoeveelheid', async () => {
       const wrapper = await mountPancakes()
 
       await clickTimes(wrapper, 'Meer porties', 2)
 
       expect(wrapper.find('.servings-count').text()).toBe('6 porties')
-      expect(lines(wrapper)).toEqual([
-        '375 g bloem',
-        '1,5 stuks ei',
-        '750 ml melk',
-        'zout — naar smaak',
-      ])
+      expect(lines(wrapper)).toEqual(['375 g bloem', '1,5 stuks ei', '750 ml melk', 'zout'])
     })
 
     it('schaalt terug naar 1 portie zonder 0 stuks', async () => {

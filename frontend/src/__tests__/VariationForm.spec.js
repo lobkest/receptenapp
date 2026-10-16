@@ -78,13 +78,13 @@ describe('VariationForm', () => {
     })
   })
 
-  it('heeft notities van twee regels, en "naar smaak" in de lijst om weg te laten', () => {
+  it('heeft notities van twee regels, en zonder hoeveelheid alleen de naam in de lijst om weg te laten', () => {
     const wrapper = mountForm()
 
     expect(wrapper.find('textarea').attributes('rows')).toBe('2')
     const labels = wrapper.findAll('label.check').map((l) => l.text())
     expect(labels).toContain('tofu 200 g')
-    expect(labels).toContain('zout naar smaak')
+    expect(labels).toContain('zout')
   })
 
   it('biedt bij "Tag erbij" alleen tags die het recept nog niet heeft', () => {

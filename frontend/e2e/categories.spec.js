@@ -71,37 +71,58 @@ const section = (page, name) =>
 const categoryChip = (page, name) =>
   page.locator('.category-chips').getByRole('button', { name, exact: true })
 
+const categoryButtons = (page) =>
+  page.getByRole('group', { name: 'Categorie', exact: true }).getByRole('button')
+const categoryButton = (page, name) =>
+  page
+    .getByRole('group', { name: 'Categorie', exact: true })
+    .getByRole('button', { name, exact: true })
+
 test('nieuw recept met een nieuwe categorie komt in de juiste sectie, achteraan', async ({
   page,
 }) => {
   const errors = collectErrors(page)
   await page.goto('/recepten/nieuw')
 
-  // De dropdown: geen categorie, de bestaande op volgorde, en "Nieuwe categorie…".
-  const select = page.getByLabel('Categorie')
-  await expect(select.locator('option')).toHaveText([
-    'Geen categorie',
-    'Ontbijt',
-    'Lunch',
-    'Diner',
-    'Snacks',
-    'Nieuwe categorie…',
-  ])
+  // Vier kleine knoppen (de standaardcategorieën) en "+", samen op één regel.
+  await expect(categoryButtons(page)).toHaveText(['Ontbijt', 'Lunch', 'Diner', 'Snacks', '+'])
+  const boxes = await Promise.all((await categoryButtons(page).all()).map((b) => b.boundingBox()))
+  expect(new Set(boxes.map((box) => Math.round(box.y))).size, 'één regel').toBe(1)
+  expect(boxes.at(-1).x + boxes.at(-1).width, 'past op het scherm').toBeLessThanOrEqual(
+    page.viewportSize().width,
+  )
+  for (const box of boxes) expect(box.height).toBeGreaterThanOrEqual(40)
 
   await page.getByLabel('Titel').fill('Gegrilde groenten')
-  await select.selectOption({ label: 'Nieuwe categorie…' })
+  await categoryButton(page, 'Diner').click()
+  await expect(categoryButton(page, 'Diner')).toHaveAttribute('aria-pressed', 'true')
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: 'e2e/screenshots/recept-toevoegen-categorie-knop.png',
+    animations: 'disabled',
+  })
+
+  // Toch een nieuwe: "+". Er zijn nog geen andere categorieën, dus meteen het tekstveld.
+  await categoryButton(page, 'Andere of nieuwe categorie').click()
   const newCategory = page.getByLabel('Nieuwe categorie', { exact: true })
   await expect(newCategory).toBeFocused()
   await newCategory.fill('Bijgerecht')
+  await expect(categoryButton(page, 'Diner')).toHaveAttribute('aria-pressed', 'false')
+  await expect(categoryButton(page, 'Andere categorie: Bijgerecht')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
   await page.getByLabel('Naam ingrediënt 1').fill('courgette')
   await page.getByLabel('Hoeveelheid ingrediënt 1').fill('1')
   await page.getByLabel('Eenheid ingrediënt 1').selectOption('stuks')
+  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.getByLabel('Naam ingrediënt 2').fill('olijfolie')
   await page.getByLabel('Stap 1', { exact: true }).fill('Grillen.')
 
-  // Het bovenste deel van het formulier, met de dropdown en het tekstveld eronder.
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({
-    path: 'e2e/screenshots/recept-toevoegen-categorie.png',
+    path: 'e2e/screenshots/recept-toevoegen-categorie-nieuw.png',
     animations: 'disabled',
   })
 
@@ -113,16 +134,35 @@ test('nieuw recept met een nieuwe categorie komt in de juiste sectie, achteraan'
   expect(created.status()).toBe(201)
   expect((await created.json()).category).toMatchObject({ name: 'Bijgerecht', position: 5 })
 
-  // Op de receptpagina een klein label boven de titel.
+  // Op de receptpagina een klein label boven de titel; zonder hoeveelheid alleen de naam.
   await expect(page.getByRole('heading', { level: 1, name: 'Gegrilde groenten' })).toBeVisible()
   await expect(page.locator('.category-label')).toHaveText('Bijgerecht')
+  const lines = page.locator('.ingredients li')
+  await expect(lines.filter({ hasText: 'olijfolie' }).first()).toBeVisible()
+  await expect(page.locator('.ingredients')).not.toContainText('naar smaak')
+  await page.screenshot({
+    path: 'e2e/screenshots/recept-zonder-hoeveelheid.png',
+    animations: 'disabled',
+  })
   expect(errors).toEqual([])
 
-  // Bij het bewerken staat de nieuwe categorie gewoon in de lijst, achteraan.
+  // Bewerken: "+" staat ingedrukt met de naam, en opent de lijst met die gekozen.
   await page.getByRole('link', { name: 'Bewerken' }).click()
-  await expect(page.getByLabel('Categorie')).toHaveValue(/\d+/)
-  await expect(page.getByLabel('Categorie').locator('option:checked')).toHaveText('Bijgerecht')
-  await expect(page.getByLabel('Categorie').locator('option').nth(5)).toHaveText('Bijgerecht')
+  const more = categoryButton(page, 'Andere categorie: Bijgerecht')
+  await expect(more).toHaveText('Bijgerecht')
+  await more.click()
+  const other = page.getByLabel('Andere categorie')
+  await expect(other.locator('option')).toHaveText([
+    'Kies een categorie…',
+    'Bijgerecht',
+    'Nieuwe categorie…',
+  ])
+  await expect(other.locator('option:checked')).toHaveText('Bijgerecht')
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: 'e2e/screenshots/recept-bewerken-categorie-lijst.png',
+    animations: 'disabled',
+  })
 
   // Het overzicht: de nieuwe sectie na Diner (Lunch en Snacks zijn leeg, dus weg).
   await page.goto('/')
@@ -152,8 +192,9 @@ test('een bestaand recept zonder categorie staat onder "Overig", en krijgt er vi
 
   // Indelen: bewerken en Lunch kiezen.
   await page.goto(`/recepten/${id}/bewerken`)
-  await expect(page.getByLabel('Categorie')).toHaveValue('')
-  await page.getByLabel('Categorie').selectOption({ label: 'Lunch' })
+  await expect(page.getByRole('group', { name: 'Categorie', exact: true })).toBeVisible()
+  await expect(categoryButtons(page).and(page.locator('[aria-pressed="true"]'))).toHaveCount(0)
+  await categoryButton(page, 'Lunch').click()
   await page.getByRole('button', { name: 'Opslaan' }).click()
   await expect(page.locator('.category-label')).toHaveText('Lunch')
 

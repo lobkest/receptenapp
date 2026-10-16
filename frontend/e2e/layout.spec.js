@@ -116,6 +116,7 @@ test('recept toevoegen: komma, optioneel ingrediënt, en daarna de receptpagina'
   await page.getByRole('button', { name: '+ ingrediënt' }).click()
   await page.getByLabel('Naam ingrediënt 2').fill('peterselie')
   await page.getByLabel('Hoeveelheid ingrediënt 2').fill('10')
+  await page.getByLabel('Eenheid ingrediënt 2').selectOption('g')
   await page.locator('.ingredient-row').nth(1).getByLabel('optioneel').check()
   await page.getByLabel('Stap 1', { exact: true }).fill('Uien snijden.')
   await page.getByRole('button', { name: '+ stap' }).click()

@@ -180,7 +180,7 @@ erDiagram
 ```
 
 **Constraints in de database** (in `db/schema.rb`; de modellen hebben dezelfde regels als validatie, zodat je een nette 422 krijgt in plaats van een databasefout):
-- `recipe_ingredients`, `variation_changes` en `shopping_list_items` hebben elk drie check constraints: `*_quantity_positive` (hoeveelheid > 0), `*_unit_known` (`g`, `ml` of `stuks`) en `*_quantity_has_unit` (hoeveelheid en eenheid zijn samen leeg of samen gevuld; leeg = "naar smaak").
+- `recipe_ingredients`, `variation_changes` en `shopping_list_items` hebben elk drie check constraints: `*_quantity_positive` (hoeveelheid > 0), `*_unit_known` (`g`, `ml`, `stuks`, `tl` of `el`) en `*_quantity_has_unit` (hoeveelheid en eenheid zijn samen leeg of samen gevuld; leeg = "naar smaak").
 - `variation_changes` heeft daarnaast `variation_changes_kind_known` en `variation_changes_fields_match_kind`: een `remove` heeft alleen `recipe_ingredient_id`, een `add` alleen een eigen naam (en eventueel hoeveelheid). `variation_tag_changes` heeft `variation_tag_changes_kind_known`.
 - `steps`: `position > 0`, en `(recipe_id, position)` is uniek, *deferrable*: Postgres controleert dat pas aan het eind van de transactie, zodat stappen tussendoor van plek kunnen wisselen.
 - Unieke indexen op `ingredients.name`, `tags.name`, `standard_items.name`, `recipe_ingredients (recipe_id, ingredient_id)` en `recipe_tags (recipe_id, tag_id)`.

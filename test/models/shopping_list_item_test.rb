@@ -36,7 +36,9 @@ class ShoppingListItemTest < ActiveSupport::TestCase
 
   test "een hoeveelheid vraagt een bekende eenheid" do
     assert ShoppingListItem.new(name: "ui", quantity: 1, unit: nil).invalid?
-    assert ShoppingListItem.new(name: "ui", quantity: 1, unit: "el").invalid?
+    assert ShoppingListItem.new(name: "ui", quantity: 1, unit: "cup").invalid?
+    assert ShoppingListItem.new(name: "olie", quantity: 1, unit: "el").valid?
+    assert ShoppingListItem.new(name: "zout", quantity: 1, unit: "tl").valid?
   end
 
   test "naam is verplicht en wordt genormaliseerd" do
@@ -82,7 +84,7 @@ class ShoppingListItemTest < ActiveSupport::TestCase
   {
     "een hoeveelheid van 0" => { quantity: 0 },
     "een negatieve hoeveelheid" => { quantity: -1 },
-    "een onbekende eenheid" => { unit: "el" },
+    "een onbekende eenheid" => { unit: "cup" },
     "een hoeveelheid zonder eenheid" => { unit: nil },
     "een eenheid zonder hoeveelheid" => { quantity: nil }
   }.each do |description, columns|
@@ -90,6 +92,14 @@ class ShoppingListItemTest < ActiveSupport::TestCase
       assert_raises(ActiveRecord::CheckViolation) do
         shopping_list_items(:bloem).update_columns(columns)
       end
+    end
+  end
+
+  test "de database laat tl en el toe" do
+    %w[ tl el ].each do |unit|
+      shopping_list_items(:bloem).update_columns(unit: unit)
+
+      assert_equal unit, shopping_list_items(:bloem).reload.unit
     end
   end
 

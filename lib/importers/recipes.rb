@@ -9,7 +9,7 @@
 #
 # A recipe whose title exists (in any case) is skipped. Ingredients are matched by name
 # by RecipeIngredient itself (Ingredient#name is lower case); only unknown ones are made.
-# Amounts in g, ml or stuks (the units of the model). Without an amount ("naar smaak") leave out quantity and unit.
+# Amounts in g, ml, stuks, tl or el (the units of the model). Without an amount ("naar smaak") leave out quantity and unit.
 module Importers
   class Recipes < Base
     FIELDS = %w[ title servings category description tags ingredients steps variations ].freeze

@@ -48,7 +48,7 @@ const removedIds = ref(
 let nextKey = 1
 
 function newAddition() {
-  return { key: nextKey++, name: '', quantity: '', unit: 'g' }
+  return { key: nextKey++, name: '', quantity: '', unit: 'stuks' }
 }
 
 const additions = ref(
@@ -58,7 +58,7 @@ const additions = ref(
       key: nextKey++,
       name: change.name,
       quantity: numberText(change.quantity),
-      unit: change.unit ?? 'g',
+      unit: change.unit ?? 'stuks',
     })),
 )
 if (additions.value.length === 0) additions.value.push(newAddition())

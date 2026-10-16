@@ -264,10 +264,13 @@ onMounted(() => {
 }
 
 /* Twee kolommen op de telefoon, drie vanaf 640px (40rem), vier vanaf 1024px (64rem).
-   minmax(0, 1fr): een kolom mag smaller worden dan zijn inhoud, dus niets loopt over. */
+   minmax(0, 1fr): een kolom mag smaller worden dan zijn inhoud, dus niets loopt over.
+   align-items: start: elke kaart zo hoog als zijn inhoud. Een kaart zonder foto naast
+   een met foto wordt zo niet uitgerekt tot een groot leeg vlak. */
 .recipe-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: var(--space-3);
   margin: 0;
   padding: 0;

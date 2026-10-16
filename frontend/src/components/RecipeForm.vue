@@ -39,7 +39,7 @@ const form = reactive({
 let nextKey = 1
 
 function newIngredient() {
-  return { key: nextKey++, id: null, quantity: '', unit: 'g', ingredient_name: '', optional: false }
+  return { key: nextKey++, id: null, quantity: '', unit: 'stuks', ingredient_name: '', optional: false }
 }
 
 function newStep() {
@@ -53,7 +53,7 @@ function ingredientFrom(row) {
     key: nextKey++,
     id: row.id,
     quantity: numberText(row.quantity),
-    unit: row.unit ?? 'g',
+    unit: row.unit ?? 'stuks',
     ingredient_name: row.name,
     optional: row.optional ?? false,
   }

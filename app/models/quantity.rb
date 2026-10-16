@@ -3,7 +3,8 @@
 # never scales. Both are checked against the same cases: test/fixtures/files/quantity_cases.json.
 module Quantity
   # The smallest amount we write down when something is needed: never round to 0.
-  MINIMUM = { "g" => BigDecimal("0.1"), "ml" => BigDecimal("0.1"), "stuks" => BigDecimal("0.5") }.freeze
+  MINIMUM = { "g" => BigDecimal("0.1"), "ml" => BigDecimal("0.1"), "tl" => BigDecimal("0.1"), "el" => BigDecimal("0.1"),
+              "stuks" => BigDecimal("0.5") }.freeze
   FALLBACK_MINIMUM = BigDecimal("0.01")
 
   module_function
@@ -17,14 +18,15 @@ module Quantity
     round(quantity * factor.numerator / factor.denominator, unit)
   end
 
-  # g/ml: whole numbers from 10 up, one decimal below that. stuks: halves (half an egg,
+  # g/ml/tl/el: whole numbers from 10 up, one decimal below that (1,5 el, never converted
+  # to ml). stuks: halves (half an egg,
   # not a quarter). BigDecimal rounds half up, like Math.round for these positive amounts.
   # BigDecimal(...) around a whole number: round without decimals gives an Integer, and
   # 3 / 2 would then be 1.
   def round(value, unit)
     rounded =
       case unit
-      when "g", "ml" then value >= 10 ? BigDecimal(value.round) : value.round(1)
+      when "g", "ml", "tl", "el" then value >= 10 ? BigDecimal(value.round) : value.round(1)
       when "stuks" then BigDecimal((value * 2).round) / 2
       else value.round(2)
       end

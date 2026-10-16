@@ -268,6 +268,38 @@
       "unit": "g",
       "expected": "6.3",
       "note": "6,25 wordt 6,3"
+    },
+    {
+      "quantity": "1",
+      "servings": 6,
+      "base": 4,
+      "unit": "el",
+      "expected": "1.5",
+      "note": "el schaalt lineair, geen omrekening naar ml"
+    },
+    {
+      "quantity": "1",
+      "servings": 3,
+      "base": 4,
+      "unit": "tl",
+      "expected": "0.8",
+      "note": "tl onder 10 één decimaal"
+    },
+    {
+      "quantity": "0.5",
+      "servings": 1,
+      "base": 8,
+      "unit": "tl",
+      "expected": "0.1",
+      "note": "tl nooit naar 0"
+    },
+    {
+      "quantity": "8",
+      "servings": 3,
+      "base": 2,
+      "unit": "el",
+      "expected": "12",
+      "note": "el vanaf 10 hele getallen"
     }
   ]
 }

@@ -43,17 +43,20 @@ describe('RecipeForm', () => {
 
     expect(ingredientRows(wrapper)).toHaveLength(1)
     expect(stepRows(wrapper)).toHaveLength(1)
-    expect(wrapper.find('.ingredient-row .unit').element.value).toBe('g')
+    expect(wrapper.find('.ingredient-row .unit').element.value).toBe('stuks')
     // De laatste regel kan niet weg, anders is er niets meer om in te vullen.
     expect(wrapper.find('.ingredient-row .remove').attributes('disabled')).toBeDefined()
     expect(wrapper.find('.step-row .remove').attributes('disabled')).toBeDefined()
   })
 
-  it('biedt alleen g, ml en stuks als eenheid', () => {
+  it('biedt g, ml, stuks, tl en el als eenheid', () => {
     const wrapper = mount(RecipeForm)
 
     const options = wrapper.findAll('.ingredient-row .unit option').map((o) => o.element.value)
-    expect(options).toEqual(['g', 'ml', 'stuks'])
+    expect(options).toEqual(['g', 'ml', 'stuks', 'tl', 'el'])
+    // Ook zo getoond: tl en el, niet uitgeschreven.
+    const labels = wrapper.findAll('.ingredient-row .unit option').map((o) => o.text())
+    expect(labels).toEqual(['g', 'ml', 'stuks', 'tl', 'el'])
   })
 
   it('gebruikt tekstvelden met een cijfertoetsenbord voor porties en hoeveelheid', () => {
@@ -324,7 +327,7 @@ describe('RecipeForm bij bewerken', () => {
 
     expect(body.recipe_ingredients_attributes).toEqual([
       { id: 21, ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
-      { id: 22, ingredient_name: 'zout', quantity: null, unit: 'g', optional: true },
+      { id: 22, ingredient_name: 'zout', quantity: null, unit: 'stuks', optional: true },
       { id: 23, ingredient_name: 'olie', quantity: '0,5', unit: 'ml', optional: false },
     ])
     expect(body.steps_attributes).toEqual([
@@ -624,6 +627,7 @@ describe('RecipeForm: variatie toevoegen', () => {
     await variation.find('input[type="text"]').setValue('Met kip')
     await variation.find('[aria-label="Naam extra ingrediënt 1"]').setValue('kip')
     await variation.find('[aria-label="Hoeveelheid extra ingrediënt 1"]').setValue('150')
+    await variation.find('[aria-label="Eenheid extra ingrediënt 1"]').setValue('g')
 
     expect((await submit(wrapper)).variations_attributes).toEqual([
       {

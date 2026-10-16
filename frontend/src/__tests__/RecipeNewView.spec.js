@@ -48,6 +48,7 @@ async function fillAndSubmit(wrapper, { title = 'Pannenkoeken', servings = '6' }
   await wrapper.find('#description').setValue('Beslag maken en bakken.')
   await wrapper.find('#servings').setValue(servings)
   await wrapper.find('.ingredient-row .quantity').setValue('250')
+  await wrapper.find('.ingredient-row .unit').setValue('g')
   await wrapper.find('.ingredient-row .name').setValue('bloem')
   await wrapper.find('.step-row textarea').setValue('Beslag maken.')
   await wrapper.find('form').trigger('submit')

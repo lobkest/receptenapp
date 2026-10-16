@@ -10,27 +10,26 @@ function mountCard(recipe) {
 }
 
 describe('RecipeCard', () => {
-  it('toont titel en porties', () => {
-    const wrapper = mountCard()
+  it('toont titel en tags, maar geen porties', () => {
+    const wrapper = mountCard({ tags: ['vegetarisch'] })
 
     expect(wrapper.find('h3').text()).toBe('Pannenkoeken')
-    expect(wrapper.text()).toContain('4 porties')
+    expect(wrapper.findAll('.tag').map((tag) => tag.text())).toEqual(['vegetarisch'])
+    expect(wrapper.text()).toBe('Pannenkoekenvegetarisch')
+    expect(wrapper.text()).not.toContain('portie')
+    expect(wrapper.text()).not.toContain('4')
   })
 
-  it('zegt "portie" bij één portie', () => {
-    const wrapper = mountCard({ servings: 1 })
+  it('rendert zonder image_url geen afbeeldingsvak en geen placeholder', () => {
+    for (const image_url of [undefined, null, '']) {
+      const wrapper = mountCard({ image_url })
 
-    expect(wrapper.text()).toContain('1 portie')
-    expect(wrapper.text()).not.toContain('porties')
-  })
-
-  it('toont een placeholder zonder image_url', () => {
-    const wrapper = mountCard()
-
-    const placeholder = wrapper.find('[data-test="placeholder"]')
-    expect(placeholder.exists()).toBe(true)
-    expect(placeholder.attributes('aria-hidden')).toBe('true')
-    expect(wrapper.find('img').exists()).toBe(false)
+      expect(wrapper.find('img').exists()).toBe(false)
+      expect(wrapper.find('.media').exists()).toBe(false)
+      expect(wrapper.find('svg').exists()).toBe(false)
+      // De titel staat dan direct bovenaan de kaart.
+      expect(wrapper.find('a').element.firstElementChild.classList.contains('body')).toBe(true)
+    }
   })
 
   it('toont een decoratieve afbeelding (lege alt) als er een image_url is', () => {
@@ -40,7 +39,7 @@ describe('RecipeCard', () => {
     expect(img.attributes('src')).toBe('https://example.com/pannenkoek.jpg')
     expect(img.attributes('alt')).toBe('')
     expect(img.attributes('loading')).toBe('lazy')
-    expect(wrapper.find('[data-test="placeholder"]').exists()).toBe(false)
+    expect(wrapper.find('.media').exists()).toBe(true)
   })
 
   it('toont geen tags als er geen of lege tags zijn', () => {

@@ -259,6 +259,35 @@ describe('RecipeDetailView', () => {
       expect(wrapper.find('.servings-count').text()).toBe('1 portie')
     })
 
+    it('toont zonder hoeveelheid alleen de naam, ook na schalen (geen "naar smaak", eenheid, 0 of NaN)', async () => {
+      serve({
+        ...PANCAKES,
+        ingredients: [
+          { id: 1, name: 'olie', quantity: 1, unit: 'el', optional: false },
+          { id: 2, name: 'kaneel', quantity: 0.5, unit: 'tl', optional: false },
+          { id: 3, name: 'zout', quantity: null, unit: null, optional: false },
+          // Ook als er toch een eenheid zonder hoeveelheid binnenkomt: die blijft weg.
+          { id: 4, name: 'peper', quantity: null, unit: 'g', optional: false },
+          { id: 5, name: 'suiker', quantity: null, unit: null, optional: true },
+        ],
+      })
+      const wrapper = (await mountAt('/recepten/7')).wrapper
+
+      const bare = ['zout', 'peper', 'suiker (optioneel)']
+      expect(lines(wrapper)).toEqual(['1 el olie', '0,5 tl kaneel', ...bare])
+
+      await clickTimes(wrapper, 'Meer porties', 2) // 6 van 4: × 1,5
+      expect(lines(wrapper)).toEqual(['1,5 el olie', '0,8 tl kaneel', ...bare])
+
+      await clickTimes(wrapper, 'Minder porties', 5) // 1 van 4
+      expect(lines(wrapper)).toEqual(['0,3 el olie', '0,1 tl kaneel', ...bare])
+
+      const text = wrapper.find('.ingredients ul').text()
+      for (const unwanted of ['naar smaak', 'NaN', 'undefined', 'null', ' 0 ']) {
+        expect(text).not.toContain(unwanted)
+      }
+    })
+
     it('gaat niet boven 50 porties', async () => {
       const wrapper = await mountPancakes()
 

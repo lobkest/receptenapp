@@ -53,12 +53,12 @@ class RecipeIngredientTest < ActiveSupport::TestCase
     assert row.errors.added?(:unit, :blank)
   end
 
-  test "alleen g, ml en stuks zijn geldige eenheden" do
-    %w[ g ml stuks ].each do |unit|
+  test "alleen g, ml, stuks, tl en el zijn geldige eenheden" do
+    %w[ g ml stuks tl el ].each do |unit|
       assert row(ingredient_name: "ui", quantity: 1, unit: unit).valid?, unit
     end
 
-    %w[ el tl cup oz ].each do |unit|
+    %w[ cup oz eetlepel TL ].each do |unit|
       row = row(ingredient_name: "ui", quantity: 1, unit: unit)
       assert_not row.valid?, unit
       assert row.errors.added?(:unit, :inclusion, value: unit)

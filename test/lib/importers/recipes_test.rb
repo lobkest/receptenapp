@@ -73,9 +73,9 @@ class Importers::RecipesTest < ActiveSupport::TestCase
     assert_equal [ "Bijgerecht" ], report.new_categories
   end
 
-  test "accepteert stuks, weigert andere eenheden dan g, ml of stuks, ook in variaties" do
+  test "accepteert stuks, weigert andere eenheden dan g, ml, stuks, tl of el, ook in variaties" do
     rows = [
-      recipe_row(title: "Met el", ingredients: [ { "name" => "Olie", "quantity" => 1, "unit" => "el" } ]),
+      recipe_row(title: "Met cup", ingredients: [ { "name" => "Olie", "quantity" => 1, "unit" => "cup" } ]),
       recipe_row(title: "Met snufje", variations: [ { "name" => "Pittig", "add" => [ { "name" => "Sambal", "quantity" => 1, "unit" => "snufje" } ] } ]),
       recipe_row(title: "Met stuks", ingredients: [ { "name" => "Ei", "quantity" => 2, "unit" => "stuks" } ], variations: [])
     ]
@@ -83,8 +83,8 @@ class Importers::RecipesTest < ActiveSupport::TestCase
 
     assert_equal [ "Met stuks" ], report.created.map(&:label)
     assert_equal [ [ BigDecimal(2), "stuks" ] ], Recipe.find_by!(title: "Met stuks").recipe_ingredients.map { |row| [ row.quantity, row.unit ] }
-    assert_equal [ "ingrediënt 'Olie': eenheid 'el' niet toegestaan (alleen g, ml of stuks)",
-      "variatie Pittig 'Sambal': eenheid 'snufje' niet toegestaan (alleen g, ml of stuks)" ], report.failed.map(&:reason)
+    assert_equal [ "ingrediënt 'Olie': eenheid 'cup' niet toegestaan (alleen g, ml, stuks, tl of el)",
+      "variatie Pittig 'Sambal': eenheid 'snufje' niet toegestaan (alleen g, ml, stuks, tl of el)" ], report.failed.map(&:reason)
   end
 
   test "een validatiefout slaat alleen dat recept over en laat niets half achter" do

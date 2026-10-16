@@ -96,16 +96,16 @@ describe('RecipeListView', () => {
     expect(wrapper.find('.recipe-grid').exists()).toBe(false)
   })
 
-  it('toont de recepten met titel, porties, tags en link', async () => {
+  it('toont de recepten met titel, tags en link, zonder porties', async () => {
     const fetch = fakeApi()
     const { wrapper } = await mountAt()
 
     const cards = wrapper.findAll('.recipe-grid > li')
     expect(cards).toHaveLength(3)
     expect(cards[0].text()).toContain('Pannenkoeken')
-    expect(cards[0].text()).toContain('4 porties')
+    expect(cards[0].text()).not.toContain('portie')
     expect(cards[0].findAll('.tag').map((t) => t.text())).toEqual(['vega', 'zoet'])
-    expect(cards[1].text()).toContain('1 portie')
+    expect(cards[1].text()).not.toContain('portie')
     expect(cards[0].find('a').attributes('href')).toBe('/recepten/1')
     expect(recipeUrls(fetch)).toEqual(['/api/recipes'])
   })

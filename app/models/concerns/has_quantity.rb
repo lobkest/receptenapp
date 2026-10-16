@@ -25,7 +25,7 @@ module HasQuantity
   include DecimalComma
 
   # The same units as the frontend (UNITS in src/utils/quantity.js).
-  UNITS = %w[ g ml stuks ].freeze
+  UNITS = %w[ g ml stuks tl el ].freeze
   MAX_QUANTITY = 100_000
 
   class_methods do

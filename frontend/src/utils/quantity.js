@@ -3,11 +3,12 @@
 //
 // null betekent overal "naar smaak": dat schaalt niet mee en wordt niet afgerond.
 
-// Bewust geen eetlepels of cups: alleen eenheden die je kunt optellen en schalen.
-export const UNITS = ['g', 'ml', 'stuks']
+// Alleen eenheden die je kunt optellen en schalen. tl (theelepel) en el (eetlepel) schalen
+// lineair en worden nooit omgerekend naar ml. Bewust geen cups.
+export const UNITS = ['g', 'ml', 'stuks', 'tl', 'el']
 
 // Kleinste waarde die we tonen als er wél iets nodig is; nooit afronden naar 0.
-const MINIMUM = { g: 0.1, ml: 0.1, stuks: 0.5 }
+const MINIMUM = { g: 0.1, ml: 0.1, tl: 0.1, el: 0.1, stuks: 0.5 }
 
 // Rondt af op decimals cijfers achter de komma, half naar boven, zonder float-ruis.
 // 0,35 × 3 is in JavaScript 1,0499999999999998; Math.round(10,499…) zou 1,0 geven.
@@ -20,7 +21,7 @@ function roundTo(value, decimals) {
 }
 
 // Rondt af op een "keukenwaardige" precisie per eenheid:
-// - g/ml: vanaf 10 een heel getal (213,7 g → 214 g), daaronder één decimaal (2,25 ml → 2,3 ml).
+// - g/ml/tl/el: vanaf 10 een heel getal (213,7 g → 214 g), daaronder één decimaal (2,25 ml → 2,3 ml).
 //   Preciezer kun je thuis niet afmeten, maar bij kleine hoeveelheden telt die decimaal wel.
 // - stuks: op 0,5 nauwkeurig (1,3 → 1,5); een half ei kan, een kwart niet.
 // - onbekende eenheid: maximaal twee decimalen, als vangnet.
@@ -29,7 +30,7 @@ export function roundQuantity(value, unit) {
   if (value <= 0) return 0
 
   let rounded
-  if (unit === 'g' || unit === 'ml') {
+  if (['g', 'ml', 'tl', 'el'].includes(unit)) {
     rounded = value >= 10 ? roundTo(value, 0) : roundTo(value, 1)
   } else if (unit === 'stuks') {
     rounded = roundTo(value * 2, 0) / 2

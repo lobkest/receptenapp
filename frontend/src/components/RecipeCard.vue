@@ -22,24 +22,15 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
 
 <template>
   <RouterLink :to="`/recepten/${recipe.id}`" class="card recipe-card">
-    <div class="media">
-      <!-- alt="": de foto is decoratief, de titel staat eronder al als tekst. -->
-      <img v-if="recipe.image_url" :src="recipe.image_url" alt="" loading="lazy" />
-      <div v-else class="placeholder" data-test="placeholder" aria-hidden="true">
-        <!-- Een kom met stoom: rustig, en past bij elk recept. -->
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M3 11h18a9 9 0 0 1-18 0Z" />
-          <path d="M8 3c-1 1.5 1 2.5 0 4M12 3c-1 1.5 1 2.5 0 4M16 3c-1 1.5 1 2.5 0 4" />
-        </svg>
-      </div>
+    <!-- Alleen met een foto een fotovak: zonder foto geen lege ruimte, de kaart wordt korter.
+         alt="": de foto is decoratief, de titel staat eronder al als tekst. -->
+    <div v-if="recipe.image_url" class="media">
+      <img :src="recipe.image_url" alt="" loading="lazy" />
     </div>
 
     <div class="body">
       <!-- h3: op het overzicht staat het kopje van de sectie (h2) erboven. -->
       <h3 class="title">{{ recipe.title }}</h3>
-      <p class="servings">
-        {{ recipe.servings }} {{ recipe.servings === 1 ? 'portie' : 'porties' }}
-      </p>
       <ul v-if="tags.length" class="tags">
         <li v-for="(tag, index) in visibleTags" :key="index" class="tag">{{ tag }}</li>
         <li v-if="hiddenTagCount > 0" class="tag tag-more">+{{ hiddenTagCount }}</li>
@@ -53,7 +44,6 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
 .recipe-card {
   display: flex;
   flex-direction: column;
-  height: 100%;
   padding: 0;
   overflow: hidden;
   color: var(--color-text);
@@ -81,25 +71,6 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
   object-fit: cover;
 }
 
-.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--color-text-muted);
-}
-
-.placeholder svg {
-  width: 40%;
-  max-width: 4rem;
-  height: auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .body {
   display: flex;
   flex-direction: column;
@@ -118,12 +89,6 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
   margin: 0;
   font-size: var(--text-base);
   overflow-wrap: anywhere;
-}
-
-.servings {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
 }
 
 .tags {

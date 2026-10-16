@@ -87,6 +87,21 @@ describe('VariationForm', () => {
     expect(labels).toContain('zout')
   })
 
+  it('begint een nieuwe extra regel op stuks, met g, ml, stuks, tl en el als keuze', () => {
+    const wrapper = mountForm()
+
+    const unit = wrapper.find('[aria-label="Eenheid extra ingrediënt 1"]')
+    expect(unit.element.value).toBe('stuks')
+    expect(unit.findAll('option').map((o) => o.text())).toEqual(['g', 'ml', 'stuks', 'tl', 'el'])
+  })
+
+  it('toont bij weglaten geen "naar smaak" en geen losse eenheid', () => {
+    const labels = mountForm().findAll('label.check').map((l) => l.text())
+
+    expect(labels).toContain('zout')
+    expect(labels.join(' ')).not.toContain('naar smaak')
+  })
+
   it('biedt bij "Tag erbij" alleen tags die het recept nog niet heeft', () => {
     const wrapper = mountForm()
 

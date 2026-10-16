@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useShoppingListStore } from '@/stores/shoppingList'
+import { watchConnectivity } from '@/offline'
 
 const shoppingList = useShoppingListStore()
 
@@ -9,6 +10,8 @@ const shoppingList = useShoppingListStore()
 // hem op bij het starten en elke keer dat je terugschakelt naar de app (tabblad of app
 // weer zichtbaar). Geen polling of websockets. Een mislukte verversing negeren we hier:
 // dan blijft de oude stand staan, en de boodschappenpagina toont zelf een melding.
+// Elke verversing verstuurt eerst wat offline is afgevinkt (de wachtrij in de store);
+// daarom ook verversen zodra de verbinding terug is ('online').
 function refreshShoppingList() {
   shoppingList.load().catch(() => {})
 }
@@ -17,12 +20,21 @@ function onVisibilityChange() {
   if (document.visibilityState === 'visible') refreshShoppingList()
 }
 
+let stopWatchingConnectivity = null
+
 onMounted(() => {
   refreshShoppingList()
   document.addEventListener('visibilitychange', onVisibilityChange)
+  stopWatchingConnectivity = watchConnectivity({
+    onOnline: refreshShoppingList,
+    onOffline: () => shoppingList.markOffline(),
+  })
 })
 
-onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityChange))
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  stopWatchingConnectivity?.()
+})
 
 // "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
 const shoppingLabel = computed(() =>

@@ -19,6 +19,15 @@ class FrontendFallbackTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The service worker precaches /index.html and serves it offline for every page.
+  test "index.html itself returns the frontend, as the service worker requests it" do
+    get "/index.html?__WB_REVISION__=abc", headers: { "Accept" => "*/*" }
+
+    assert_response :ok
+    assert_includes response.body, '<div id="app"></div>'
+    assert_equal "no-cache", response.headers["Cache-Control"]
+  end
+
   test "unknown api route returns a JSON 404, also for browsers" do
     get "/api/onbestaand", headers: { "Accept" => "text/html" }
 

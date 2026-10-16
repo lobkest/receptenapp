@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
-import { ADMIN_TOKEN, APP_URL, RAILS_PORT, RAILS_URL, VITE_PORT } from './e2e/env.js'
+import {
+  ADMIN_TOKEN,
+  APP_URL,
+  PWA_PORT,
+  PWA_URL,
+  RAILS_PORT,
+  RAILS_URL,
+  VITE_PORT,
+} from './e2e/env.js'
 
 // Visuele controle op een geëmuleerde iPhone. Draai met `npm run test:e2e`.
 export default defineConfig({
@@ -21,8 +29,8 @@ export default defineConfig({
       use: { ...devices['iPhone 13'], browserName: 'chromium', colorScheme: 'dark' },
     },
   ],
-  // Twee servers, net als in development: Rails voor /api, Vite voor de frontend.
-  // Vite stuurt /api door naar deze Rails (API_TARGET in vite.config.js).
+  // Net als in development: Rails voor /api, Vite voor de frontend. Vite stuurt /api
+  // door naar deze Rails (API_TARGET in vite.config.js). Plus de gebouwde app (PWA).
   webServer: [
     {
       // RAILS_ENV=test: de testdatabase, nooit je development-data. Eerst klaarzetten
@@ -49,6 +57,16 @@ export default defineConfig({
       url: APP_URL,
       env: { API_TARGET: RAILS_URL, E2E: '1' },
       reuseExistingServer: false,
+    },
+    {
+      // De gebouwde app met service worker, voor e2e/offline.spec.js. Een eigen map
+      // (dist-e2e), zodat de gewone build in dist/ blijft staan. preview stuurt /api
+      // net als de dev-server door naar de test-Rails.
+      command: `npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port ${PWA_PORT} --strictPort`,
+      url: PWA_URL,
+      env: { API_TARGET: RAILS_URL, E2E: '1' },
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
   ],
 })

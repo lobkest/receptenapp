@@ -1,6 +1,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../lib/no_cache_public_files"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -36,5 +37,8 @@ module Receptenapp
 
     # The built index.html of the Vue app (see bin/render-build.sh and FrontendController).
     config.x.frontend_index = Rails.root.join("frontend/dist/index.html")
+
+    # The service worker and web manifest of the PWA must never be cached for long.
+    config.middleware.insert_before ActionDispatch::Static, NoCachePublicFiles
   end
 end

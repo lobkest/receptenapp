@@ -145,6 +145,17 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_not @bloem.reload.checked
   end
 
+  # The offline queue in the frontend sends a value, never "toggle": sending the same
+  # value twice (a retry after a lost connection) must leave the item as it is.
+  test "update with the same checked value twice keeps that value" do
+    2.times do
+      patch api_shopping_list_item_url(@bloem), params: { shopping_list_item: { checked: true } }, as: :json
+
+      assert_response :ok
+      assert @bloem.reload.checked
+    end
+  end
+
   test "update renames an item, normalized" do
     patch api_shopping_list_item_url(@bloem), params: { shopping_list_item: { name: " Volkoren  Bloem " } }, as: :json
 

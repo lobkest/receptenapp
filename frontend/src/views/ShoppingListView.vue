@@ -2,12 +2,14 @@
 import { onMounted, ref, useTemplateRef } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatQuantity } from '@/utils/quantity'
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
-// doet App.vue dat (visibilitychange).
+// of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
+// opgeslagen kopie; dan kun je alleen afvinken.
 const list = useShoppingListStore()
 
 const loading = ref(false)
@@ -26,9 +28,11 @@ async function attempt(action) {
 }
 
 onMounted(async () => {
-  // Alleen de eerste keer "laden…"; daarna staat de oude lijst er al tijdens het verversen.
+  // "Laden…" alleen als er nog niets te tonen is. load() zet een opgeslagen kopie er
+  // meteen neer (vóór het request); die staat er dan al tijdens het verversen.
+  const loadingList = list.load()
   loading.value = !list.loaded
-  await attempt(() => list.load())
+  await attempt(() => loadingList)
   loading.value = false
 })
 
@@ -52,6 +56,11 @@ async function clearAll() {
 
 <template>
   <h1>Boodschappen</h1>
+
+  <OfflineNotice v-if="list.offline" :saved-at="list.savedAt">
+    Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen
+    en wissen kan pas weer online.
+  </OfflineNotice>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
@@ -82,6 +91,7 @@ async function clearAll() {
         <button
           type="button"
           class="remove"
+          :disabled="list.offline"
           :aria-label="`${item.name} verwijderen`"
           @click="attempt(() => list.remove(item.id))"
         >
@@ -94,12 +104,19 @@ async function clearAll() {
       <button
         type="button"
         class="clear-checked"
-        :disabled="!list.hasChecked"
+        :disabled="list.offline || !list.hasChecked"
         @click="attempt(() => list.clearChecked())"
       >
         Afgevinkte wissen
       </button>
-      <button type="button" class="clear-all btn-danger" @click="clearAll">Alles wissen</button>
+      <button
+        type="button"
+        class="clear-all btn-danger"
+        :disabled="list.offline"
+        @click="clearAll"
+      >
+        Alles wissen
+      </button>
     </div>
   </template>
 

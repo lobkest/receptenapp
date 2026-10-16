@@ -5,6 +5,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
+import { clearMemoryStorage } from '../offline/storage'
 
 const ITEMS = [
   { id: 1, name: 'bloem', quantity: 300, unit: 'g', source_label: 'Wafels' },
@@ -45,6 +46,9 @@ describe('ShoppingListView', () => {
   let server
 
   beforeEach(() => {
+    // Geen opgeslagen kopie van een vorige test.
+    localStorage.clear()
+    clearMemoryStorage()
     server = fakeServer({ shopping: ITEMS })
   })
 
@@ -237,5 +241,103 @@ describe('ShoppingListView', () => {
 
     expect(wrapper.find('footer a').attributes('href')).toBe('/beheer')
     expect(wrapper.find('nav').text()).not.toContain('Beheer')
+  })
+
+  describe('offline', () => {
+    function setOnline(online) {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(online)
+      window.dispatchEvent(new Event(online ? 'online' : 'offline'))
+    }
+
+    function patchRequests() {
+      return server.fetch.mock.calls.filter(([, o]) => o.method === 'PATCH')
+    }
+
+    it('toont online geen offline-melding, en alle knoppen werken', async () => {
+      ;({ wrapper } = await mountApp())
+
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
+      expect(wrapper.find('.items .remove').attributes('disabled')).toBeUndefined()
+      expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeUndefined()
+    })
+
+    it('toont offline de opgeslagen lijst met tijdstip, en schakelt wissen uit', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(new Date(2026, 9, 16, 9, 41).getTime())
+      ;({ wrapper } = await mountApp())
+      wrapper.unmount()
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+
+      // Opnieuw openen zonder verbinding (een nieuwe Pinia is een herladen pagina).
+      ;({ wrapper } = await mountApp())
+
+      expect(wrapper.find('.offline-notice').text()).toContain('Offline – opgeslagen om 09:41')
+      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+      for (const button of wrapper.findAll('.items .remove')) {
+        expect(button.attributes('disabled')).toBeDefined()
+      }
+      expect(buttonWithText(wrapper, 'Afgevinkte wissen').attributes('disabled')).toBeDefined()
+      expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('.items input[type="checkbox"]').attributes('disabled')).toBeUndefined()
+    })
+
+    it('vinkt offline af, en verstuurt dat zodra de verbinding terug is', async () => {
+      ;({ wrapper } = await mountApp())
+      setOnline(false)
+      await flushPromises()
+      expect(wrapper.find('.offline-notice').exists()).toBe(true)
+
+      await wrapper.findAll('.items input[type="checkbox"]')[1].setValue(true)
+      await flushPromises()
+      expect(wrapper.findAll('.items li')[1].classes()).toContain('checked')
+      expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (2)')
+      expect(patchRequests()).toHaveLength(0)
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+
+      setOnline(true)
+      await flushPromises()
+
+      expect(patchRequests()).toHaveLength(1)
+      expect(server.shoppingDb[1].checked).toBe(true)
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
+      expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeUndefined()
+    })
+
+    it('verstuurt de wachtrij ook bij terugkeren naar de app', async () => {
+      ;({ wrapper } = await mountApp())
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+      await wrapper.find('.items input[type="checkbox"]').setValue(true)
+      await flushPromises()
+
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+      setVisibility('hidden')
+      setVisibility('visible')
+      await flushPromises()
+
+      expect(server.shoppingDb[0].checked).toBe(true)
+    })
+
+    it('toont de offline-melding als de server niet te bereiken is', async () => {
+      ;({ wrapper } = await mountApp())
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+      setVisibility('hidden')
+      setVisibility('visible')
+      await flushPromises()
+
+      expect(wrapper.find('.offline-notice').text()).toMatch(/^Offline – opgeslagen om \d\d:\d\d/)
+      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
+    })
+
+    it('stopt met luisteren naar online als de App weg is', async () => {
+      ;({ wrapper } = await mountApp())
+      wrapper.unmount()
+      wrapper = null
+
+      setOnline(true)
+      await flushPromises()
+
+      expect(getRequests(server.fetch)).toHaveLength(1)
+    })
   })
 })

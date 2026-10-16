@@ -34,6 +34,18 @@ class Api::RecipeShoppingListTest < ActionDispatch::IntegrationTest
     assert_equal [ [ "zout", nil, nil ] ], response.parsed_body.map { |item| item.values_at("name", "quantity", "unit") }
   end
 
+  test "Alles op lijst: an ingredient without amount (not optional) goes on as only its name, also when scaled" do
+    recipe = Recipe.create!(title: "Pasta", servings: 4,
+      recipe_ingredients_attributes: [ { ingredient_name: "wortel", quantity: 200, unit: "g" }, { ingredient_name: "knoflook" } ],
+      steps_attributes: [ { body: "Koken." } ])
+
+    post add_to_shopping_list_api_recipe_url(recipe), as: :json, params: { servings: 8 }
+
+    assert_response :created
+    assert_equal [ [ "knoflook", nil, nil ], [ "wortel", 400, "g" ] ],
+      response.parsed_body.map { |item| item.values_at("name", "quantity", "unit") }.sort_by(&:first)
+  end
+
   test "without servings the recipe's own number is used" do
     post add_to_shopping_list_api_recipe_url(@recipe), as: :json
 

@@ -1,0 +1,405 @@
+[
+  {
+    "title": "Arequipa smoothie bowl",
+    "servings": 1,
+    "category": "Ontbijt",
+    "description": "Smoothie van mango en banaan, met aardbei, blauwe bes, granola, zonnebloempitten en chiazaad erop.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "mango"
+      },
+      {
+        "name": "banaan"
+      },
+      {
+        "name": "aardbei"
+      },
+      {
+        "name": "blauwe bes"
+      },
+      {
+        "name": "granola"
+      },
+      {
+        "name": "zonnebloempitten"
+      },
+      {
+        "name": "chiazaad"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Quinoa",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "zoete aardappel"
+      },
+      {
+        "name": "griekse yoghurt"
+      },
+      {
+        "name": "kikkererwten"
+      },
+      {
+        "name": "courgette"
+      },
+      {
+        "name": "broccoli"
+      },
+      {
+        "name": "kipfilet"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "quinoa"
+      },
+      {
+        "name": "kurkuma"
+      },
+      {
+        "name": "citroen"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met bloemkool",
+        "remove": [
+          "broccoli"
+        ],
+        "add": [
+          {
+            "name": "bloemkool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Flatbread salade",
+    "servings": 2,
+    "category": "Lunch",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "flatbread"
+      },
+      {
+        "name": "knoflooksaus"
+      },
+      {
+        "name": "prei"
+      },
+      {
+        "name": "bloemkool"
+      },
+      {
+        "name": "feta"
+      },
+      {
+        "name": "kikkererwten"
+      },
+      {
+        "name": "zoete aardappel"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Salade quinoa",
+    "servings": 2,
+    "category": "Lunch",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "paprika"
+      },
+      {
+        "name": "cherrytomaatjes"
+      },
+      {
+        "name": "avocado"
+      },
+      {
+        "name": "ei"
+      },
+      {
+        "name": "quinoa"
+      },
+      {
+        "name": "feta"
+      },
+      {
+        "name": "granaatappelpitjes"
+      },
+      {
+        "name": "prei"
+      },
+      {
+        "name": "kikkererwten"
+      },
+      {
+        "name": "rode ui"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Rode pasta pesto",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "mozzarella"
+      },
+      {
+        "name": "ui"
+      },
+      {
+        "name": "kipfilet"
+      },
+      {
+        "name": "crème fraîche"
+      },
+      {
+        "name": "courgette"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "pasta"
+      },
+      {
+        "name": "strooikaas"
+      },
+      {
+        "name": "cherrytomaatjes"
+      },
+      {
+        "name": "rode pesto"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pasta wortel saus",
+    "servings": 4,
+    "category": "Diner",
+    "description": "Hoeveelheden met * zijn omgerekend uit stuks (2–3 wortels, 2–3 stengels bleekselderij).",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "wortel",
+        "quantity": 200,
+        "unit": "g"
+      },
+      {
+        "name": "bleekselderij",
+        "quantity": 120,
+        "unit": "g"
+      },
+      {
+        "name": "gepelde tomaten",
+        "quantity": 800,
+        "unit": "g"
+      },
+      {
+        "name": "gehaktkruiden"
+      },
+      {
+        "name": "paprikapoeder"
+      },
+      {
+        "name": "rode ui"
+      },
+      {
+        "name": "italiaanse kruiden"
+      },
+      {
+        "name": "gehakt half-om-half"
+      },
+      {
+        "name": "knoflook"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Hamburgers",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "hamburger"
+      },
+      {
+        "name": "hamburgerbroodje"
+      },
+      {
+        "name": "kaas"
+      },
+      {
+        "name": "sla"
+      },
+      {
+        "name": "tomaat"
+      },
+      {
+        "name": "hamburgersaus"
+      },
+      {
+        "name": "aardappel"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Risotto",
+    "servings": 2,
+    "category": "Diner",
+    "description": "Bouillon van truffel- of champignonblokjes; truffelolie als smaakmaker.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "risottorijst"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "champignonbouillonblokje"
+      },
+      {
+        "name": "truffelolie"
+      },
+      {
+        "name": "spinazie"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Wraps",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "wraps"
+      },
+      {
+        "name": "kipgehakt"
+      },
+      {
+        "name": "taco's"
+      },
+      {
+        "name": "kidneybonen"
+      },
+      {
+        "name": "crème fraîche"
+      },
+      {
+        "name": "zoete aardappel"
+      },
+      {
+        "name": "paprika"
+      },
+      {
+        "name": "strooikaas"
+      },
+      {
+        "name": "courgette"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "rode ui"
+      },
+      {
+        "name": "avocado"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "kikkererwten"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met kipschnitzel",
+        "remove": [
+          "kipgehakt"
+        ],
+        "add": [
+          {
+            "name": "kipschnitzel"
+          }
+        ]
+      },
+      {
+        "name": "Met kipfilet",
+        "remove": [
+          "kipgehakt"
+        ],
+        "add": [
+          {
+            "name": "kipfilet"
+          }
+        ]
+      }
+    ]
+  }
+]

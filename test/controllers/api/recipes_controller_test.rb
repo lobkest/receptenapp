@@ -24,6 +24,22 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, response.parsed_body["lock_version"]
   end
 
+  test "show has the estimated nutrition of the recipe and of each variation" do
+    get api_recipe_url(@recipe), as: :json
+
+    nutrition = response.parsed_body["nutrition"]
+    assert_equal 4, nutrition["servings"]
+    assert_equal 2, nutrition["counted"]
+    assert_equal 1005.0, nutrition["total"]["kcal"]
+    assert_equal 251.3, nutrition["per_serving"]["kcal"]
+    assert_equal [ { "name" => "melk", "reason" => "gram per ml ontbreekt" }, { "name" => "zout", "reason" => "optioneel" } ],
+      nutrition["not_counted"]
+    assert_equal [ "2025/9.0" ], nutrition["nevo_versions"]
+
+    variation = response.parsed_body["variations"].find { |v| v["name"] == "Met spek" }
+    assert_includes variation["nutrition"]["not_counted"], { "name" => "spek", "reason" => "niet gekoppeld" }
+  end
+
   test "index stays compact: no ingredients or steps" do
     get api_recipes_url, as: :json
 
@@ -92,11 +108,12 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
   test "show loads ingredients without one query per row" do
     queries = count_queries { get api_recipe_url(@recipe), as: :json }
 
-    # recipe, recipe_tags, tags, steps, recipe_ingredients and ingredients, plus for the
-    # variations: recipe_variations, their removals (with recipe_ingredients and ingredients),
-    # additions, tag changes and tags. The same for 4 or 40 rows; see also
+    # recipe, recipe_tags, tags, steps, recipe_ingredients, ingredients and their NEVO
+    # products, plus for the variations: recipe_variations, their removals (with
+    # recipe_ingredients and ingredients), additions, tag changes and tags, and the
+    # ingredients of the additions (nutrition). The same for 4 or 40 rows; see also
     # RecipeVariationsTest for many variations.
-    assert_operator queries, :<=, 13
+    assert_operator queries, :<=, 15
   end
 
   test "show with unknown id returns 404" do

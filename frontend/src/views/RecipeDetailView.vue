@@ -7,13 +7,14 @@ import RecipeDetailIngredients from '@/components/RecipeDetailIngredients.vue'
 import RecipeDetailServings from '@/components/RecipeDetailServings.vue'
 import RecipeDetailSteps from '@/components/RecipeDetailSteps.vue'
 import RecipeDetailVariations from '@/components/RecipeDetailVariations.vue'
+import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRecipesStore } from '@/stores/recipes'
 
 // De receptpagina. Deze view laadt het recept en houdt de staat die meerdere delen nodig
 // hebben (het recept en het gekozen aantal porties); de delen zelf zijn componenten:
-// RecipeDetailServings, -Ingredients, -Steps, -Variations en -Actions.
+// RecipeDetailServings, -Ingredients, -Steps, -Variations en -Actions, en RecipeNutrition.
 
 // Komt uit de route /recepten/:id dankzij props: true in de router.
 const props = defineProps({
@@ -106,6 +107,8 @@ watch(() => props.id, load, { immediate: true })
       :servings="servings"
       @reload="reload"
     />
+    <!-- Alleen als er minstens één ingrediënt meetelt. -->
+    <RecipeNutrition v-if="recipe.nutrition?.counted > 0" :recipe="recipe" :servings="servings" />
     <RecipeDetailActions :recipe="recipe" />
   </article>
 

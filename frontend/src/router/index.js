@@ -6,6 +6,8 @@ import ShoppingListView from '@/views/ShoppingListView.vue'
 import StandardItemsView from '@/views/StandardItemsView.vue'
 import RecipeEditView from '@/views/RecipeEditView.vue'
 import AdminView from '@/views/AdminView.vue'
+import IngredientsView from '@/views/IngredientsView.vue'
+import IngredientEditView from '@/views/IngredientEditView.vue'
 import AdminRecipeVersionsView from '@/views/AdminRecipeVersionsView.vue'
 import { useAdminStore } from '@/stores/admin'
 
@@ -18,6 +20,9 @@ export const routes = [
   { path: '/recepten/:id/bewerken', name: 'recipe-edit', component: RecipeEditView, props: true },
   { path: '/boodschappen', name: 'shopping-list', component: ShoppingListView },
   { path: '/standaard', name: 'standard-items', component: StandardItemsView },
+  // Koppelen aan NEVO voor de voedingswaarde; iedereen mag dit, zoals recepten bewerken.
+  { path: '/ingredienten', name: 'ingredients', component: IngredientsView },
+  { path: '/ingredienten/:id', name: 'ingredient', component: IngredientEditView, props: true },
   // /beheer toont zelf het inlogscherm als je niet ingelogd bent, dus geen guard nodig.
   { path: '/beheer', name: 'admin', component: AdminView },
   {

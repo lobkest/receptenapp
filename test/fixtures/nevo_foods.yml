@@ -1,0 +1,48 @@
+# Made-up products in the shape of NEVO-online: no real NEVO data in the repo. The codes
+# of bloem (220) and ei (83) match db/import/nevo_auto_links.yml, for the nevo:auto_link test.
+tarwebloem:
+  code: 220
+  name: Bloem tarwe-
+  synonym: Tarwebloem
+  unit: g
+  version: NEVO-Online 2025 9.0
+  kcal: 350
+  protein: 10
+  carbohydrates: 70
+  fat: 1
+  fiber: 4
+
+# fiber unknown (NULL): an empty value in NEVO, not 0.
+kippenei:
+  code: 83
+  name: Ei kippen- rauw gem
+  synonym: Kippeneieren rauw
+  unit: g
+  version: NEVO-Online 2025 9.0
+  kcal: 130
+  protein: 12
+  carbohydrates: 0
+  fat: 9
+
+melk:
+  code: 9001
+  name: Melk halfvolle
+  unit: g
+  version: NEVO-Online 2025 9.0
+  kcal: 50
+  protein: 3.5
+  carbohydrates: 5
+  fat: 1.5
+  fiber: 0
+
+# Per 100 ml, like the infant formulas in NEVO.
+drinkvoeding:
+  code: 9002
+  name: Drinkvoeding p 100 ml
+  unit: ml
+  version: NEVO-Online 2025 9.0
+  kcal: 70
+  protein: 2
+  carbohydrates: 8
+  fat: 3.5
+  fiber: 0.5

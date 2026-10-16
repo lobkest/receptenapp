@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_150001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -26,7 +26,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150001) do
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "nevo_food_id"
+    t.decimal "grams_per_piece", precision: 10, scale: 2
+    t.decimal "grams_per_ml", precision: 10, scale: 3
+    t.decimal "label_kcal", precision: 10, scale: 2
+    t.decimal "label_protein", precision: 10, scale: 2
+    t.decimal "label_carbohydrates", precision: 10, scale: 2
+    t.decimal "label_fat", precision: 10, scale: 2
+    t.decimal "label_fiber", precision: 10, scale: 2
+    t.boolean "needs_review", default: false, null: false
+    t.integer "lock_version", default: 0, null: false
     t.index ["name"], name: "index_ingredients_on_name", unique: true
+    t.index ["nevo_food_id"], name: "index_ingredients_on_nevo_food_id"
+    t.check_constraint "grams_per_ml > 0::numeric", name: "ingredients_grams_per_ml_positive"
+    t.check_constraint "grams_per_piece > 0::numeric", name: "ingredients_grams_per_piece_positive"
+  end
+
+  create_table "nevo_foods", force: :cascade do |t|
+    t.integer "code", null: false
+    t.string "name", null: false
+    t.string "synonym"
+    t.string "unit", null: false
+    t.string "version", null: false
+    t.decimal "kcal", precision: 10, scale: 2
+    t.decimal "protein", precision: 10, scale: 2
+    t.decimal "carbohydrates", precision: 10, scale: 2
+    t.decimal "fat", precision: 10, scale: 2
+    t.decimal "fiber", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_nevo_foods_on_code", unique: true
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying]::text[])", name: "nevo_foods_unit_known"
   end
 
   create_table "recipe_ingredients", force: :cascade do |t|
@@ -159,6 +189,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_150001) do
     t.check_constraint "kind::text = ANY (ARRAY['add'::character varying, 'remove'::character varying]::text[])", name: "variation_tag_changes_kind_known"
   end
 
+  add_foreign_key "ingredients", "nevo_foods", on_delete: :nullify
   add_foreign_key "recipe_ingredients", "ingredients"
   add_foreign_key "recipe_ingredients", "recipes"
   add_foreign_key "recipe_tags", "recipes"

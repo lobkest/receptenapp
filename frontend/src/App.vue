@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { watchConnectivity } from '@/offline'
@@ -35,11 +35,6 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopWatchingConnectivity?.()
 })
-
-// "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
-const shoppingLabel = computed(() =>
-  shoppingList.openCount ? `Boodschappen (${shoppingList.openCount})` : 'Boodschappen',
-)
 </script>
 
 <template>
@@ -65,7 +60,15 @@ const shoppingLabel = computed(() =>
         <circle cx="9" cy="19.5" r="1.5" />
         <circle cx="17" cy="19.5" r="1.5" />
       </svg>
-      <span class="nav-label">{{ shoppingLabel }}</span>
+      <!-- "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
+           Op mobiel staat het aantal als bolletje op het icoon (zie .nav-count), zodat
+           het label met vijf menu-items op twee regels past; de tekst blijft hetzelfde. -->
+      <span class="nav-label"
+        >Boodschappen<span v-if="shoppingList.openCount" class="nav-count"
+          ><span class="paren"> (</span>{{ shoppingList.openCount
+          }}<span class="paren">)</span></span
+        ></span
+      >
     </RouterLink>
     <RouterLink to="/standaard" class="nav-link">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -73,6 +76,14 @@ const shoppingLabel = computed(() =>
         <path d="M4 6h.01M4 12h.01M4 18h.01" />
       </svg>
       <span class="nav-label">Standaard</span>
+    </RouterLink>
+    <!-- Ook actief op een ingrediënt zelf (/ingredienten/12), zie .ingredients-link. -->
+    <RouterLink to="/ingredienten" class="nav-link ingredients-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 21c-4.4 0-8-3.1-8-7 0-4.6 4-8.6 8-11 4 2.4 8 6.4 8 11 0 3.9-3.6 7-8 7Z" />
+        <path d="M12 21V10" />
+      </svg>
+      <span class="nav-label">Ingrediënten</span>
     </RouterLink>
   </nav>
   <main>
@@ -109,7 +120,8 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* minmax(0, …): vijf gelijke kolommen, ook als een woord breder is dan zijn kolom. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   /* De balk loopt door tot de onderrand; de veilige zone (thuisbalk van de
      iPhone) blijft leeg, zodat er geen link onder je duim-gebaar zit. */
   padding-bottom: env(safe-area-inset-bottom);
@@ -128,13 +140,47 @@ main {
   justify-content: center;
   gap: 0;
   min-height: var(--nav-height);
-  padding: 1px var(--space-1);
+  padding: 1px 0;
   font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1.15;
   text-align: center;
   color: var(--color-text-muted);
   text-decoration: none;
+}
+
+/* Het aantal boodschappen als bolletje rechtsboven het winkelwagentje. De haakjes
+   blijven in de tekst (voor schermlezers), maar zijn hier onzichtbaar. */
+.nav-count {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 4px);
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 1.1rem;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border-radius: var(--radius-full);
+}
+
+.nav-count .paren {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Vijf items op een smalle telefoon: lange woorden ("Boodschappen", "Ingrediënten")
+   breken af met een streepje in plaats van uit de balk te lopen. */
+.nav-label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 
 .nav-link svg {
@@ -152,12 +198,15 @@ main {
   outline-offset: -4px;
 }
 
-/* RouterLink zet deze class op de link van de huidige pagina. */
-.nav-link.router-link-exact-active {
+/* RouterLink zet deze class op de link van de huidige pagina. Ingrediënten ook op een
+   ingrediënt zelf (router-link-active: elke pagina onder /ingredienten). */
+.nav-link.router-link-exact-active,
+.ingredients-link.router-link-active {
   color: var(--color-accent-text);
 }
 
-.nav-link.router-link-exact-active::before {
+.nav-link.router-link-exact-active::before,
+.ingredients-link.router-link-active::before {
   content: '';
   position: absolute;
   top: 0;
@@ -206,7 +255,8 @@ footer {
     background: var(--color-surface-hover);
   }
 
-  .nav-link.router-link-exact-active::before {
+  .nav-link.router-link-exact-active::before,
+  .ingredients-link.router-link-active::before {
     top: auto;
     bottom: 0;
     left: var(--space-3);
@@ -216,6 +266,25 @@ footer {
 
   footer {
     padding-bottom: var(--space-5);
+  }
+
+  /* Breed: gewoon "Boodschappen (2)" in de tekst. */
+  .nav-count {
+    position: static;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+    background: none;
+  }
+
+  .nav-count .paren {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
   }
 }
 

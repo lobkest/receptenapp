@@ -30,7 +30,7 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
           "name" => "spek", "quantity" => 100, "unit" => "g" }
       ],
       "tag_changes" => [ { "kind" => "remove", "tag" => "vega" } ]
-    }, variations.first)
+    }, variations.first.except("nutrition")) # nutrition: see NutritionTest
   end
 
   test "the recipe detail needs no extra queries for more variations" do

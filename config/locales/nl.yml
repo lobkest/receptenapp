@@ -22,6 +22,7 @@ nl:
       recipe: recept
       recipe_ingredient: ingrediënt
       ingredient: ingrediënt
+      nevo_food: NEVO-product
       step: stap
       standard_item: standaarditem
       recipe_version: versie
@@ -79,6 +80,21 @@ nl:
         optional: Optioneel
       ingredient:
         name: Naam
+        nevo_food: NEVO-product
+        grams_per_piece: Gram per stuk
+        grams_per_ml: Gram per ml
+        label_kcal: Energie (etiket)
+        label_protein: Eiwit (etiket)
+        label_carbohydrates: Koolhydraten (etiket)
+        label_fat: Vet (etiket)
+        label_fiber: Vezels (etiket)
+        needs_review: Te controleren
+        lock_version: Versie
+      nevo_food:
+        code: NEVO-code
+        name: Naam
+        unit: Eenheid
+        version: Versie
       step:
         body: Stap
         position: Positie
@@ -141,6 +157,7 @@ nl:
     conflict:
       recipe: "Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
       recipe_variation: "Deze variatie is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
+      ingredient: "Dit ingrediënt is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
       default: "Dit is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw."
     too_many_requests: "Te veel verzoeken. Probeer het over een minuut opnieuw."
     too_many_submissions: "Je hebt het afgelopen uur te veel recepten toegevoegd. Probeer het later opnieuw."

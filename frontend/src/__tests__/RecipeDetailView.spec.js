@@ -52,6 +52,31 @@ describe('RecipeDetailView', () => {
     expect(without.find('.category-label').exists()).toBe(false)
   })
 
+  it('toont de voedingswaarde onderaan alleen als er minstens één ingrediënt meetelt', async () => {
+    const nutrition = {
+      servings: 4,
+      counted: 1,
+      total: {},
+      per_serving: { kcal: 250, protein: 9, carbohydrates: 40, fat: 3, fiber: 2 },
+      not_counted: [{ name: 'zout', reason: 'optioneel' }],
+      unknown: {},
+      sources: [{ name: 'bloem', source: 'nevo' }],
+      label_values: false,
+      nevo_versions: ['2025/9.0'],
+    }
+    mockFetch(() => jsonResponse({ ...SOUP, nutrition }))
+    const { wrapper } = await mountAt('/recepten/5')
+    const block = wrapper.find('details.nutrition')
+    expect(block.exists()).toBe(true)
+    // Na de stappen en variaties, vlak voor de knoppen.
+    expect(block.element.nextElementSibling.classList).toContain('recipe-actions')
+    expect(block.find('.not-counted').text()).toContain('1 ingrediënt niet meegeteld')
+
+    mockFetch(() => jsonResponse({ ...SOUP, nutrition: { ...nutrition, counted: 0 } }))
+    const { wrapper: none } = await mountAt('/recepten/5')
+    expect(none.find('details.nutrition').exists()).toBe(false)
+  })
+
   it('toont voor de beheerder ook een link naar de versies', async () => {
     sessionStorage.setItem('adminCode', 'geheim')
     mockFetch(() => jsonResponse(SOUP))

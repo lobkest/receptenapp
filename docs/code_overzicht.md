@@ -97,6 +97,7 @@ erDiagram
   recipe_variations ||--o{ variation_tag_changes : "tag_changes"
   tags ||--o{ variation_tag_changes : "tag_id"
   recipes |o--o{ shopping_list_items : "optioneel"
+  nevo_foods |o--o{ ingredients : "optioneel (voedingswaarde)"
 
   recipes {
     bigint id PK
@@ -476,6 +477,7 @@ Bestanden in volgorde:
 | Een nieuwe foutmelding | `config/locales/nl.yml` (`api.*`), en bij een nieuw soort fout een `rescue_from` in `app/controllers/concerns/api_errors.rb` |
 | Een nieuwe eenheid (bv. `el`) | Een migratie die de check constraints `*_unit_known` vervangt (`recipe_ingredients`, `variation_changes` én `shopping_list_items`), `UNITS` in `app/models/concerns/has_quantity.rb`, `MINIMUM` (en zo nodig de afronding in `round`) in `app/models/quantity.rb`, `UNITS`, `MINIMUM` en `roundQuantity` in `frontend/src/utils/quantity.js`, en testgevallen in `test/fixtures/files/quantity_cases.json` |
 | Wat openbaar is en wat beheer | `config/routes.rb` (namespace `admin`) en `app/controllers/api/admin/base_controller.rb` |
+| **Voedingswaarde** (NEVO-online) | Data: `bin/rails nevo:import FILE=…` (`lib/importers/nevo_foods.rb`, upsert op NEVO-code; de NEVO-bestanden staan niet in de repo) en eenmalig `bin/rails nevo:auto_link` (`db/import/nevo_auto_links.yml`). Berekening: `app/models/nutrition.rb` (bij elk opvragen, geen cache), omrekening en etiketwaarden in `app/models/ingredient.rb`; in de JSON via `app/serializers/recipe_serializer.rb`. Koppelen: `app/controllers/api/ingredients_controller.rb`, `nevo_foods_controller.rb`, `frontend/src/views/IngredientsView.vue` en `IngredientEditView.vue`. Weergave: `frontend/src/components/RecipeNutrition.vue` en `src/utils/nutrition.js`. Een nieuwe voedingsstof: kolom in `nevo_foods` én `label_*` in `ingredients`, `NevoFood::NUTRIENTS`, `COLUMNS` in de importer, `NUTRIENTS` in `utils/nutrition.js`. Een nieuwe eenheid ook in `Ingredient::ML_PER_UNIT` of `grams_for` |
 | De rate limits | `app/controllers/concerns/public_write_rate_limit.rb`, `SUBMISSIONS_PER_HOUR` in `app/controllers/api/recipes_controller.rb`, `REQUESTS_PER_MINUTE` in `app/controllers/api/admin/base_controller.rb`; wie als bezoeker telt: `app/controllers/concerns/client_ip.rb` (zie "Rate limits" in hoofdstuk 4) |
 
 ---

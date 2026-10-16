@@ -37,7 +37,7 @@ class Recipe < ApplicationRecord
   # ones are edited through their own endpoint, with their own lock_version.
   accepts_nested_attributes_for :variations, limit: RecipeVariation::MAX_PER_RECIPE
 
-  scope :with_details, -> { includes(:tags, :category, :steps, recipe_ingredients: :ingredient, visible_variations: RecipeVariation::DETAILS) }
+  scope :with_details, -> { includes(:tags, :category, :steps, recipe_ingredients: { ingredient: :nevo_food }, visible_variations: RecipeVariation::DETAILS) }
 
   # Recipes that have ALL of the given tags. One subquery: take the recipe_tags rows whose
   # tag is one of the names, group them per recipe, and keep the recipes with as many

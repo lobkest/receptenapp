@@ -23,19 +23,24 @@ module RecipeSerializer
   # or variation. Row ids let the edit form change (id) and remove (_destroy) existing rows;
   # lock_version goes back with the edit, so a change by someone else in between is noticed (409).
   # Only visible variations: one with a deletion request is hidden, like a recipe.
+  # nutrition: worked out now (Nutrition), for the recipe and for each variation.
   def detail(recipe)
+    variations = recipe.visible_variations
+    added = Ingredient.includes(:nevo_food).where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
+
     summary(recipe).merge(
       "lock_version" => recipe.lock_version,
       "ingredients" => recipe.recipe_ingredients.map { |row| ingredient(row) },
       "steps" => recipe.steps.map { |step| { "id" => step.id, "position" => step.position, "body" => step.body } },
-      "variations" => recipe.visible_variations.map { |variation| variation(variation) }
+      "variations" => variations.map { |variation| variation(variation, recipe: recipe, ingredients: added) },
+      "nutrition" => Nutrition.for_recipe(recipe).to_h
     )
   end
 
   # changes: removals first ("− tofu"), then additions ("+ 150 g kip"). A removal names the
   # row of the base recipe it leaves out (recipe_ingredient_id); its name is that row's.
-  # Load with RecipeVariation.with_details.
-  def variation(variation)
+  # Load with RecipeVariation.with_details. recipe and ingredients: see Nutrition.for_variation.
+  def variation(variation, recipe: nil, ingredients: nil)
     {
       "id" => variation.id,
       "name" => variation.name,
@@ -44,7 +49,8 @@ module RecipeSerializer
       "lock_version" => variation.lock_version,
       "changes" => (variation.removals + variation.additions).map { |change| variation_change(change) },
       "tag_changes" => variation.tag_changes.sort_by { |change| [ change.kind_add? ? 0 : 1, change.tag.name ] }
-        .map { |change| { "kind" => change.kind, "tag" => change.tag.name } }
+        .map { |change| { "kind" => change.kind, "tag" => change.tag.name } },
+      "nutrition" => Nutrition.for_variation(variation, recipe: recipe, ingredients: ingredients).to_h
     }
   end
 

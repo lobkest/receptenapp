@@ -1,11 +1,17 @@
+# bloem and ei count in the nutrition of pannenkoeken; melk is linked but has no
+# gram per ml yet, so it does not; zout is optional there.
 bloem:
   name: bloem
+  nevo_food: tarwebloem
 
 melk:
   name: melk
+  nevo_food: melk
 
 ei:
   name: ei
+  nevo_food: kippenei
+  grams_per_piece: 50
 
 zout:
   name: zout

@@ -20,6 +20,9 @@ gem "solid_cache"
 gem "solid_queue"
 gem "solid_cable"
 
+# Reads the NEVO-online csv (bin/rails nevo:import). No longer part of Ruby itself since 3.4.
+gem "csv", require: false
+
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
 

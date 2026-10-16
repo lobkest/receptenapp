@@ -1,0 +1,142 @@
+# One-off links from the existing ingredients to NEVO-online, for bin/rails nevo:auto_link.
+# Only NEVO codes and estimated conversions, no NEVO data itself (that comes from
+# nevo:import). Each linked ingredient gets "te controleren" in the app.
+#
+#   name:  { code: NEVO-code, grams_per_piece: g per stuk, grams_per_ml: g per ml, note: doubt }
+#
+# grams_per_piece and grams_per_ml are only filled in when the ingredient is used in
+# stuks, or in ml/tl/el, and only when still empty. note: why this match is a doubt.
+# Ingredients without a sensible NEVO product are left out (bakpoeder, zuiveringszout,
+# vissaus, kurkuma, pokesaus, balsamicocrème, vanille-extract, x): link those yourself.
+
+aardappel: { code: 1, grams_per_piece: 150 }
+aardbei: { code: 148, grams_per_piece: 15 }
+amandelmeel: { code: 5579, grams_per_ml: 0.4 }
+appel: { code: 875, grams_per_piece: 180 }
+aubergine: { code: 10, grams_per_piece: 300 }
+avocado: { code: 689, grams_per_piece: 150, note: "gewicht zonder schil en pit" }
+balsamicoazijn: { code: 5253, grams_per_ml: 1.1 }
+banaan: { code: 151, grams_per_piece: 120, note: "gewicht zonder schil" }
+basilicum: { code: 2177 }
+bieslook: { code: 829 }
+blauwe bes: { code: 152 }
+bleekselderij: { code: 557, grams_per_piece: 40, note: "stuks = één stengel" }
+bloem: { code: 220, grams_per_ml: 0.55 }
+bloemkool: { code: 14, grams_per_piece: 600 }
+bosui: { code: 2737, grams_per_piece: 15 }
+bouillon: { code: 1528, grams_per_ml: 1.0, note: "bereide bouillon uit een blokje" }
+bouillonblokje: { code: 429, grams_per_piece: 10 }
+broccoli: { code: 921, grams_per_piece: 400 }
+bruschettatoastjes: { code: 2937, grams_per_piece: 5, note: "Melba toast als benadering" }
+burrata: { code: 1955, grams_per_piece: 125, note: "mozzarella als benadering; burrata is vetter" }
+champignonbouillonblokje: { code: 429, grams_per_piece: 10, note: "gewoon bouillonblokje" }
+champignons: { code: 19, grams_per_piece: 15 }
+cherrytomaatjes: { code: 2731, grams_per_piece: 15 }
+chiazaad: { code: 3447, grams_per_ml: 0.65 }
+chocolade: { code: 432, note: "pure chocolade gekozen" }
+chocoladechips: { code: 432, note: "pure chocolade als benadering" }
+citroen: { code: 158, grams_per_piece: 100 }
+courgette: { code: 922, grams_per_piece: 300 }
+crème fraîche: { code: 1808, grams_per_ml: 1.0 }
+dadels: { code: 181, grams_per_piece: 10, note: "gedroogde dadels" }
+diepvriesspinazie: { code: 1146 }
+doperwten: { code: 23 }
+edamame: { code: 971, note: "gekookte sojabonen" }
+ei: { code: 83, grams_per_piece: 50, note: "gewicht zonder schaal (middelgroot ei)" }
+farfalle: { code: 4, note: "witte pasta, ongekookt" }
+feta: { code: 3362 }
+flatbread: { code: 1361, grams_per_piece: 80, note: "Turks brood als benadering" }
+gehakt half-om-half: { code: 1434 }
+gehaktkruiden: { code: 2681, note: "kruidenmix als benadering" }
+gember: { code: 832, grams_per_piece: 20, note: "stuks = een duim gember" }
+gepelde tomaten: { code: 2293 }
+gerookte zalm: { code: 1096 }
+gezouten boter: { code: 879, grams_per_ml: 0.95 }
+gist: { code: 1025, note: "gedroogde gist" }
+gnocchi: { code: 5418 }
+granaatappelpitjes: { code: 1007 }
+granola: { code: 5593, grams_per_ml: 0.45 }
+griekse yoghurt: { code: 2503, grams_per_ml: 1.05 }
+groentemix: { code: 5268, note: "Hollandse roerbakgroente als benadering" }
+hamburger: { code: 1435, grams_per_piece: 125 }
+hamburgerbroodje: { code: 230, grams_per_piece: 60, note: "zacht wit broodje" }
+hamburgersaus: { code: 437, note: "cocktailsaus als benadering" }
+italiaanse kruiden: { code: 1228, note: "gedroogde oregano als benadering" }
+kaas: { code: 513, note: "Goudse 48+ gemiddeld" }
+kidneybonen: { code: 3184 }
+kikkererwten: { code: 3185, note: "uit blik/glas; gedroogd staat niet in NEVO" }
+kipdijfilet: { code: 108, note: "kip met vel rauw; dijfilet zonder vel staat niet in NEVO" }
+kipfilet: { code: 1634 }
+kipgehakt: { code: 3139 }
+kippenbouillonblokje: { code: 429, grams_per_piece: 10, note: "gewoon bouillonblokje" }
+knoflook: { code: 830, grams_per_piece: 5, note: "stuks = één teen" }
+knoflooksaus: { code: 2573, grams_per_ml: 1.0 }
+kokosolie: { code: 3243, grams_per_ml: 0.92 }
+komkommer: { code: 2739, grams_per_piece: 350 }
+kookroom: { code: 2275, grams_per_ml: 1.0 }
+kruidenkaas: { code: 3368 }
+limoen: { code: 691, grams_per_piece: 70 }
+mango: { code: 692, grams_per_piece: 300 }
+mayonaise met yoghurt: { code: 1260, grams_per_ml: 0.95 }
+mozzarella: { code: 1955, grams_per_piece: 125 }
+noten: { code: 207, note: "gemengde noten ongezouten" }
+oestersaus: { code: 5153, grams_per_ml: 1.2 }
+olijfolie: { code: 601, grams_per_ml: 0.92 }
+orecchiette: { code: 4, note: "witte pasta, ongekookt" }
+orzo: { code: 4, note: "witte pasta, ongekookt" }
+panko: { code: 1013, grams_per_ml: 0.25, note: "paneermeel; panko is luchtiger" }
+paprika: { code: 2742, grams_per_piece: 150 }
+paprikapoeder: { code: 1229, grams_per_ml: 0.45 }
+parmaham: { code: 328 }
+pasta: { code: 4, note: "witte pasta, ongekookt" }
+pecorino: { code: 718, note: "Parmezaanse kaas als benadering" }
+peper: { code: 823, grams_per_ml: 0.5 }
+pesto: { code: 2178 }
+peterselie: { code: 128 }
+pinda's: { code: 204 }
+pindakaas: { code: 455 }
+pitabroodje: { code: 2790, grams_per_piece: 70 }
+platte pasta: { code: 4, note: "witte pasta, ongekookt" }
+prei: { code: 562, grams_per_piece: 150, note: "eetbaar deel van één stengel" }
+quinoa: { code: 3153 }
+rijst: { code: 5, note: "witte rijst, ongekookt" }
+rijstnoedels: { code: 3206, note: "GEKOOKT; ongekookte rijstnoedels staan niet in NEVO" }
+risottorijst: { code: 5, note: "witte rijst als benadering" }
+rode pesto: { code: 3222 }
+rode ui: { code: 5459, grams_per_piece: 100 }
+roomkaas: { code: 1302, note: "Paturain als benadering" }
+rozemarijn: { code: 1231, note: "GEDROOGD; verse rozemarijn staat niet in NEVO" }
+salie: { code: 5415, note: "verse tuinkruiden gemiddeld" }
+sesamzaad: { code: 838, grams_per_ml: 0.6 }
+shoarmavlees: { code: 3027 }
+sjalot: { code: 63, grams_per_piece: 30, note: "gewone ui; sjalot staat niet in NEVO" }
+sla: { code: 2346 }
+slagroom: { code: 299, grams_per_ml: 1.0 }
+spekjes: { code: 343, note: "vette spekblokjes" }
+sperziebonen: { code: 50 }
+spinazie: { code: 51 }
+spinazie à la crème: { code: 651 }
+strooikaas: { code: 304, note: "Zwitserse strooikaas" }
+suiker: { code: 377, grams_per_ml: 0.85 }
+taco's: { code: 1937, grams_per_piece: 12, note: "tacoschelp" }
+taugé: { code: 58 }
+tijm: { code: 5415, note: "verse tuinkruiden gemiddeld" }
+tofu: { code: 5519, grams_per_piece: 200, note: "stuks = een pak van 200 g" }
+tomaat: { code: 2734, grams_per_piece: 120 }
+tomatenpuree: { code: 141, grams_per_ml: 1.1 }
+tonijn: { code: 1590, note: "uit blik, op water" }
+trostomaat: { code: 2730, grams_per_piece: 100 }
+truffelolie: { code: 601, grams_per_ml: 0.92, note: "olijfolie" }
+ui: { code: 63, grams_per_piece: 100 }
+water: { code: 1885, grams_per_ml: 1.0 }
+witte kaas: { code: 3370 }
+wortel: { code: 71, grams_per_piece: 80 }
+wraps: { code: 2359, grams_per_piece: 60 }
+yoghurtsaus: { code: 5141, grams_per_ml: 1.05, note: "tzatziki als benadering" }
+zalmfilet: { code: 1587 }
+zelfrijzend bakmeel: { code: 1020, grams_per_ml: 0.55 }
+zoete aardappel: { code: 671, grams_per_piece: 300 }
+zongedroogde tomaten: { code: 2378, grams_per_piece: 8 }
+zonnebloempitten: { code: 872, grams_per_ml: 0.55 }
+zout: { code: 841, grams_per_ml: 1.2, note: "keukenzout met jodium" }
+zuivelspread: { code: 2678 }

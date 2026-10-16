@@ -37,3 +37,11 @@
 # Frontend build output copied in by bin/render-build.sh; only robots.txt is tracked.
 /public/*
 !/public/robots.txt
+
+# NEVO-online (RIVM): the data files never go in the repo (terms of use; see lib/tasks/nevo.rake).
+# The tests use the made-up test/fixtures/files/nevo_mini.csv.
+NEVO*.csv
+NEVO*.xlsx
+NEVO*.zip
+NEVO*.pdf
+NEVO*/

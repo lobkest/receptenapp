@@ -22,6 +22,9 @@ Rails.application.routes.draw do
     end
     resources :tags, only: :index
     resources :categories, only: :index
+    # Nutrition: linking ingredients to NEVO-online, open to anyone like recipes.
+    resources :ingredients, only: %i[ index show update ]
+    resources :nevo_foods, only: :index
 
     # Public, no code needed: anyone with the link shares these two lists.
     resources :shopping_list_items, only: %i[ index create update destroy ] do

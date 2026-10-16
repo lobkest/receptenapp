@@ -1,0 +1,25 @@
+# Pannenkoeken (bloem, melk, ei, optional zout) is vegetarisch, but not veganistisch,
+# glutenvrij or lactosevrij. Spek ("Met spek") is vlees.
+bloem_gluten:
+  ingredient: bloem
+  trait: gluten
+
+melk_dierlijk:
+  ingredient: melk
+  trait: dierlijk
+
+melk_lactose:
+  ingredient: melk
+  trait: lactose
+
+ei_dierlijk:
+  ingredient: ei
+  trait: dierlijk
+
+spek_vlees:
+  ingredient: spek
+  trait: vlees
+
+spek_dierlijk:
+  ingredient: spek
+  trait: dierlijk

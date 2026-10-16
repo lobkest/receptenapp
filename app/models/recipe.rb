@@ -38,7 +38,8 @@ class Recipe < ApplicationRecord
   accepts_nested_attributes_for :variations, limit: RecipeVariation::MAX_PER_RECIPE
 
   scope :with_details, -> {
-    includes(:tags, :category, :steps, recipe_ingredients: [ { ingredient: :nevo_food }, { alternatives: :ingredient } ],
+    includes(:tags, :category, :steps,
+      recipe_ingredients: [ { ingredient: [ :nevo_food, :ingredient_traits ] }, { alternatives: { ingredient: [ :nevo_food, :ingredient_traits ] } } ],
       visible_variations: RecipeVariation::DETAILS)
   }
 
@@ -97,6 +98,7 @@ class Recipe < ApplicationRecord
 
   # tag_names: ["Vega", "snel"]. Replaces all tags of the recipe. Normalized like Tag#name,
   # empty names and doubles left out. Without tag_names in a request, tags stay as they are.
+  # Automatic tags (vegetarisch) are not allowed: those are worked out (RecipeTagEvaluator).
   def tag_names=(names)
     @tag_names = normalize_tag_names(names)
   end
@@ -140,7 +142,8 @@ class Recipe < ApplicationRecord
     transaction do
       @restoring = true
       assign_attributes(snapshot.slice("title", "description", "servings"))
-      self.tag_names = snapshot["tag_names"]
+      # Automatic tags are worked out now; an older version may still have them by hand.
+      self.tag_names = snapshot["tag_names"] - Tag.automatic_names
       # A version from before categories existed says nothing about them: keep the current one.
       self.category_name = snapshot["category"] if snapshot.key?("category")
 
@@ -175,6 +178,7 @@ class Recipe < ApplicationRecord
     # variations, whose tag changes were made against today's tags, not the restored ones.
     def restore_variations!(list)
       row_ids = recipe_ingredients.reload.to_h { |row| [ row.ingredient_name, row.id ] }
+      automatic = Tag.automatic_names
       current = variations.reload.index_by(&:id)
       RecipeVariation.where(recipe_id: id).where.not(id: list.map { |data| data["id"] }).delete_all
 
@@ -184,7 +188,7 @@ class Recipe < ApplicationRecord
         variation.update!(name: data["name"], notes: data["notes"], position: data["position"],
           removed_ingredient_ids: data["removed"].filter_map { |name| row_ids[name] },
           added_ingredients: data["added"],
-          added_tag_names: data["tags_added"] - tag_names, removed_tag_names: data["tags_removed"] & tag_names)
+          added_tag_names: data["tags_added"] - tag_names - automatic, removed_tag_names: data["tags_removed"] & tag_names)
       end
       variations.reset
     end
@@ -220,7 +224,10 @@ class Recipe < ApplicationRecord
 
     # The same rules as Tag#name (see TagNames), with the errors on "tag_names".
     def tag_names_allowed
-      validate_tag_names(:tag_names, @tag_names, max: MAX_TAGS)
+      automatic = Tag.automatic_names
+      validate_tag_names(:tag_names, @tag_names, max: MAX_TAGS) do |name|
+        errors.add(:tag_names, :automatic_tag, name: name) if automatic.include?(name)
+      end
     end
 
     # A new name must be a valid category name; an existing one is fine as it is.

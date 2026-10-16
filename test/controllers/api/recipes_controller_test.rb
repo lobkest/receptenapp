@@ -44,18 +44,23 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     get api_recipes_url, as: :json
 
     recipe = response.parsed_body.find { |r| r["title"] == "Pannenkoeken" }
-    assert_equal %w[ category created_at description id servings tags title updated_at ], recipe.keys.sort
+    assert_equal %w[ automatic_tags category created_at description id servings tags title updated_at ], recipe.keys.sort
     assert_equal %w[ vega zoet ], recipe["tags"]
     assert_nil recipe["category"], "a recipe from before categories has none"
   end
 
-  test "index loads tags and categories without one query per recipe" do
+  test "index loads tags, categories and what the automatic tags need without one query per recipe" do
     3.times { |i| create_recipe("Extra #{i}", tag_names: [ "vega", "tag #{i}" ], category_name: "Categorie #{i}") }
+    three = count_queries { get api_recipes_url, as: :json }
 
-    queries = count_queries { get api_recipes_url, as: :json }
+    3.times { |i| create_recipe("Nog #{i}", tag_names: [ "tag #{i}" ], category_name: "Categorie #{i}") }
+    six = count_queries { get api_recipes_url, as: :json }
 
-    # recipes, recipe_tags, tags and categories: the same for 1 or 100 recipes.
-    assert_operator queries, :<=, 4
+    # recipes, recipe_tags, tags, categories, the automatic tags with their exclusions,
+    # recipe_ingredients, ingredients and their traits, alternatives, their ingredients
+    # and traits: the same for 1 or 100 recipes.
+    assert_equal three, six
+    assert_operator six, :<=, 11
   end
 
   test "index and show include the category with id, name and position" do
@@ -111,9 +116,10 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     # recipe, recipe_tags, tags, steps, recipe_ingredients, ingredients and their NEVO
     # products, plus for the variations: recipe_variations, their removals (with
     # recipe_ingredients and ingredients), additions, tag changes and tags, and the
-    # ingredients of the additions (nutrition). The same for 4 or 40 rows; see also
-    # RecipeVariationsTest for many variations.
-    assert_operator queries, :<=, 15
+    # ingredients of the additions (nutrition). For the automatic tags: the tags with
+    # their exclusions, and the traits of the ingredients and the additions. The same for
+    # 4 or 40 rows; see also RecipeVariationsTest for many variations.
+    assert_operator queries, :<=, 18
   end
 
   test "show with unknown id returns 404" do

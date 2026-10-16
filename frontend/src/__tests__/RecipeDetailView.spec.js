@@ -42,6 +42,63 @@ describe('RecipeDetailView', () => {
     expect(actions.find('a.versions').exists()).toBe(false)
   })
 
+  describe('automatische tags', () => {
+    const WOK = {
+      ...SOUP,
+      tags: ['snel'],
+      ingredients: [
+        { id: 12, name: 'kip', quantity: 200, unit: 'g', optional: false, alternatives: [
+          { id: 3, name: 'tofu', quantity: null, unit: null, effective_quantity: 200, effective_unit: 'g' },
+        ] },
+      ],
+      automatic_tags: [
+        { name: 'glutenvrij', status: 'ja', disclaimer: true, swaps: [], without: [] },
+        {
+          name: 'vegetarisch',
+          status: 'met_wissel',
+          disclaimer: false,
+          swaps: [{ recipe_ingredient_id: 12, ingredient: 'kip', alternatives: [{ id: 3, name: 'tofu' }] }],
+          without: [],
+        },
+      ],
+    }
+    const tagTexts = (wrapper) => wrapper.findAll('.recipe-tags .tag').map((tag) => tag.text())
+
+    it('toont de hint "met tofu i.p.v. kip" en de disclaimer bij glutenvrij', async () => {
+      mockFetch(() => jsonResponse(WOK))
+      const { wrapper } = await mountAt('/recepten/5')
+
+      expect(tagTexts(wrapper)).toEqual(['glutenvrij', 'vegetarisch · met tofu i.p.v. kip', 'snel'])
+      expect(wrapper.find('.tag-disclaimer').text()).toBe(
+        'Op basis van eigen ingrediëntgegevens; controleer etiketten.',
+      )
+    })
+
+    it('de hint verdwijnt als de wissel actief is in de URL', async () => {
+      mockFetch(() => jsonResponse(WOK))
+      const { wrapper } = await mountAt('/recepten/5?wissel=12:3')
+
+      expect(tagTexts(wrapper)).toEqual(['glutenvrij', 'vegetarisch', 'snel'])
+    })
+
+    it('en verdwijnt ook als je op de pagina wisselt', async () => {
+      mockFetch(() => jsonResponse(WOK))
+      const { wrapper, router } = await mountAt('/recepten/5')
+      await wrapper.find('button[aria-label="Wissel voor tofu"]').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.query.wissel).toBe('12:3')
+      expect(tagTexts(wrapper)).toEqual(['glutenvrij', 'vegetarisch', 'snel'])
+    })
+
+    it('zonder glutenvrij of lactosevrij geen disclaimer', async () => {
+      mockFetch(() => jsonResponse({ ...WOK, automatic_tags: WOK.automatic_tags.slice(1) }))
+      const { wrapper } = await mountAt('/recepten/5')
+
+      expect(wrapper.find('.tag-disclaimer').exists()).toBe(false)
+    })
+  })
+
   it('toont de categorie klein boven de titel, en niets zonder categorie', async () => {
     mockFetch(() => jsonResponse({ ...SOUP, category: { id: 3, name: 'Diner', position: 3 } }))
     const { wrapper } = await mountAt('/recepten/5')
@@ -60,9 +117,31 @@ describe('RecipeDetailView', () => {
       per_serving: { kcal: 250, protein: 9, carbohydrates: 40, fat: 3, fiber: 2 },
       not_counted: [{ name: 'zout', reason: 'optioneel' }],
       unknown: {},
-      sources: [{ name: 'bloem', source: 'nevo' }],
       label_values: false,
       nevo_versions: ['2025/9.0'],
+      lines: [
+        {
+          id: 1,
+          ingredient_id: 1,
+          name: 'bloem',
+          grams: 250,
+          millilitres: null,
+          values: { kcal: 1000, protein: 36, carbohydrates: 160, fat: 12, fiber: 8 },
+          reason: null,
+          source: 'Tarwebloem',
+          label: false,
+          nevo_version: '2025/9.0',
+          alternatives: [],
+        },
+        {
+          id: 2,
+          ingredient_id: 2,
+          name: 'zout',
+          values: null,
+          reason: 'optioneel',
+          alternatives: [],
+        },
+      ],
     }
     mockFetch(() => jsonResponse({ ...SOUP, nutrition }))
     const { wrapper } = await mountAt('/recepten/5')

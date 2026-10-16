@@ -137,6 +137,7 @@ nl:
               too_many_tags: "heeft te veel tags (maximaal %{count})"
               tag_too_long: "bevat een te lange tag: \"%{name}\" (maximaal %{count} tekens)"
               tag_with_comma: "bevat een tag met een komma: \"%{name}\""
+              automatic_tag: "bevat \"%{name}\", maar die tag volgt automatisch uit de ingrediënten"
         recipe_variation:
           attributes:
             base:
@@ -144,10 +145,12 @@ nl:
             added_tag_names:
               too_many_tags: "zijn er te veel (maximaal %{count})"
               tag_on_recipe: "bevat \"%{name}\", maar die tag heeft het recept al"
+              automatic_tag: "bevat \"%{name}\", maar die tag volgt automatisch uit de ingrediënten"
               tag_too_long: "bevat een te lange tag: \"%{name}\" (maximaal %{count} tekens)"
               tag_with_comma: "bevat een tag met een komma: \"%{name}\""
             removed_tag_names:
               tag_not_on_recipe: "bevat \"%{name}\", maar die tag heeft het recept niet"
+              automatic_tag: "bevat \"%{name}\", maar die tag volgt automatisch uit de ingrediënten"
         recipe_ingredient:
           attributes:
             alternatives:

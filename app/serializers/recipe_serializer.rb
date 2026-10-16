@@ -5,13 +5,48 @@ module RecipeSerializer
 
   module_function
 
-  # For lists: no ingredients or steps. Load with includes(:tags, :category) to avoid one
-  # query per recipe. category is null for a recipe without one ("Overig").
-  def summary(recipe)
+  # For lists: no ingredients or steps. Load with includes(:tags, :category) and
+  # RecipeTagEvaluator::PRELOAD to avoid one query per recipe. category is null for a
+  # recipe without one ("Overig").
+  # tags: the tags set by hand. automatic_tags: the automatic ones that pass ("ja" or
+  # "met_wissel"), worked out now; see automatic_tag. A list passes one evaluator for all.
+  def summary(recipe, evaluator: RecipeTagEvaluator.load)
     recipe.slice(*SUMMARY_FIELDS).merge(
-      "tags" => recipe.tags.map(&:name).sort,
+      "tags" => manual_tag_names(recipe.tags, evaluator),
+      "automatic_tags" => automatic_tags(evaluator.for_recipe(recipe)),
       "category" => recipe.category && category(recipe.category)
     )
+  end
+
+  # Before the one-off traits:setup a recipe can still have an automatic tag by hand; it
+  # does not count.
+  def manual_tag_names(tags, evaluator)
+    tags.map(&:name).reject { |name| evaluator.automatic?(name) }.sort
+  end
+
+  def automatic_tags(results)
+    results.select(&:passes?).map { |result| automatic_tag(result) }
+  end
+
+  # { name: "vegetarisch", status: "met_wissel", disclaimer: false,
+  #   swaps: [ { recipe_ingredient_id: 12, ingredient: "kip", alternatives: [ { id: 3, name: "tofu" } ] } ],
+  #   without: [ { recipe_ingredient_id: 14, ingredient: "spekjes", alternative_ids: [] } ] }
+  # swaps: rows that need one of these alternatives ("met tofu i.p.v. kip"); without:
+  # optional rows that are left out ("zonder spekjes"), or swapped for an ok alternative.
+  # disclaimer: based on our own ingredient data for gluten or lactose.
+  def automatic_tag(result)
+    {
+      "name" => result.name,
+      "status" => result.status,
+      "disclaimer" => result.disclaimer,
+      "swaps" => result.swaps.map { |swap|
+        { "recipe_ingredient_id" => swap.recipe_ingredient_id, "ingredient" => swap.ingredient,
+          "alternatives" => swap.alternatives.map { |option| { "id" => option.id, "name" => option.name } } }
+      },
+      "without" => result.without.map { |skip|
+        { "recipe_ingredient_id" => skip.recipe_ingredient_id, "ingredient" => skip.ingredient, "alternative_ids" => skip.alternative_ids }
+      }
+    }
   end
 
   # Also what /api/categories sends per category.
@@ -24,15 +59,15 @@ module RecipeSerializer
   # lock_version goes back with the edit, so a change by someone else in between is noticed (409).
   # Only visible variations: one with a deletion request is hidden, like a recipe.
   # nutrition: worked out now (Nutrition), for the recipe and for each variation.
-  def detail(recipe)
+  def detail(recipe, evaluator: RecipeTagEvaluator.load)
     variations = recipe.visible_variations
-    added = Ingredient.includes(:nevo_food).where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
+    added = addition_ingredients(variations)
 
-    summary(recipe).merge(
+    summary(recipe, evaluator: evaluator).merge(
       "lock_version" => recipe.lock_version,
       "ingredients" => recipe.recipe_ingredients.map { |row| ingredient(row) },
       "steps" => recipe.steps.map { |step| { "id" => step.id, "position" => step.position, "body" => step.body } },
-      "variations" => variations.map { |variation| variation(variation, recipe: recipe, ingredients: added) },
+      "variations" => variations.map { |variation| variation(variation, recipe: recipe, ingredients: added, evaluator: evaluator) },
       "nutrition" => Nutrition.for_recipe(recipe).to_h
     )
   end
@@ -40,7 +75,17 @@ module RecipeSerializer
   # changes: removals first ("− tofu"), then additions ("+ 150 g kip"). A removal names the
   # row of the base recipe it leaves out (recipe_ingredient_id); its name is that row's.
   # Load with RecipeVariation.with_details. recipe and ingredients: see Nutrition.for_variation.
-  def variation(variation, recipe: nil, ingredients: nil)
+  # tag_changes: the ones set by hand, and the automatic tags the variation gains or loses
+  # compared with the base recipe ("automatic": true; "− vegetarisch" with + kip).
+  # automatic_tags: like a recipe's, for the variation as a whole.
+  def variation(variation, recipe: nil, ingredients: nil, evaluator: RecipeTagEvaluator.load)
+    recipe ||= variation.recipe
+    ingredients ||= addition_ingredients([ variation ])
+    manual = variation.tag_changes.reject { |change| evaluator.automatic?(change.tag.name) }
+      .map { |change| { "kind" => change.kind, "tag" => change.tag.name } }
+    automatic = evaluator.variation_changes(variation, recipe: recipe, ingredients: ingredients)
+      .map { |kind, name| { "kind" => kind, "tag" => name, "automatic" => true } }
+
     {
       "id" => variation.id,
       "name" => variation.name,
@@ -48,10 +93,16 @@ module RecipeSerializer
       "position" => variation.position,
       "lock_version" => variation.lock_version,
       "changes" => (variation.removals + variation.additions).map { |change| variation_change(change) },
-      "tag_changes" => variation.tag_changes.sort_by { |change| [ change.kind_add? ? 0 : 1, change.tag.name ] }
-        .map { |change| { "kind" => change.kind, "tag" => change.tag.name } },
+      "tag_changes" => (manual + automatic).sort_by { |change| [ change["kind"] == "add" ? 0 : 1, change["tag"] ] },
+      "automatic_tags" => automatic_tags(evaluator.for_variation(variation, recipe: recipe, ingredients: ingredients)),
       "nutrition" => Nutrition.for_variation(variation, recipe: recipe, ingredients: ingredients).to_h
     }
+  end
+
+  # { name => Ingredient } for what the variations add: for the nutrition and the automatic tags.
+  def addition_ingredients(variations)
+    Ingredient.includes(:nevo_food, :ingredient_traits)
+      .where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
   end
 
   def variation_change(change)

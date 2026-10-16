@@ -38,11 +38,18 @@ junk:
 variation_names:
   zalm: zalmfilet
 
-# Per ingrediënt: NEVO-code, gram per stuk, gram per ml, en of het gecontroleerd is.
-# Een ingevulde waarde vervangt de huidige. reviewed: false houdt "te controleren" aan,
-# met in note wat je zelf moet doen. Ongekoppeld blijven (verwaarloosbaar): bakpoeder,
-# zuiveringszout, kurkuma, vanille-extract.
+# Per ingrediënt: NEVO-code, gram per stuk, gram per ml, verwaarloosbaar en of het
+# gecontroleerd is. Een ingevulde waarde vervangt de huidige. reviewed: false houdt
+# "te controleren" aan, met in note wat je zelf moet doen.
 ingredients:
+  # Verwaarloosbaar: telt als 0. NEVO heeft geen bakpoeder, (dubbelkoolzure) soda of
+  # natriumbicarbonaat, geen vanille-extract of vanillesuiker (alleen toetjes) en geen
+  # kurkuma (alleen kerriepoeder, een mengsel). Geen etiketwaarden verzonnen.
+  bakpoeder: { negligible: true, reviewed: true }
+  zuiveringszout: { negligible: true, reviewed: true }
+  vanille-extract: { negligible: true, reviewed: true }
+  kurkuma: { negligible: true, reviewed: true }
+
   # Groente en fruit (stuks = één middelgroot exemplaar, eetbaar deel)
   aardappel: { code: 1, grams_per_piece: 150, reviewed: true }
   aardbei: { code: 148, grams_per_piece: 15, reviewed: true }

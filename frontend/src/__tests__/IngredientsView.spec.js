@@ -70,6 +70,29 @@ describe('IngredientsView', () => {
     expect(names(wrapper)).toEqual(['bloem'])
   })
 
+  it('verwaarloosbaar: een badge, en niet bij "nog niet gekoppeld"', async () => {
+    const list = [
+      ...INGREDIENTS,
+      {
+        id: 9,
+        name: 'bakpoeder',
+        nevo_food: null,
+        label_values: false,
+        needs_review: false,
+        negligible: true,
+      },
+    ]
+    mockFetch(() => jsonResponse(list))
+    const { wrapper } = await mountAt('/ingredienten?filter=ongekoppeld')
+
+    expect(names(wrapper)).toEqual(['pokesaus'])
+    await wrapper.findAll('.filter-chip')[0].trigger('click')
+    const bakpoeder = wrapper
+      .findAll('.ingredient-list li')
+      .find((li) => li.text().includes('bakpoeder'))
+    expect(bakpoeder.find('.badge').text()).toBe('verwaarloosbaar')
+  })
+
   it('zoekt op de naam van het ingrediënt en van het NEVO-product', async () => {
     mockFetch(() => jsonResponse(INGREDIENTS))
     const { wrapper } = await mountAt('/ingredienten?zoek=kippen')

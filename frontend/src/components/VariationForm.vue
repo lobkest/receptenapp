@@ -23,6 +23,8 @@ const props = defineProps({
   baseTags: { type: Array, default: () => [] },
   // Alle bestaande tags (namen), om er een bij te kiezen.
   availableTags: { type: Array, default: () => [] },
+  // Automatische tags (vegetarisch): die rekent de server per variatie uit.
+  reservedTags: { type: Array, default: () => [] },
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
   submitLabel: { type: String, default: 'Variatie opslaan' },
@@ -37,7 +39,8 @@ const ingredientNames = useIngredientNames()
 const uid = useId()
 
 const changes = props.initial.changes ?? []
-const tagChanges = props.initial.tag_changes ?? []
+// Alleen de tags die iemand zelf koos; de automatische (automatic: true) zijn uitgerekend.
+const tagChanges = (props.initial.tag_changes ?? []).filter((change) => !change.automatic)
 
 const form = reactive({
   name: props.initial.name ?? '',
@@ -248,7 +251,7 @@ function amount(row) {
 
     <fieldset class="group">
       <legend>Tag erbij</legend>
-      <TagPicker v-model="addedTags" :options="tagOptions" />
+      <TagPicker v-model="addedTags" :options="tagOptions" :reserved="reservedTags" />
       <p v-if="errors.added_tag_names" class="error">
         Tags erbij {{ errors.added_tag_names.join(', ') }}
       </p>

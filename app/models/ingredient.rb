@@ -14,6 +14,10 @@ class Ingredient < ApplicationRecord
   has_many :recipe_ingredient_alternatives, dependent: :restrict_with_error
   # Optional: an ingredient without a link is simply not counted in the nutrition.
   belongs_to :nevo_food, optional: true
+  # vlees, dierlijk, gluten, ...: what the automatic tags look at (RecipeTagEvaluator).
+  # traits_checked: someone confirmed them ("Gecontroleerd"); new ingredients start unchecked.
+  has_many :ingredient_traits, dependent: :delete_all
+  has_many :traits, through: :ingredient_traits
 
   # "  Verse   BASILICUM " and "verse basilicum" are the same ingredient.
   normalizes :name, with: ->(name) { name.squish.downcase }
@@ -43,7 +47,8 @@ class Ingredient < ApplicationRecord
     LABEL_COLUMNS.values.any? { |column| !public_send(column).nil? }
   end
 
-  # Something to count with: a NEVO product or at least one label value.
+  # Something to count with: a NEVO product or at least one label value. A negligible
+  # ingredient counts as 0 instead (see Nutrition).
   def nutrition_source?
     !nevo_food.nil? || label_values?
   end
@@ -55,6 +60,17 @@ class Ingredient < ApplicationRecord
     grams = grams_for(quantity, unit)
     millilitres = ML_PER_UNIT.key?(unit) ? quantity * ML_PER_UNIT[unit] : (grams && grams_per_ml && grams / grams_per_ml)
     basis == "ml" ? millilitres : grams
+  end
+
+  # The trait ids, from the preloaded ingredient_traits (RecipeTagEvaluator::PRELOAD), so
+  # a recipe list needs no query per ingredient.
+  def trait_ids_loaded
+    ingredient_traits.map(&:trait_id)
+  end
+
+  # names: [ "vlees", "dierlijk" ]. Replaces all traits; an unknown name is left out.
+  def trait_names=(names)
+    self.traits = Trait.where(name: Array.wrap(names).map { |name| Trait.normalize_value_for(:name, name.to_s) })
   end
 
   private

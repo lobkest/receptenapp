@@ -18,6 +18,8 @@ const props = defineProps({
   submitLabel: { type: String, default: 'Recept toevoegen' },
   // Bestaande tags om uit te kiezen (namen, uit /api/tags).
   availableTags: { type: Array, default: () => [] },
+  // Automatische tags (vegetarisch): die volgen uit de ingrediënten, niet te kiezen.
+  reservedTags: { type: Array, default: () => [] },
   // Bestaande categorieën om uit te kiezen, op volgorde: [{ id, name, position }].
   availableCategories: { type: Array, default: () => [] },
 })
@@ -388,7 +390,7 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
 
       <fieldset class="tags field">
         <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
-        <TagPicker v-model="tags" :options="availableTags" />
+        <TagPicker v-model="tags" :options="availableTags" :reserved="reservedTags" />
         <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
       </fieldset>
       <!-- Onder porties en tags, over de hele breedte: in de smalle portieskolom zou de
@@ -584,6 +586,7 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
           :base-ingredients="savedIngredients"
           :base-tags="tags"
           :available-tags="availableTags"
+          :reserved-tags="reservedTags"
           :errors="variationErrors"
         />
         <button type="button" class="close-variation" @click="variationOpen = false">

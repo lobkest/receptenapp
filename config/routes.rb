@@ -23,7 +23,11 @@ Rails.application.routes.draw do
     resources :tags, only: :index
     resources :categories, only: :index
     # Nutrition: linking ingredients to NEVO-online, open to anyone like recipes.
-    resources :ingredients, only: %i[ index show update ]
+    resources :ingredients, only: %i[ index show update ] do
+      # Traits for the automatic tags (vlees, gluten, ...), separate from the NEVO settings.
+      patch :traits, on: :member, action: :update_traits
+    end
+    resources :traits, only: :index
     resources :nevo_foods, only: :index
 
     # Public, no code needed: anyone with the link shares these two lists.

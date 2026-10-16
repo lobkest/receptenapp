@@ -11,10 +11,16 @@ class Api::TagsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # soep: Groentesoep and stamppot, not the hidden erwtensoep.
     # vega: pannenkoeken and Groentesoep, not erwtensoep.
+    # Automatic, worked out: prei has no traits, so Groentesoep has all four; pannenkoeken
+    # (gluten, milk, egg) only vegetarisch; stamppot has no ingredients, so none.
     assert_equal [
-      { "name" => "soep", "count" => 2 },
-      { "name" => "vega", "count" => 2 },
-      { "name" => "zoet", "count" => 1 }
+      { "name" => "glutenvrij", "count" => 1, "automatic" => true },
+      { "name" => "lactosevrij", "count" => 1, "automatic" => true },
+      { "name" => "soep", "count" => 2, "automatic" => false },
+      { "name" => "vega", "count" => 2, "automatic" => false },
+      { "name" => "veganistisch", "count" => 1, "automatic" => true },
+      { "name" => "vegetarisch", "count" => 2, "automatic" => true },
+      { "name" => "zoet", "count" => 1, "automatic" => false }
     ], response.parsed_body
   end
 
@@ -33,6 +39,6 @@ class Api::TagsControllerTest < ActionDispatch::IntegrationTest
     recipes(:pannenkoeken).cancel_deletion_request!
 
     get api_tags_url, as: :json
-    assert_equal %w[ soep vega zoet ], response.parsed_body.pluck("name")
+    assert_equal %w[ soep vega vegetarisch zoet ], response.parsed_body.pluck("name")
   end
 end

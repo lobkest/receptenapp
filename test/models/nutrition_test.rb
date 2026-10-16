@@ -76,8 +76,8 @@ class NutritionTest < ActiveSupport::TestCase
     assert_equal 1130, result["total"]["kcal"]
     # Protein still from NEVO: 25 + 12.
     assert_equal 37, result["total"]["protein"]
-    assert_equal [ { "name" => "bloem", "source" => "nevo en etiket" }, { "name" => "ei", "source" => "nevo" } ],
-      result["sources"].sort_by { |line| line["name"] }
+    sources = result["lines"].to_h { |line| [ line["name"], line["source"] ] }
+    assert_equal({ "bloem" => "Tarwebloem + etiket", "ei" => "Kippeneieren rauw", "melk" => nil, "zout" => nil }, sources)
     assert result["label_values"]
   end
 
@@ -87,7 +87,7 @@ class NutritionTest < ActiveSupport::TestCase
     result = nutrition.to_h
 
     assert_equal 3, result["counted"]
-    assert_includes result["sources"], { "name" => "zout", "source" => "etiket" }
+    assert_equal "etiket", result["lines"].find { |line| line["name"] == "zout" }["source"]
     assert_equal [ "zout" ], result["unknown"]["fat"]
   end
 
@@ -115,13 +115,73 @@ class NutritionTest < ActiveSupport::TestCase
 
   test "a variation: the base without the removed rows, plus the added ones by ingredient name" do
     variation = recipe_variations(:spek)
-    # Removes melk (did not count anyway), adds 100 g spek: no ingredient spek yet.
+    # Removes melk (did not count anyway), adds 100 g spek: an ingredient without a link yet.
     result = Nutrition.for_variation(variation).to_h
     assert_equal 1005, result["total"]["kcal"]
     assert_includes result["not_counted"], { "name" => "spek", "reason" => "niet gekoppeld" }
     refute_includes result["not_counted"].map { |line| line["name"] }, "melk"
 
-    Ingredient.create!(name: "spek", label_kcal: 500)
+    ingredients(:spek).update!(label_kcal: 500)
     assert_equal 1505, Nutrition.for_variation(variation).total["kcal"]
+  end
+
+  test "lines: per ingredient its amount in grams and what it brings for the whole recipe" do
+    lines = nutrition.to_h["lines"].index_by { |line| line["name"] }
+
+    assert_equal({ "id" => recipe_ingredients(:pannenkoeken_ei).id, "ingredient_id" => ingredients(:ei).id, "name" => "ei",
+                   "grams" => 100.0, "millilitres" => nil,
+                   "values" => { "kcal" => 130.0, "protein" => 12.0, "carbohydrates" => 0.0, "fat" => 9.0, "fiber" => nil },
+                   "reason" => nil, "source" => "Kippeneieren rauw", "label" => false, "nevo_version" => "2025/9.0",
+                   "alternatives" => [] }, lines["ei"])
+    # Not counted: no values, with the reason, and the ingredient for a link to it.
+    assert_nil lines["melk"]["values"]
+    assert_equal "gram per ml ontbreekt", lines["melk"]["reason"]
+    assert_equal ingredients(:melk).id, lines["melk"]["ingredient_id"]
+    assert_equal 500.0, lines["melk"]["millilitres"]
+    assert_equal "optioneel", lines["zout"]["reason"]
+  end
+
+  test "lines: each alternative with its own amount, or the row's" do
+    tofu = Ingredient.create!(name: "tofu", label_kcal: 120, grams_per_piece: 200)
+    melk_row = recipe_ingredients(:pannenkoeken_melk)
+    own = melk_row.alternatives.create!(ingredient: tofu, quantity: 1, unit: "stuks", position: 1)
+    ei_row = recipe_ingredients(:pannenkoeken_ei)
+    same = ei_row.alternatives.create!(ingredient: tofu, position: 1)
+
+    lines = nutrition.to_h["lines"].index_by { |line| line["name"] }
+    melk_alternative = lines["melk"]["alternatives"].sole
+    assert_equal own.id, melk_alternative["id"]
+    assert_equal 200.0, melk_alternative["grams"]
+    assert_equal 240.0, melk_alternative["values"]["kcal"]
+    # Without its own amount: the row's 2 stuks, so also 400 g.
+    ei_alternative = lines["ei"]["alternatives"].sole
+    assert_equal same.id, ei_alternative["id"]
+    assert_equal 480.0, ei_alternative["values"]["kcal"]
+    assert ei_alternative["label"]
+    # The totals stay those of the recipe as written.
+    assert_equal 1005, nutrition.total["kcal"]
+  end
+
+  test "a negligible ingredient counts as 0 and is not reported as missing" do
+    ingredients(:zout).update!(negligible: true)
+    recipe_ingredients(:pannenkoeken_zout).update_columns(optional: false)
+    result = nutrition.to_h
+
+    refute_includes result["not_counted"].map { |line| line["name"] }, "zout"
+    assert_equal 1005.0, result["total"]["kcal"]
+    zout = result["lines"].find { |line| line["name"] == "zout" }
+    assert_equal({ "kcal" => 0.0, "protein" => 0.0, "carbohydrates" => 0.0, "fat" => 0.0, "fiber" => 0.0 }, zout["values"])
+    assert_equal "verwaarloosbaar", zout["source"]
+    assert_nil zout["reason"]
+    # Not in "counted" (a recipe of only bakpoeder shows no block), nor in the unknowns.
+    assert_equal 2, result["counted"]
+    refute_includes result["unknown"].values.flatten, "zout"
+  end
+
+  test "negligible needs no quantity, but optional stays optional" do
+    ingredients(:zout).update!(negligible: true)
+
+    assert_equal [ { "name" => "melk", "reason" => "gram per ml ontbreekt" }, { "name" => "zout", "reason" => "optioneel" } ],
+      nutrition.to_h["not_counted"].sort_by { |line| line["name"] }
   end
 end

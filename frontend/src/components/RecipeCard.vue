@@ -1,21 +1,28 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { automaticTagLabels } from '@/utils/automaticTags'
 
 const props = defineProps({
   recipe: { type: Object, required: true },
 })
 
-const MAX_TAGS = 2
+const MAX_TAGS = 3
 
-// Een tag kan een kale string zijn ("vegetarisch") of een object ({ name: "vegetarisch" }).
+// Een tag kan een kale string zijn ("snel") of een object ({ name: "snel" }).
 function tagName(tag) {
   return typeof tag === 'string' ? tag : (tag?.name ?? '')
 }
 
-const tags = computed(() =>
-  Array.isArray(props.recipe.tags) ? props.recipe.tags.map(tagName).filter(Boolean) : [],
-)
+// Eerst de automatische tags (vegetarisch, ...), met een korte uitleg als er een wissel
+// nodig is ("met tofu i.p.v. kip"), dan de tags die iemand zelf koos. Op de kaart is
+// nooit iets gewisseld, dus de uitleg staat er altijd bij.
+const tags = computed(() => [
+  ...automaticTagLabels(props.recipe),
+  ...(Array.isArray(props.recipe.tags) ? props.recipe.tags.map(tagName).filter(Boolean) : []).map(
+    (name) => ({ name, hint: null }),
+  ),
+])
 const visibleTags = computed(() => tags.value.slice(0, MAX_TAGS))
 const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.length)
 </script>
@@ -32,7 +39,15 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
       <!-- h3: op het overzicht staat het kopje van de sectie (h2) erboven. -->
       <h3 class="title">{{ recipe.title }}</h3>
       <ul v-if="tags.length" class="tags">
-        <li v-for="(tag, index) in visibleTags" :key="index" class="tag">{{ tag }}</li>
+        <li
+          v-for="(tag, index) in visibleTags"
+          :key="index"
+          class="tag"
+          :class="{ 'tag-hint': tag.hint }"
+          :title="tag.hint ? `${tag.name}: ${tag.hint}` : null"
+        >
+          {{ tag.name }}<span v-if="tag.hint" class="hint">{{ tag.hint }}</span>
+        </li>
         <li v-if="hiddenTagCount > 0" class="tag tag-more">+{{ hiddenTagCount }}</li>
       </ul>
     </div>
@@ -112,6 +127,26 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
   text-overflow: ellipsis;
   background: var(--color-brand-soft);
   border-radius: var(--radius-full);
+}
+
+/* Met een wissel: de uitleg klein eronder, en mag over twee regels. */
+.tag-hint {
+  display: flex;
+  flex-direction: column;
+  padding: 0.125rem var(--space-2);
+  white-space: normal;
+  border-radius: var(--radius-sm);
+}
+
+.hint {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-weight: 400;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .tag-more {

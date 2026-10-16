@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_160001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -20,6 +20,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "lower((name)::text)", name: "index_categories_on_lower_name", unique: true
+  end
+
+  create_table "ingredient_traits", force: :cascade do |t|
+    t.bigint "ingredient_id", null: false
+    t.bigint "trait_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ingredient_id", "trait_id"], name: "index_ingredient_traits_on_ingredient_id_and_trait_id", unique: true
+    t.index ["trait_id"], name: "index_ingredient_traits_on_trait_id"
   end
 
   create_table "ingredients", force: :cascade do |t|
@@ -36,6 +45,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
     t.decimal "label_fiber", precision: 10, scale: 2
     t.boolean "needs_review", default: false, null: false
     t.integer "lock_version", default: 0, null: false
+    t.boolean "traits_checked", default: false, null: false
+    t.boolean "negligible", default: false, null: false
     t.index ["name"], name: "index_ingredients_on_name", unique: true
     t.index ["nevo_food_id"], name: "index_ingredients_on_nevo_food_id"
     t.check_constraint "grams_per_ml > 0::numeric", name: "ingredients_grams_per_ml_positive"
@@ -168,11 +179,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
     t.unique_constraint ["recipe_id", "position"], deferrable: :deferred, name: "steps_recipe_id_position_unique"
   end
 
+  create_table "tag_exclusions", force: :cascade do |t|
+    t.bigint "tag_id", null: false
+    t.bigint "trait_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tag_id", "trait_id"], name: "index_tag_exclusions_on_tag_id_and_trait_id", unique: true
+    t.index ["trait_id"], name: "index_tag_exclusions_on_trait_id"
+  end
+
   create_table "tags", force: :cascade do |t|
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_tags_on_name", unique: true
+  end
+
+  create_table "traits", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_traits_on_name", unique: true
   end
 
   create_table "variation_changes", force: :cascade do |t|
@@ -204,6 +231,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
     t.check_constraint "kind::text = ANY (ARRAY['add'::character varying, 'remove'::character varying]::text[])", name: "variation_tag_changes_kind_known"
   end
 
+  add_foreign_key "ingredient_traits", "ingredients", on_delete: :cascade
+  add_foreign_key "ingredient_traits", "traits", on_delete: :cascade
   add_foreign_key "ingredients", "nevo_foods", on_delete: :nullify
   add_foreign_key "recipe_ingredient_alternatives", "ingredients"
   add_foreign_key "recipe_ingredient_alternatives", "recipe_ingredients", on_delete: :cascade
@@ -216,6 +245,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
   add_foreign_key "recipes", "categories"
   add_foreign_key "shopping_list_items", "recipes", on_delete: :nullify
   add_foreign_key "steps", "recipes"
+  add_foreign_key "tag_exclusions", "tags", on_delete: :cascade
+  add_foreign_key "tag_exclusions", "traits", on_delete: :cascade
   add_foreign_key "variation_changes", "recipe_ingredients", on_delete: :cascade
   add_foreign_key "variation_changes", "recipe_variations", on_delete: :cascade
   add_foreign_key "variation_tag_changes", "recipe_variations", on_delete: :cascade

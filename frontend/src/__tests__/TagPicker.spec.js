@@ -116,6 +116,15 @@ describe('TagPicker', () => {
     wrapper.unmount()
   })
 
+  it('weigert een automatische tag (reserved), ook getypt in andere hoofdletters', async () => {
+    const wrapper = mountPicker({ reserved: ['vegetarisch'] })
+
+    await addNew(wrapper, ' Vegetarisch ')
+
+    expect(chips(wrapper)).toEqual([])
+    expect(wrapper.find('.error').text()).toBe('"vegetarisch" volgt automatisch uit de ingrediënten.')
+  })
+
   it('verwijdert een tag met de ×-knop, die een duidelijke naam heeft', async () => {
     const wrapper = mountPicker({ modelValue: ['vega', 'snel'] })
 

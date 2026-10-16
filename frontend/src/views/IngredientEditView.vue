@@ -28,7 +28,13 @@ const errors = ref({})
 const saving = ref(false)
 
 // Het formulier: getallen als tekst, zoals je ze typt ("1,5"); de server leest de komma.
-const form = reactive({ nevoFood: null, gramsPerPiece: '', gramsPerMl: '', label: {} })
+const form = reactive({
+  nevoFood: null,
+  gramsPerPiece: '',
+  gramsPerMl: '',
+  label: {},
+  negligible: false,
+})
 
 function asText(value) {
   return value == null ? '' : String(value).replace('.', ',')
@@ -39,6 +45,7 @@ function fill(loaded) {
   form.nevoFood = loaded.nevo_food
   form.gramsPerPiece = asText(loaded.grams_per_piece)
   form.gramsPerMl = asText(loaded.grams_per_ml)
+  form.negligible = loaded.negligible ?? false
   form.label = Object.fromEntries(NUTRIENTS.map(({ key }) => [key, asText(loaded.label[key])]))
 }
 
@@ -142,6 +149,7 @@ function fields() {
     nevo_food_id: form.nevoFood?.id ?? null,
     grams_per_piece: blankToNull(form.gramsPerPiece),
     grams_per_ml: blankToNull(form.gramsPerMl),
+    negligible: form.negligible,
     ...Object.fromEntries(
       NUTRIENTS.map(({ key }) => [`label_${key}`, blankToNull(form.label[key])]),
     ),
@@ -305,6 +313,19 @@ watch(() => props.id, load, { immediate: true })
     </div>
 
     <form novalidate @submit.prevent="save">
+      <section class="card section negligible">
+        <label class="check">
+          <input id="negligible" v-model="form.negligible" type="checkbox" />
+          <span>
+            <strong>Verwaarloosbaar</strong><br />
+            <span class="muted small">
+              Telt als 0 in de voedingswaarde, voor kleine hoeveelheden zoals bakpoeder of
+              specerijen. Een koppeling is dan niet nodig.
+            </span>
+          </span>
+        </label>
+      </section>
+
       <section class="card section">
         <h2>NEVO-product</h2>
         <div v-if="form.nevoFood" class="chosen">
@@ -473,6 +494,20 @@ watch(() => props.id, load, { immediate: true })
 </template>
 
 <style scoped>
+.negligible .check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--tap);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.negligible input {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
 .merge {
   margin-top: var(--space-6);
 }

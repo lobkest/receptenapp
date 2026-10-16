@@ -2,7 +2,8 @@
 # the tag vega. The base recipe stays as it is; the variation only stores the differences:
 # - removals: rows of the base recipe to leave out (VariationChange, kind remove);
 # - additions: extra ingredients (VariationChange, kind add);
-# - tag_changes: tags it adds or takes off (VariationTagChange).
+# - tag_changes: tags it adds or takes off (VariationTagChange). Not the automatic tags:
+#   those follow from the ingredients (RecipeTagEvaluator#variation_changes).
 #
 # Anyone may add and edit (lock_version, like Recipe); deleting is a request (DeletionRequestable).
 # Every change is part of the recipe's history: it makes a new RecipeVersion.
@@ -140,14 +141,21 @@ class RecipeVariation < ApplicationRecord
 
     # Against the recipe's tags as they will be saved (tag_names), so this also works for
     # a variation submitted together with a recipe edit that changes the tags.
+    # Automatic tags (vegetarisch) are worked out for the variation too, never set by hand.
     def tag_names_allowed
       base = recipe&.tag_names || []
+      automatic = Tag.automatic_names
 
       validate_tag_names(:added_tag_names, added_tag_names, max: MAX_ADDED_TAGS) do |name|
+        errors.add(:added_tag_names, :automatic_tag, name: name) if automatic.include?(name)
         errors.add(:added_tag_names, :tag_on_recipe, name: name) if base.include?(name)
       end
       removed_tag_names.each do |name|
-        errors.add(:removed_tag_names, :tag_not_on_recipe, name: name) unless base.include?(name)
+        if automatic.include?(name)
+          errors.add(:removed_tag_names, :automatic_tag, name: name)
+        elsif !base.include?(name)
+          errors.add(:removed_tag_names, :tag_not_on_recipe, name: name)
+        end
       end
     end
 

@@ -29,10 +29,10 @@ class RecipeTest < ActiveSupport::TestCase
   end
 
   test "tag_names koppelt bestaande tags en maakt nieuwe aan, genormaliseerd en zonder dubbele" do
-    recipe = new_recipe(tag_names: [ " Vega ", "vega", "Glutenvrij", "" ])
+    recipe = new_recipe(tag_names: [ " Vega ", "vega", "Hartig", "" ])
 
     assert_difference("Tag.count", 1) { recipe.save! }
-    assert_equal %w[ glutenvrij vega ], recipe.reload.tags.map(&:name).sort
+    assert_equal %w[ hartig vega ], recipe.reload.tags.map(&:name).sort
     assert_equal tags(:vega), recipe.tags.find_by(name: "vega")
   end
 

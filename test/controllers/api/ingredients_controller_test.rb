@@ -11,10 +11,11 @@ class Api::IngredientsControllerTest < ActionDispatch::IntegrationTest
     get api_ingredients_url, as: :json
 
     assert_response :ok
-    assert_equal %w[ bloem ei melk saffraan zout ], response.parsed_body.map { |row| row["name"] }
+    assert_equal %w[ bloem ei melk saffraan spek zout ], response.parsed_body.map { |row| row["name"] }
     ei = response.parsed_body.find { |row| row["name"] == "ei" }
     assert_equal({ "id" => @ei.id, "name" => "ei", "nevo_food" => { "code" => 83, "name" => "Kippeneieren rauw" },
-                   "label_values" => false, "needs_review" => true }, ei)
+                   "label_values" => false, "needs_review" => true, "negligible" => false },
+      ei.slice("id", "name", "nevo_food", "label_values", "needs_review", "negligible"))
     assert_nil response.parsed_body.find { |row| row["name"] == "zout" }["nevo_food"]
   end
 
@@ -93,6 +94,15 @@ class Api::IngredientsControllerTest < ActionDispatch::IntegrationTest
 
     patch api_ingredient_url(@ei), params: { ingredient: { grams_per_piece: 60 } }, as: :json
     assert_response :bad_request
+  end
+
+  test "negligible can be set and is sent back" do
+    zout = ingredients(:zout)
+    patch api_ingredient_url(zout), params: { ingredient: { lock_version: 0, negligible: true } }, as: :json
+
+    assert_response :ok
+    assert zout.reload.negligible
+    assert response.parsed_body["negligible"]
   end
 
   test "the name cannot be changed here" do

@@ -118,4 +118,18 @@ class IngredientMergeTest < ActiveSupport::TestCase
   test "an ingredient cannot be merged into itself" do
     assert_raises(IngredientMerge::Invalid) { merge(@ei, @ei) }
   end
+
+  test "traits: an unchecked target gets those of the source too, a checked one keeps its own" do
+    @eieren.trait_names = %w[ dierlijk lactose ]
+
+    result = merge
+    assert_equal %w[ dierlijk lactose ], @ei.reload.traits.map(&:name).sort
+    assert_includes result.copied, "traits"
+    refute @ei.traits_checked
+
+    room = Ingredient.create!(name: "room", trait_names: %w[ vlees ])
+    @ei.update!(traits_checked: true)
+    IngredientMerge.new(room, @ei).call
+    assert_equal %w[ dierlijk lactose ], @ei.reload.traits.map(&:name).sort
+  end
 end

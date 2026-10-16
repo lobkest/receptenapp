@@ -26,3 +26,18 @@ export function updateIngredient(id, fields) {
 export function searchNevoFoods(query) {
   return request(`/api/nevo_foods?q=${encodeURIComponent(query)}`)
 }
+
+// [{ name: 'vlees' }, ...]: de kenmerken voor de automatische tags, in vaste volgorde.
+export function fetchTraits() {
+  return request('/api/traits')
+}
+
+// fields: { trait_names: ['vlees', 'dierlijk'] } (alle kenmerken, de laatste wint) of
+// { traits_checked: true } ("Gecontroleerd"). Zonder lock_version: dit raakt de
+// NEVO-instellingen niet. Geeft het ingrediënt terug zoals in de lijst.
+export function updateIngredientTraits(id, fields) {
+  return request(`/api/ingredients/${encodeURIComponent(id)}/traits`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ingredient: fields }),
+  })
+}

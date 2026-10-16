@@ -1,0 +1,15 @@
+# The same five as migration AddAutomaticTags.
+vlees:
+  name: vlees
+
+vis:
+  name: vis
+
+dierlijk:
+  name: dierlijk
+
+gluten:
+  name: gluten
+
+lactose:
+  name: lactose

@@ -10,6 +10,7 @@
 #    renamed there to an existing ingredient ("zalmfilet"), so the variation gets nutrition;
 # 6. ingredients: per ingredient a NEVO code, conversions and whether it is checked.
 #    create: true makes the ingredient when it does not exist (for a variation name).
+#    negligible: true counts it as 0 (bakpoeder, specerijen) instead of "niet meegeteld".
 #    A given value replaces the current one (that is the correction); reviewed: true clears
 #    "te controleren", reviewed: false sets it, and its note goes to the to-do list.
 #
@@ -18,7 +19,7 @@
 module Importers
   class IngredientCleanup
     SECTIONS = %w[ quantity_in_name merge rename junk variation_names ingredients ].freeze
-    SETTINGS = %w[ create code grams_per_piece grams_per_ml reviewed note ].freeze
+    SETTINGS = %w[ create code grams_per_piece grams_per_ml negligible reviewed note ].freeze
 
     class InvalidFile < StandardError; end
 
@@ -216,6 +217,10 @@ module Importers
           changes << "#{column == 'grams_per_piece' ? 'g/stuk' : 'g/ml'} #{show(ingredient.public_send(column))} → #{show(value)}"
           ingredient.public_send(:"#{column}=", value)
         end
+        if settings.key?("negligible") && ingredient.negligible != settings["negligible"]
+          ingredient.negligible = settings["negligible"]
+          changes << (settings["negligible"] ? "verwaarloosbaar" : "niet meer verwaarloosbaar")
+        end
         if settings.key?("reviewed") && ingredient.needs_review == settings["reviewed"]
           ingredient.needs_review = !settings["reviewed"]
           changes << (settings["reviewed"] ? "gecontroleerd" : "te controleren")
@@ -224,6 +229,7 @@ module Importers
 
         state = ingredient.needs_review ? "te controleren" : "gecontroleerd"
         food = ingredient.nevo_food ? "#{ingredient.nevo_food.display_name} (#{ingredient.nevo_food.code})" : "niet gekoppeld"
+        food += ", verwaarloosbaar" if ingredient.negligible
         note("Koppelingen en omrekening",
           "#{ingredient.name}: #{changes.any? ? changes.join('; ') : 'ongewijzigd'} | #{food} | #{conversions(ingredient)} | #{state}")
         note("Zelf doen", "#{ingredient.name}: #{settings['note']}") if ingredient.needs_review && settings["note"]

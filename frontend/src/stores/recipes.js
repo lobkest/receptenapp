@@ -14,7 +14,8 @@ export const useRecipesStore = defineStore('recipes', {
     error: null,
     // Het filter van de laatste load(): de getoonde recepten hebben al deze tags.
     filter: [],
-    // Alle tags van zichtbare recepten, met aantal: [{ name, count }].
+    // Alle tags van zichtbare recepten, met aantal: [{ name, count, automatic }].
+    // automatic: uitgerekend uit de ingrediënten (vegetarisch), niet zelf te kiezen.
     tags: [],
     // Alle categorieën op volgorde, ook zonder recepten: [{ id, name, position }].
     categories: [],
@@ -26,6 +27,9 @@ export const useRecipesStore = defineStore('recipes', {
     hasRecipes: (state) => state.recipes.length > 0,
     isEmpty: (state) => !state.loading && !state.error && state.recipes.length === 0,
     tagNames: (state) => state.tags.map((tag) => tag.name),
+    // Wat je in een formulier zelf mag kiezen: zonder de automatische tags.
+    manualTagNames: (state) => state.tags.filter((tag) => !tag.automatic).map((tag) => tag.name),
+    automaticTagNames: (state) => state.tags.filter((tag) => tag.automatic).map((tag) => tag.name),
   },
 
   actions: {

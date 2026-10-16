@@ -18,3 +18,7 @@ zout:
 
 ongebruikt:
   name: saffraan
+
+# Added by the variation "Met spek" (variation_changes.yml).
+spek:
+  name: spek

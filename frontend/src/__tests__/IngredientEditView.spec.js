@@ -110,6 +110,7 @@ describe('IngredientEditView', () => {
       nevo_food_id: 72,
       grams_per_piece: '50',
       grams_per_ml: '1,03',
+      negligible: false,
       label_kcal: '140',
       label_protein: null,
       label_carbohydrates: null,
@@ -158,6 +159,20 @@ describe('IngredientEditView', () => {
       'Nodig voor stuks',
       'Nodig voor ml, tl en el',
     ])
+  })
+
+  it('verwaarloosbaar: vinkje met uitleg, opslaan stuurt het mee', async () => {
+    const fetch = fakeApi(egg({ nevo_food: null }))
+    const wrapper = await mountAt('/ingredienten/2')
+
+    const box = wrapper.find('#negligible')
+    expect(box.element.checked).toBe(false)
+    expect(wrapper.find('.negligible').text()).toContain('bakpoeder of specerijen')
+    await box.setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(patchBody(fetch).negligible).toBe(true)
   })
 
   it('ontkoppelen stuurt nevo_food_id null', async () => {

@@ -46,7 +46,8 @@ async function handleSubmit(values) {
   <RecipeForm
     :errors="errors"
     :submitting="submitting"
-    :available-tags="recipes.tagNames"
+    :available-tags="recipes.manualTagNames"
+    :reserved-tags="recipes.automaticTagNames"
     :available-categories="recipes.categories"
     @submit="handleSubmit"
   />

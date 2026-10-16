@@ -47,13 +47,36 @@ describe('RecipeCard', () => {
     expect(mountCard({ tags: [] }).find('.tags').exists()).toBe(false)
   })
 
-  it('toont maximaal twee tags plus "+n" voor de rest', () => {
+  it('toont maximaal drie tags plus "+n" voor de rest', () => {
     const wrapper = mountCard({
-      tags: ['vegetarisch', { name: 'snel' }, 'zoet', { name: 'ontbijt' }],
+      tags: ['vegetarisch', { name: 'snel' }, 'zoet', { name: 'ontbijt' }, 'hartig'],
     })
 
     const tags = wrapper.findAll('.tag').map((tag) => tag.text())
-    expect(tags).toEqual(['vegetarisch', 'snel', '+2'])
+    expect(tags).toEqual(['vegetarisch', 'snel', 'zoet', '+2'])
+  })
+
+  it('toont eerst de automatische tags, met een korte hint als er een wissel nodig is', () => {
+    const wrapper = mountCard({
+      tags: ['snel'],
+      automatic_tags: [
+        { name: 'glutenvrij', status: 'ja', disclaimer: true, swaps: [], without: [] },
+        {
+          name: 'vegetarisch',
+          status: 'met_wissel',
+          disclaimer: false,
+          swaps: [{ recipe_ingredient_id: 1, ingredient: 'kip', alternatives: [{ id: 2, name: 'tofu' }] }],
+          without: [],
+        },
+      ],
+    })
+
+    const tags = wrapper.findAll('.tag')
+    // De hint staat in een eigen regel (display: flex, kolom), dus zonder spatie ertussen.
+    expect(tags.map((tag) => tag.text())).toEqual(['glutenvrij', 'vegetarischmet tofu i.p.v. kip', 'snel'])
+    expect(tags[1].classes()).toContain('tag-hint')
+    expect(tags[1].find('.hint').text()).toBe('met tofu i.p.v. kip')
+    expect(tags[0].find('.hint').exists()).toBe(false)
   })
 
   it('linkt de hele kaart naar het recept', () => {

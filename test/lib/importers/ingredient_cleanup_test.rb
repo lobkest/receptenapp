@@ -21,7 +21,8 @@ class Importers::IngredientCleanupTest < ActiveSupport::TestCase
     "ingredients" => {
       "ei" => { "code" => 83, "grams_per_piece" => 55, "reviewed" => true },
       "melk" => { "grams_per_ml" => 1.03, "reviewed" => true },
-      "zout" => { "code" => 9001, "reviewed" => false, "note" => "kijk op het etiket" }
+      "zout" => { "code" => 9001, "reviewed" => false, "note" => "kijk op het etiket" },
+      "saffraan" => { "negligible" => true, "reviewed" => true }
     }
   }.freeze
 
@@ -37,6 +38,7 @@ class Importers::IngredientCleanupTest < ActiveSupport::TestCase
     assert Ingredient.exists?(name: "yohgurt")
     assert_nil @stamppot.recipe_ingredients.find_by(ingredient: Ingredient.find_by(name: "suiker 2tl")).quantity
     assert ingredients(:ei).reload.needs_review
+    refute ingredients(:ongebruikt).reload.negligible
   end
 
   test "does every step, and a second run changes nothing and gives no errors" do
@@ -63,10 +65,13 @@ class Importers::IngredientCleanupTest < ActiveSupport::TestCase
     assert_equal nevo_foods(:melk), zout.nevo_food
     assert zout.needs_review
     assert_includes output, "Zelf doen (1):\n  zout: kijk op het etiket"
+    assert ingredients(:ongebruikt).reload.negligible
+    assert_includes output, "saffraan: verwaarloosbaar | niet gekoppeld, verwaarloosbaar | geen omrekening | gecontroleerd"
 
     again = assert_no_difference([ "Ingredient.count", "RecipeVersion.count" ]) { run_cleanup }
     assert_includes again, "suiker 2tl: niet gevonden, overgeslagen"
     assert_includes again, "ei: ongewijzigd"
+    assert_includes again, "saffraan: ongewijzigd"
   end
 
   test "a recipe with source and target is skipped and goes on the to-do list" do

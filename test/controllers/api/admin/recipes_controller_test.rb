@@ -166,7 +166,7 @@ class Api::Admin::RecipesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_equal [ "zoet" ], response.parsed_body["tags"]
-    assert_equal [], response.parsed_body["variations"].find { |v| v["name"] == "Met spek" }["tag_changes"]
+    assert_equal [], response.parsed_body["variations"].find { |v| v["name"] == "Met spek" }["tag_changes"].reject { |change| change["automatic"] }
   end
 
   test "a version that the current rules refuse gives a Dutch 422, and nothing changes" do

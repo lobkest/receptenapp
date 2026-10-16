@@ -29,7 +29,7 @@ class TagTest < ActiveSupport::TestCase
 
   test "named hergebruikt een bestaande tag en maakt anders een nieuwe" do
     assert_no_difference("Tag.count") { assert_equal tags(:vega), Tag.named("Vega") }
-    assert_difference("Tag.count", 1) { assert_equal "glutenvrij", Tag.named("Glutenvrij").name }
+    assert_difference("Tag.count", 1) { assert_equal "hartig", Tag.named("Hartig").name }
   end
 
   test "named geeft de bestaande tag terug als een andere request hem net aanmaakte" do

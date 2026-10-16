@@ -21,6 +21,10 @@ class VariationChange < ApplicationRecord
   has_quantity if: :kind_add?
   validates :recipe_ingredient_id, absence: true, if: :kind_add?
 
+  # An added ingredient is an Ingredient too, so the ingredients page can give it traits
+  # (the automatic tags of the variation look at them) and link it to NEVO.
+  before_save :save_new_ingredient, if: -> { kind_add? && will_save_change_to_name? }
+
   with_options if: :kind_remove? do
     validates :recipe_ingredient_id, presence: true
     validates :name, :quantity, :unit, absence: true
@@ -33,6 +37,12 @@ class VariationChange < ApplicationRecord
   end
 
   private
+    # create_or_find_by!: in a savepoint, so another request making the same ingredient at
+    # the same moment does not break this save.
+    def save_new_ingredient
+      Ingredient.create_or_find_by!(name: name) unless Ingredient.exists?(name: name)
+    end
+
     # Looked up among the recipe's own rows, in memory: that also catches a row that is
     # being removed in the same save (a recipe edit that adds this variation).
     def row_of_the_same_recipe

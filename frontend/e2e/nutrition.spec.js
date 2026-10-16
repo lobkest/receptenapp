@@ -29,7 +29,9 @@ async function link(name, code, fields = {}) {
   const ingredient = await (await api.get(`/api/ingredients/${id}`)).json()
   const [food] = await (await api.get(`/api/nevo_foods?q=${code}`)).json()
   const updated = await api.patch(`/api/ingredients/${id}`, {
-    data: { ingredient: { lock_version: ingredient.lock_version, nevo_food_id: food.id, ...fields } },
+    data: {
+      ingredient: { lock_version: ingredient.lock_version, nevo_food_id: food.id, ...fields },
+    },
   })
   expect(updated.status(), await updated.text()).toBe(200)
 }
@@ -43,12 +45,23 @@ test.beforeAll(async ({ playwright }) => {
       recipe: {
         title: 'Bietensalade met erwten',
         servings: 2,
-        steps_attributes: [{ body: 'Bieten in blokjes snijden.' }, { body: 'Alles mengen met de olie.' }],
+        steps_attributes: [
+          { body: 'Bieten in blokjes snijden.' },
+          { body: 'Alles mengen met de olie.' },
+        ],
         recipe_ingredients_attributes: [
           { ingredient_name: 'bieten', quantity: 300, unit: 'g' },
-          { ingredient_name: 'erwten uit blik', quantity: 200, unit: 'g' },
+          {
+            ingredient_name: 'erwten uit blik',
+            quantity: 200,
+            unit: 'g',
+            alternatives_attributes: [
+              { ingredient_name: 'rode biet uit pot', quantity: 250, unit: 'g' },
+            ],
+          },
           { ingredient_name: 'testolie', quantity: 2, unit: 'el' },
           { ingredient_name: 'zout' },
+          { ingredient_name: 'peper' },
         ],
       },
     },
@@ -59,6 +72,13 @@ test.beforeAll(async ({ playwright }) => {
   await link('bieten', 'Testbiet')
   await link('erwten uit blik', 'Testerwten')
   // Zoals na nevo:auto_link: gekoppeld, maar nog te controleren.
+  await link('rode biet uit pot', 'Testbiet')
+  // Peper zonder hoeveelheid: verwaarloosbaar, dus 0 in plaats van "niet meegeteld".
+  const peper = await (await api.get(`/api/ingredients/${await ingredientId('peper')}`)).json()
+  const negligible = await api.patch(`/api/ingredients/${peper.id}`, {
+    data: { ingredient: { lock_version: peper.lock_version, negligible: true } },
+  })
+  expect(negligible.status(), await negligible.text()).toBe(200)
   rails('runner', 'Ingredient.find_by!(name: "bieten").update!(needs_review: true)')
 })
 
@@ -96,7 +116,9 @@ test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ pag
   await page.goto('/ingredienten')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Ingrediënten' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Ingrediënten/ }).first()).toHaveClass(/router-link-active/)
+  await expect(page.getByRole('link', { name: /Ingrediënten/ }).first()).toHaveClass(
+    /router-link-active/,
+  )
   const bieten = page.locator('.ingredient-list li', { hasText: 'bieten' })
   await expect(bieten.locator('.badge.review')).toHaveText('te controleren')
 
@@ -162,9 +184,53 @@ test('receptpagina: voedingswaarde onderaan, dicht en open', async ({ page }) =>
   await expect(block.locator('.disclaimer')).toHaveText(
     'Dit is een schatting en niet medisch betrouwbaar.',
   )
-  await block.locator('.sources summary').click()
   await block.scrollIntoViewIfNeeded()
   await checkLayout(page, errors, 'recept-voedingswaarde-open', { scrollTop: false })
+
+  // Per ingrediënt: dicht, dan grootste kcal bovenaan, niet-meegeteld grijs met link.
+  const perIngredient = block.locator('details.per-ingredient')
+  await expect(perIngredient).not.toHaveAttribute('open', '')
+  await perIngredient.locator('summary').click()
+  await expect(perIngredient.locator('.scope')).toHaveText(
+    'Voor het hele recept (2 porties), niet per portie.',
+  )
+  await expect(perIngredient.locator('.row-name')).toHaveText([
+    'erwten uit blik',
+    'testolie',
+    'bieten',
+    'peper',
+    'zout',
+  ])
+  const erwten = perIngredient.locator('li').first()
+  await expect(erwten.locator('.row-amount')).toHaveText('± 200 g')
+  await expect(erwten.locator('.row-values')).toHaveText(
+    '280 kcal · 16 g eiwit · 36 g koolh. · 5 g vet · ? g vezels',
+  )
+  await expect(erwten.locator('.row-source')).toHaveText('Testerwten blik/glas')
+  await expect(perIngredient.locator('li', { hasText: 'peper' }).locator('.row-source')).toHaveText(
+    'verwaarloosbaar',
+  )
+  const zout = perIngredient.locator('li.skipped')
+  await expect(zout.locator('.row-reason')).toContainText('Niet meegeteld: geen hoeveelheid.')
+  await expect(zout.getByRole('link', { name: 'Aanpassen' })).toHaveAttribute(
+    'href',
+    /\/ingredienten\/\d+$/,
+  )
+  await perIngredient.scrollIntoViewIfNeeded()
+  await checkLayout(page, errors, 'recept-voedingswaarde-per-ingredient', { scrollTop: false })
+
+  // Een alternatief kiezen: 250 g rode biet (107,5 kcal) i.p.v. 200 g erwten (280 kcal).
+  await page.getByRole('button', { name: 'Wissel voor rode biet uit pot' }).click()
+  await expect(energy).toHaveText(/Energie\s*± 240 kcal\s*± 480 kcal/)
+  await expect(perIngredient.locator('.row-name').first()).toHaveText('testolie')
+  await expect(
+    perIngredient.locator('li', { hasText: 'rode biet' }).locator('.row-name'),
+  ).toHaveText('rode biet uit pot (i.p.v. erwten uit blik)')
+  await expect(block.locator('.unknown')).toHaveCount(0)
+  await block.scrollIntoViewIfNeeded()
+  await checkLayout(page, errors, 'recept-voedingswaarde-alternatief', { scrollTop: false })
+  await page.getByRole('button', { name: 'Terug naar erwten uit blik' }).click()
+  await expect(energy).toHaveText(/± 330 kcal\s*± 660 kcal/)
 
   // Meer porties: per portie blijft gelijk, het totaal schaalt mee.
   await page.getByRole('button', { name: 'Meer porties' }).click()

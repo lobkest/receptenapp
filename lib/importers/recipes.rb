@@ -40,6 +40,10 @@ module Importers
         report.new_categories << recipe.category.name if new_category
       end
 
+      def automatic_tag_names
+        @automatic_tag_names ||= Tag.automatic_names
+      end
+
       def label(row)
         row["title"].to_s
       end
@@ -54,7 +58,8 @@ module Importers
           description: row["description"],
           servings: row["servings"],
           category_name: row["category"],
-          tag_names: row["tags"],
+          # Automatic tags (vegetarisch) follow from the ingredients; by hand they are refused.
+          tag_names: Array(row["tags"]) - automatic_tag_names,
           recipe_ingredients_attributes: ingredients(row).map { |ingredient|
             { ingredient_name: ingredient["name"], quantity: ingredient["quantity"],
               unit: ingredient["unit"], optional: ingredient["optional"] }.compact

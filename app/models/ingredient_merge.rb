@@ -16,6 +16,10 @@
 # Nutrition: the target keeps its own values; what it lacks (NEVO link, a conversion, a
 # label value) is taken from the source.
 #
+# Traits (vlees, gluten, ...): a target whose traits were checked keeps them as they are.
+# Otherwise it gets the traits of both, so a merge never makes a recipe look vegetarian
+# that was not. They stay unchecked.
+#
 # Recipes that change get a new version, and their lock_version goes up, so an edit form
 # that was open with the old name gets a 409 instead of bringing the old name back.
 class IngredientMerge
@@ -42,7 +46,7 @@ class IngredientMerge
       record_original_versions(moved)
       move_rows(skipped)
       rename_by_name(skipped)
-      copied = copy_nutrition
+      copied = copy_nutrition + copy_traits
       touch_recipes(moved)
 
       deleted = skipped.empty? && !used_by_id?
@@ -119,6 +123,16 @@ class IngredientMerge
       end
       @target.save! if copied.any?
       copied
+    end
+
+    def copy_traits
+      return [] if @target.traits_checked
+
+      missing = @source.trait_ids - @target.trait_ids
+      return [] if missing.empty?
+
+      @target.trait_ids = @target.trait_ids + missing
+      [ "traits" ]
     end
 
     def record_original_versions(recipe_ids)

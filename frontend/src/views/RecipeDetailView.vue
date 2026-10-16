@@ -12,6 +12,7 @@ import { fetchRecipe } from '@/api/recipes'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRecipesStore } from '@/stores/recipes'
 import { formatSwaps, parseSwaps } from '@/utils/alternatives'
+import { automaticTagLabels, needsDisclaimer } from '@/utils/automaticTags'
 
 // De receptpagina. Deze view laadt het recept en houdt de staat die meerdere delen nodig
 // hebben (het recept en het gekozen aantal porties); de delen zelf zijn componenten:
@@ -47,6 +48,11 @@ const servings = ref(null)
 const route = useRoute()
 const router = useRouter()
 const swaps = computed(() => parseSwaps(route.query.wissel, recipe.value?.ingredients ?? []))
+
+// Eerst de automatische tags (uitgerekend uit de ingrediënten), met de uitleg die nog
+// geldt: wissel je kip voor tofu, dan verdwijnt "met tofu i.p.v. kip".
+const automaticTags = computed(() => (recipe.value ? automaticTagLabels(recipe.value, swaps.value) : []))
+const hasTags = computed(() => automaticTags.value.length > 0 || recipe.value?.tags?.length > 0)
 
 function setSwaps(next) {
   const query = { ...route.query }
@@ -103,9 +109,20 @@ watch(() => props.id, load, { immediate: true })
     <!-- De categorie klein boven de titel; zonder categorie niets. -->
     <p v-if="recipe.category" class="category-label">{{ recipe.category.name }}</p>
     <h1>{{ recipe.title }}</h1>
-    <ul v-if="recipe.tags?.length" class="recipe-tags" aria-label="Tags">
+    <ul v-if="hasTags" class="recipe-tags" aria-label="Tags">
+      <li
+        v-for="tag in automaticTags"
+        :key="`auto-${tag.name}`"
+        class="tag tag-automatic"
+        :data-tag="tag.name"
+      >
+        {{ tag.name }}<span v-if="tag.hint" class="tag-hint"> · {{ tag.hint }}</span>
+      </li>
       <li v-for="tag in recipe.tags" :key="tag" class="tag">{{ tag }}</li>
     </ul>
+    <p v-if="needsDisclaimer(recipe)" class="tag-disclaimer muted">
+      Op basis van eigen ingrediëntgegevens; controleer etiketten.
+    </p>
     <RecipeDetailServings v-model="servings" :original="recipe.servings" />
     <p v-if="recipe.description" class="description">{{ recipe.description }}</p>
 
@@ -126,7 +143,12 @@ watch(() => props.id, load, { immediate: true })
       @reload="reload"
     />
     <!-- Alleen als er minstens één ingrediënt meetelt. -->
-    <RecipeNutrition v-if="recipe.nutrition?.counted > 0" :recipe="recipe" :servings="servings" />
+    <RecipeNutrition
+      v-if="recipe.nutrition?.counted > 0"
+      :recipe="recipe"
+      :servings="servings"
+      :swaps="swaps"
+    />
     <RecipeDetailActions :recipe="recipe" />
   </article>
 
@@ -159,6 +181,22 @@ watch(() => props.id, load, { immediate: true })
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
   padding: 0;
   list-style: none;
+}
+
+/* Onder de tags, vóór de porties: klein, het is een kanttekening. */
+.tag-disclaimer {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+/* De uitleg mag afbreken; de tag zelf blijft op één regel. */
+.tag-automatic:has(.tag-hint) {
+  white-space: normal;
+  border-radius: var(--radius-sm);
+}
+
+.tag-hint {
+  font-weight: 400;
 }
 
 /* Zoals de tags op de receptkaart. */

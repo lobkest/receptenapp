@@ -2,14 +2,18 @@
 module IngredientSerializer
   module_function
 
-  # For the list: is it linked, and does it still need checking.
+  # For the list: is it linked, and does it still need checking. traits: in the order of
+  # Trait.ordered (load with includes(:traits)).
   def summary(ingredient)
     {
       "id" => ingredient.id,
       "name" => ingredient.name,
       "nevo_food" => ingredient.nevo_food && { "code" => ingredient.nevo_food.code, "name" => ingredient.nevo_food.display_name },
       "label_values" => ingredient.label_values?,
-      "needs_review" => ingredient.needs_review
+      "needs_review" => ingredient.needs_review,
+      "negligible" => ingredient.negligible,
+      "traits" => Trait.sort(ingredient.traits).map(&:name),
+      "traits_checked" => ingredient.traits_checked
     }
   end
 

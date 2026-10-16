@@ -12,3 +12,16 @@ soep:
 # Used by no recipe at all.
 ongebruikt:
   name: ongebruikt
+
+# Automatic: worked out from the ingredients (tag_exclusions.yml), never set by hand.
+vegetarisch:
+  name: vegetarisch
+
+veganistisch:
+  name: veganistisch
+
+glutenvrij:
+  name: glutenvrij
+
+lactosevrij:
+  name: lactosevrij

@@ -47,7 +47,8 @@ class Importers::RecipesTest < ActiveSupport::TestCase
   end
 
   test "matcht ingrediënten ongeacht hoofdletters en meldt alleen de nieuwe" do
-    report = assert_difference("Ingredient.count", 2) { Importers::Recipes.call([ recipe_row ]) }
+    # orzo and parmaham from the recipe, zalm from its variation (VariationChange makes it).
+    report = assert_difference("Ingredient.count", 3) { Importers::Recipes.call([ recipe_row ]) }
 
     assert_equal ingredients(:bloem), Recipe.find_by!(title: "Orzo uit de oven").recipe_ingredients.first.ingredient
     assert_equal [ "orzo", "parmaham" ], report.new_ingredients

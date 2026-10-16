@@ -29,8 +29,12 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
         { "id" => variation_changes(:spek_met_spek).id, "kind" => "add", "recipe_ingredient_id" => nil,
           "name" => "spek", "quantity" => 100, "unit" => "g" }
       ],
-      "tag_changes" => [ { "kind" => "remove", "tag" => "vega" } ]
-    }, variations.first.except("nutrition")) # nutrition: see NutritionTest
+      # Automatic: without melk it is lactosevrij, with spek no longer vegetarisch.
+      "tag_changes" => [ { "kind" => "add", "tag" => "lactosevrij", "automatic" => true },
+                         { "kind" => "remove", "tag" => "vega" },
+                         { "kind" => "remove", "tag" => "vegetarisch", "automatic" => true } ]
+    }, variations.first.except("nutrition", "automatic_tags")) # nutrition: see NutritionTest
+    assert_equal [ "lactosevrij" ], variations.first["automatic_tags"].pluck("name")
   end
 
   test "the recipe detail needs no extra queries for more variations" do
@@ -62,7 +66,8 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
     body = response.parsed_body
     assert_equal [ "Met kip", "Kip eerst bakken.", 3 ], body.values_at("name", "notes", "position")
     assert_equal [ [ "remove", "bloem", nil ], [ "add", "kip", 1.5 ] ], body["changes"].map { |c| c.values_at("kind", "name", "quantity") }
-    assert_equal [ { "kind" => "add", "tag" => "vlees" }, { "kind" => "remove", "tag" => "vega" } ], body["tag_changes"]
+    assert_equal [ { "kind" => "add", "tag" => "vlees" }, { "kind" => "remove", "tag" => "vega" } ],
+      body["tag_changes"].reject { |change| change["automatic"] }
   end
 
   test "invalid fields give 422 with errors per field and per added ingredient" do
@@ -125,7 +130,7 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal [ "Met veel spek", 1 ], response.parsed_body.values_at("name", "lock_version")
     assert_equal [ "melk", "bloem", "spek" ], response.parsed_body["changes"].pluck("name")
-    assert_equal [ "vega" ], response.parsed_body["tag_changes"].pluck("tag")
+    assert_equal [ "vega" ], response.parsed_body["tag_changes"].reject { |change| change["automatic"] }.pluck("tag")
   end
 
   test "empty lists empty the variation" do

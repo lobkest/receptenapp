@@ -1,0 +1,168 @@
+# One-off traits for the existing ingredients, for bin/rails traits:setup. A suggestion in
+# the usual Dutch meaning of the word: "kip" is vlees and dierlijk, "feta" dierlijk and
+# lactose. Everything is saved as unchecked (traits_checked false), so the ingredients
+# page shows it under "Kenmerken te controleren".
+#
+#   name: [ traits ]                                  no doubt
+#   name: { traits: [ traits ], twijfel: "why" }      a doubt, named apart in the report
+#
+# Traits: vlees, vis (also shellfish), dierlijk (anything from an animal: also egg, milk,
+# honey), gluten, lactose. An empty list: none of them.
+# Ingredients that are not in here get no suggestion; give them their traits in the app.
+
+aardappel: []
+aardbei: []
+amandelmeel: []
+appel: []
+aubergine: []
+avocado: []
+bakpoeder: { traits: [], twijfel: "sommige merken bevatten tarwezetmeel (gluten)" }
+balsamicoazijn: []
+balsamicocrème: []
+banaan: []
+basilicum: []
+bieslook: []
+blauwe bes: []
+bleekselderij: []
+bloem: [ gluten ]
+bloemkool: []
+bosui: []
+bouillon: { traits: [], twijfel: "groente-, kippen- of runderbouillon? Kant-en-klaar vaak met gluten of lactose" }
+bouillonblokje: { traits: [], twijfel: "soort onbekend (groente of vlees); blokjes bevatten vaak gluten, soms lactose" }
+broccoli: []
+bruschettatoastjes: [ gluten ]
+burrata: [ dierlijk, lactose ]
+champignonbouillonblokje: { traits: [], twijfel: "blokjes bevatten vaak tarwe (gluten), soms lactose" }
+champignons: []
+cherrytomaatjes: []
+chiazaad: []
+chocolade: { traits: [ dierlijk, lactose ], twijfel: "melkchocolade aangenomen; pure chocolade is vaak zonder melk" }
+chocoladechips: { traits: [ dierlijk, lactose ], twijfel: "melkchocolade aangenomen; pure chips zijn vaak zonder melk" }
+citroen: []
+courgette: []
+crème fraîche: [ dierlijk, lactose ]
+dadels: []
+diepvriesspinazie: []
+doperwten: []
+edamame: []
+ei: [ dierlijk ]
+farfalle: [ gluten ]
+feta: [ dierlijk, lactose ]
+flatbread: [ gluten ]
+gehakt half-om-half: [ vlees, dierlijk ]
+gehaktkruiden: { traits: [], twijfel: "kant-en-klare mixen bevatten soms tarwe of melkpoeder" }
+gember: []
+gepelde tomaten: []
+gerookte zalm: [ vis, dierlijk ]
+gezouten boter: [ dierlijk, lactose ]
+gist: []
+gnocchi: [ gluten ]
+granaatappelpitjes: []
+granola: { traits: [ gluten ], twijfel: "haver bevat gluten tenzij glutenvrij; soms met honing (dierlijk)" }
+griekse yoghurt: [ dierlijk, lactose ]
+groentemix: []
+hamburger: { traits: [ vlees, dierlijk ], twijfel: "vleesburger aangenomen, geen vegaburger" }
+hamburgerbroodje: { traits: [ gluten ], twijfel: "briochebroodjes bevatten ook ei en boter (dierlijk, lactose)" }
+hamburgersaus: { traits: [ dierlijk ], twijfel: "mayonaisebasis met ei; soms ook melk (lactose)" }
+italiaanse kruiden: []
+kaas: { traits: [ dierlijk, lactose ], twijfel: "belegen en oude kaas zijn van nature bijna lactosevrij; vaak dierlijk stremsel (strikt niet vegetarisch)" }
+kidneybonen: []
+kikkererwten: []
+kipdijfilet: [ vlees, dierlijk ]
+kipfilet: [ vlees, dierlijk ]
+kipgehakt: [ vlees, dierlijk ]
+kippenbouillonblokje: { traits: [ vlees, dierlijk ], twijfel: "blokjes bevatten vaak ook gluten of lactose" }
+kipschnitzel: [ vlees, dierlijk, gluten ]
+knoflook: []
+knoflooksaus: { traits: [ dierlijk ], twijfel: "met ei of yoghurt; met yoghurt ook lactose" }
+kokosolie: []
+komkommer: []
+kookroom: [ dierlijk, lactose ]
+kruidenkaas: [ dierlijk, lactose ]
+kurkuma: []
+limoen: []
+mango: []
+mayonaise met yoghurt: [ dierlijk, lactose ]
+mozzarella: [ dierlijk, lactose ]
+noten: []
+oestersaus: { traits: [ vis, dierlijk, gluten ], twijfel: "oesterextract (schelpdier) en vaak tarwe; er bestaat ook vegetarische oestersaus" }
+olijfolie: []
+orecchiette: [ gluten ]
+orzo: [ gluten ]
+panko: [ gluten ]
+paprika: []
+paprikapoeder: []
+parmaham: [ vlees, dierlijk ]
+pasta: [ gluten ]
+pecorino: { traits: [ dierlijk, lactose ], twijfel: "lang gerijpt, dus weinig lactose; dierlijk stremsel (strikt niet vegetarisch)" }
+peper: []
+pesto: { traits: [ dierlijk, lactose ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
+peterselie: []
+pinda's: []
+pindakaas: []
+pitabroodje: [ gluten ]
+platte pasta: [ gluten ]
+pokesaus: { traits: [ gluten ], twijfel: "op basis van sojasaus (tarwe); soms met mayonaise (ei) of vis" }
+prei: []
+quinoa: []
+rijst: []
+rijstnoedels: []
+risottorijst: []
+rode pesto: { traits: [ dierlijk, lactose ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
+rode ui: []
+roomkaas: [ dierlijk, lactose ]
+rozemarijn: []
+salie: []
+sesamzaad: []
+shoarmavlees: [ vlees, dierlijk ]
+sjalot: []
+sla: []
+slagroom: [ dierlijk, lactose ]
+spekjes: [ vlees, dierlijk ]
+sperziebonen: []
+spinazie: []
+spinazie à la crème: [ dierlijk, lactose ]
+strooikaas: [ dierlijk, lactose ]
+suiker: []
+taco's: { traits: [ gluten ], twijfel: "tarwetortilla's aangenomen; tacoschelpen van mais zijn glutenvrij" }
+taugé: []
+tijm: []
+tofu: []
+tomaat: []
+tomatenpuree: []
+tonijn: [ vis, dierlijk ]
+trostomaat: []
+truffelolie: []
+ui: []
+vanille-extract: []
+vissaus: [ vis, dierlijk ]
+water: []
+witte kaas: [ dierlijk, lactose ]
+wortel: []
+wraps: [ gluten ]
+yoghurtsaus: [ dierlijk, lactose ]
+zalmfilet: [ vis, dierlijk ]
+zelfrijzend bakmeel: [ gluten ]
+zoete aardappel: []
+zongedroogde tomaten: []
+zonnebloempitten: []
+zout: []
+zuivelspread: [ dierlijk, lactose ]
+zuiveringszout: []
+
+# Not in the development database, but common: in case production has them.
+boter: [ dierlijk, lactose ]
+brood: [ gluten ]
+couscous: [ gluten ]
+garnalen: [ vis, dierlijk ]
+honing: [ dierlijk ]
+kip: [ vlees, dierlijk ]
+mayonaise: [ dierlijk ]
+melk: [ dierlijk, lactose ]
+parmezaanse kaas: { traits: [ dierlijk, lactose ], twijfel: "lang gerijpt, dus weinig lactose; dierlijk stremsel (strikt niet vegetarisch)" }
+room: [ dierlijk, lactose ]
+saffraan: []
+sojasaus: [ gluten ]
+spek: [ vlees, dierlijk ]
+yoghurt: [ dierlijk, lactose ]
+zalm: [ vis, dierlijk ]

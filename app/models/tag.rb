@@ -1,9 +1,22 @@
 # A label on a recipe ("vega", "snel"). Shared between recipes; see Recipe#tag_names=.
+#
+# A tag that excludes traits (tag_exclusions: vegetarisch excludes vlees and vis) is
+# automatic: RecipeTagEvaluator works it out from the ingredients, and nobody sets it by
+# hand. The other tags are set by hand (recipe_tags).
 class Tag < ApplicationRecord
   MAX_NAME_LENGTH = 30
 
   has_many :recipe_tags, dependent: :destroy
   has_many :recipes, through: :recipe_tags
+  has_many :tag_exclusions, dependent: :delete_all
+  has_many :excluded_traits, through: :tag_exclusions, source: :trait
+
+  scope :automatic, -> { where(id: TagExclusion.select(:tag_id)) }
+  scope :manual, -> { where.not(id: TagExclusion.select(:tag_id)) }
+
+  def self.automatic_names
+    automatic.pluck(:name)
+  end
 
   # "  Snel  KLAAR " and "snel klaar" are the same tag. Also applied to find_by(name: ...).
   normalizes :name, with: ->(name) { name.squish.downcase }

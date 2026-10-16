@@ -26,7 +26,12 @@ onMounted(async () => {
 
 const FILTERS = [
   { key: 'alle', label: 'Alle', test: () => true },
-  { key: 'ongekoppeld', label: 'Nog niet gekoppeld', test: (i) => !i.nevo_food && !i.label_values },
+  {
+    key: 'ongekoppeld',
+    label: 'Nog niet gekoppeld',
+    // Verwaarloosbaar (bakpoeder) hoeft geen koppeling.
+    test: (i) => !i.nevo_food && !i.label_values && !i.negligible,
+  },
   { key: 'controleren', label: 'Te controleren', test: (i) => i.needs_review },
 ]
 
@@ -94,6 +99,7 @@ const shown = computed(() => {
         <span class="badges">
           <span v-if="ingredient.needs_review" class="badge review">te controleren</span>
           <span v-if="ingredient.label_values" class="badge">etiket</span>
+          <span v-if="ingredient.negligible" class="badge">verwaarloosbaar</span>
         </span>
       </RouterLink>
     </li>

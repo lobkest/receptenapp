@@ -10,6 +10,8 @@ const props = defineProps({
   // Bestaande tags uit /api/tags, al gesorteerd.
   options: { type: Array, default: () => [] },
   max: { type: Number, default: 10 },
+  // Automatische tags (vegetarisch): die volgen uit de ingrediënten, dus niet te kiezen.
+  reserved: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -39,6 +41,8 @@ function add(name) {
   if (!tag) return false
   if (tag.includes(',')) {
     message.value = 'Een tag mag geen komma bevatten.'
+  } else if (props.reserved.includes(tag)) {
+    message.value = `"${tag}" volgt automatisch uit de ingrediënten.`
   } else if (props.modelValue.includes(tag)) {
     message.value = `"${tag}" is al gekozen.`
   } else if (full.value) {

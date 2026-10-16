@@ -3,21 +3,27 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   NUTRIENTS,
+  amountText,
   citation,
   formatNutrient,
+  ingredientRows,
   notCountedText,
-  sourceLabel,
+  summarize,
   totalFor,
+  valuesText,
 } from '@/utils/nutrition'
 
 // Onderaan de receptpagina: de geschatte voedingswaarde, standaard dichtgeklapt. De server
-// rekent (per portie en voor het recept zoals het er staat); hier alleen het totaal voor
-// het gekozen aantal porties, afronden en de toelichting. Met variaties kies je waarvoor.
+// rekent per ingrediënt (en per alternatief); hier wordt dat opgeteld met de gekozen
+// alternatieven, geschaald naar het gekozen aantal porties, afgerond en toegelicht. Met
+// variaties kies je waarvoor.
 const props = defineProps({
-  // { nutrition, variations: [{ id, name, nutrition }] } zoals de API het recept stuurt.
+  // { servings, nutrition, variations: [{ id, name, nutrition }] } zoals de API het stuurt.
   recipe: { type: Object, required: true },
   // Het gekozen aantal porties op de pagina.
   servings: { type: Number, required: true },
+  // De gekozen alternatieven: { regel-id: alternatief-id } (utils/alternatives.js).
+  swaps: { type: Object, default: () => ({}) },
 })
 
 // Variaties waarin iets meetelt; '' is het basisrecept.
@@ -31,12 +37,18 @@ watch(choices, (list) => {
     chosenId.value = ''
 })
 
-const nutrition = computed(
-  () =>
+const nutrition = computed(() =>
+  summarize(
     choices.value.find((variation) => variation.id === chosenId.value)?.nutrition ??
-    props.recipe.nutrition,
+      props.recipe.nutrition,
+    props.swaps,
+  ),
 )
 const total = computed(() => totalFor(nutrition.value.per_serving, props.servings))
+// Per ingrediënt: het hele recept, geschaald zoals de ingrediëntenlijst.
+const rows = computed(() =>
+  ingredientRows(nutrition.value.lines, props.servings / props.recipe.servings),
+)
 const servingsText = computed(() =>
   props.servings === 1 ? '1 portie' : `${props.servings} porties`,
 )
@@ -102,16 +114,37 @@ function nutrientLabel(key) {
         {{ nutrientLabel(key) }} onbekend voor {{ names.join(', ') }}; niet meegeteld.
       </p>
 
-      <details class="sources">
-        <summary>Bron per ingrediënt</summary>
+      <details class="per-ingredient">
+        <summary>Per ingrediënt</summary>
+        <p class="scope">Voor het hele recept ({{ servingsText }}), niet per portie.</p>
         <ul>
-          <li v-for="line in nutrition.sources" :key="line.name">
-            {{ line.name }}: {{ sourceLabel(line.source) }}
+          <li v-for="row in rows" :key="row.key" :class="{ skipped: !row.values }">
+            <div class="row-top">
+              <span class="row-name">
+                {{ row.name
+                }}<span v-if="row.swappedFrom" class="swapped">
+                  (i.p.v. {{ row.swappedFrom }})</span
+                >
+              </span>
+              <span class="row-amount">{{ amountText(row) }}</span>
+            </div>
+            <template v-if="row.values">
+              <div class="row-values">{{ valuesText(row.values) }}</div>
+              <div class="row-source">{{ row.source }}</div>
+            </template>
+            <div v-else class="row-reason">
+              Niet meegeteld: {{ row.reason }}.
+              <RouterLink
+                v-if="row.ingredient_id && row.reason !== 'optioneel'"
+                :to="{ name: 'ingredient', params: { id: String(row.ingredient_id) } }"
+                >Aanpassen</RouterLink
+              >
+            </div>
           </li>
         </ul>
       </details>
 
-      <p class="citation">{{ citation(nutrition) }}</p>
+      <p v-if="citation(nutrition)" class="citation">{{ citation(nutrition) }}</p>
       <p class="disclaimer">Dit is een schatting en niet medisch betrouwbaar.</p>
       <p class="link"><RouterLink to="/ingredienten">Ingrediënten koppelen</RouterLink></p>
     </div>
@@ -223,6 +256,65 @@ td {
 .not-counted,
 .not-counted > summary {
   color: var(--color-text);
+}
+
+.per-ingredient ul {
+  padding: 0;
+  list-style: none;
+}
+
+.per-ingredient li {
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.scope {
+  font-style: italic;
+}
+
+.row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+
+.row-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.swapped {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.row-amount {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-values {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.row-source {
+  font-size: var(--text-xs);
+}
+
+/* Niet meegeteld: grijs, met de reden en een link om het ingrediënt aan te passen. */
+.skipped .row-top,
+.skipped .row-name {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.row-reason a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  margin-left: var(--space-1);
 }
 
 .disclaimer {

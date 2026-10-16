@@ -1,0 +1,20 @@
+# The same rules as migration AddAutomaticTags.
+vegetarisch_vlees:
+  tag: vegetarisch
+  trait: vlees
+
+vegetarisch_vis:
+  tag: vegetarisch
+  trait: vis
+
+veganistisch_dierlijk:
+  tag: veganistisch
+  trait: dierlijk
+
+glutenvrij_gluten:
+  tag: glutenvrij
+  trait: gluten
+
+lactosevrij_lactose:
+  tag: lactosevrij
+  trait: lactose

@@ -1,3 +1,5 @@
+import { allTagNames } from '@/utils/automaticTags'
+
 // De secties op het receptentabblad: één per categorie, op volgorde (position), en
 // "Overig" voor recepten zonder categorie als laatste. Los van de view, zodat het
 // zonder component te testen is.
@@ -23,9 +25,10 @@ export function orderedCategories(categories, recipes = []) {
   return [...byKey.values()].sort((a, b) => a.position - b.position || a.id - b.id)
 }
 
-// Heeft het recept alle gekozen tags? Zonder gekozen tags: altijd.
+// Heeft het recept alle gekozen tags, met de hand of automatisch? Zonder gekozen tags: altijd.
 function hasAllTags(recipe, tags) {
-  return tags.every((tag) => recipe.tags?.includes(tag))
+  const names = allTagNames(recipe)
+  return tags.every((tag) => names.includes(tag))
 }
 
 // recipes: zoals /api/recipes ze geeft (category is { id, name, position } of null).

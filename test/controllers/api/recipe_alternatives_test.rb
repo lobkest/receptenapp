@@ -56,8 +56,9 @@ class Api::RecipeAlternativesTest < ActionDispatch::IntegrationTest
 
     queries = count_queries { get api_recipe_url(@recipe), as: :json }
 
-    # The 15 of RecipesControllerTest, plus the alternatives and their ingredients.
-    assert_operator queries, :<=, 17
+    # The 15 of RecipesControllerTest, plus the alternatives, their ingredients and those
+    # ingredients' NEVO products (nutrition per alternative).
+    assert_operator queries, :<=, 18
   end
 
   test "update: add, change and remove alternatives; anyone may" do

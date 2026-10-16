@@ -63,6 +63,7 @@ class Api::RecipesController < ApplicationController
 
   # POST /api/recipes/1/add_to_shopping_list  { "servings": 6 }                       Alles op lijst
   # POST /api/recipes/1/add_to_shopping_list  { "servings": 6, "ingredient_ids": [12] } + lijst
+  # With "alternative_ids": [3] the swapped rows go on the list as their alternative.
   # The browser only says what; the server scales (Quantity) and stores the lines.
   def add_to_shopping_list
     add_to_shopping_list_from(@recipe, ingredient_ids: params[:ingredient_ids])
@@ -74,13 +75,15 @@ class Api::RecipesController < ApplicationController
       @recipe = Recipe.visible.with_details.find(params[:id])
     end
 
-    # A new recipe only creates new rows, so no ids, _destroy or positions.
+    # A new recipe only creates new rows, so no ids, _destroy or positions. An ingredient
+    # row may bring its alternatives (alternatives_attributes), in the same way.
     # [ [ ... ] ] means "an array of hashes with these keys".
     # variations_attributes: new variations only (no id), from "+ Variatie toevoegen".
     def create_params
       params.expect(recipe: [ :title, :description, :servings, :category_name, tag_names: [],
         steps_attributes: [ [ :body ] ],
-        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional ] ],
+        recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional,
+          alternatives_attributes: [ [ :ingredient_name, :quantity, :unit ] ] ] ],
         variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
     end
 
@@ -90,7 +93,8 @@ class Api::RecipesController < ApplicationController
     def update_params
       params.expect(recipe: [ :title, :description, :servings, :category_name, :lock_version, tag_names: [],
         steps_attributes: [ [ :id, :body, :_destroy ] ],
-        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ],
+        recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy,
+          alternatives_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :_destroy ] ] ] ],
         variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
     end
 end

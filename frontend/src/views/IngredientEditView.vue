@@ -1,7 +1,14 @@
 <script setup>
-import { computed, onUnmounted, reactive, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
-import { fetchIngredient, searchNevoFoods, updateIngredient } from '@/api/ingredients'
+import { computed, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import {
+  fetchIngredient,
+  fetchIngredients,
+  searchNevoFoods,
+  updateIngredient,
+} from '@/api/ingredients'
+import { useAdminStore } from '@/stores/admin'
 import { NUTRIENTS } from '@/utils/nutrition'
 
 // Eén ingrediënt koppelen aan een NEVO-product, met de omrekening naar gram en eventueel
@@ -36,6 +43,8 @@ function fill(loaded) {
 }
 
 async function load() {
+  // Na samenvoegen: de melding van het ingrediënt dat hierin opging.
+  message.value = admin.takeFlash()
   loading.value = true
   notFound.value = false
   error.value = null
@@ -169,6 +178,97 @@ function confirmReview() {
 
 function errorOf(field) {
   return errors.value[field]?.join(', ')
+}
+
+// ---------- Samenvoegen ----------
+
+// Met de beheercode, zoals verwijderen: het bronningrediënt verdwijnt. Zonder code vraagt
+// het bevestigingsvenster er meteen om.
+const router = useRouter()
+const admin = useAdminStore()
+const confirmDialog = useTemplateRef('confirmDialog')
+const merging = ref(false)
+const mergeQuery = ref('')
+const allIngredients = ref([])
+const mergeError = ref(null)
+const mergeBusy = ref(false)
+
+async function startMerge() {
+  merging.value = true
+  mergeError.value = null
+  try {
+    allIngredients.value = await fetchIngredients()
+  } catch (e) {
+    mergeError.value = e.message
+  }
+}
+
+function stopMerge() {
+  merging.value = false
+  mergeQuery.value = ''
+}
+
+const MAX_CANDIDATES = 8
+const mergeCandidates = computed(() => {
+  const words = mergeQuery.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return []
+  return allIngredients.value
+    .filter((other) => other.id !== ingredient.value.id)
+    .filter((other) => words.every((word) => other.name.includes(word)))
+    .slice(0, MAX_CANDIDATES)
+})
+
+function mergeNotice(source, result) {
+  const parts = [`"${source}" is samengevoegd met "${result.target.name}".`]
+  if (result.copied.length) parts.push(`Wat "${result.target.name}" nog miste, is overgenomen.`)
+  if (result.skipped_recipes.length) {
+    parts.push(
+      `Overgeslagen, want het recept bevat ze allebei: ${result.skipped_recipes.join(', ')}. ` +
+        `Pas die recepten zelf aan; "${source}" blijft zolang bestaan.`,
+    )
+  }
+  return parts.join(' ')
+}
+
+async function mergeInto(target) {
+  const source = ingredient.value.name
+  const question = {
+    title: `"${source}" samenvoegen met "${target.name}"?`,
+    text:
+      `Recepten, variaties en lijsten met "${source}" gaan naar "${target.name}", en "${source}" ` +
+      'wordt verwijderd. Een recept met allebei wordt overgeslagen.',
+    confirmLabel: 'Samenvoegen',
+  }
+  let code = null
+  if (admin.isLoggedIn) {
+    if (!(await confirmDialog.value.ask(question))) return
+  } else {
+    code = await confirmDialog.value.askWithInput({
+      ...question,
+      inputLabel: 'Beheercode',
+      secret: true,
+    })
+    if (code === null) return
+  }
+
+  mergeBusy.value = true
+  mergeError.value = null
+  try {
+    const result = await admin.mergeIngredient(ingredient.value.id, target.id, code || null)
+    const notice = mergeNotice(source, result)
+    stopMerge()
+    if (result.source_deleted) {
+      admin.setFlash(notice)
+      router.push({ name: 'ingredient', params: { id: String(result.target.id) } })
+    } else {
+      await load()
+      message.value = notice
+    }
+  } catch (e) {
+    mergeError.value = e.kind === 'unauthorized' ? 'De beheercode is onjuist.' : e.message
+  } finally {
+    mergeBusy.value = false
+  }
 }
 
 // Van /ingredienten/1 naar /ingredienten/2 hergebruikt Vue dit component; daarom op het id.
@@ -323,12 +423,64 @@ watch(() => props.id, load, { immediate: true })
 
       <button type="submit" class="btn-primary btn-block" :disabled="saving">Opslaan</button>
     </form>
+
+    <section class="card section merge">
+      <h2>Samenvoegen</h2>
+      <p class="muted small">
+        Staat dit ingrediënt er dubbel in (bijv. "trostomaten" en "trostomaat")? Voeg het samen met
+        het goede; dit ingrediënt verdwijnt daarna. Hiervoor is de beheercode nodig.
+      </p>
+      <button v-if="!merging" type="button" class="start-merge" @click="startMerge">
+        Samenvoegen met…
+      </button>
+      <template v-else>
+        <div class="field">
+          <label for="merge-search">Samenvoegen met</label>
+          <input
+            id="merge-search"
+            v-model="mergeQuery"
+            type="search"
+            autocomplete="off"
+            placeholder="zoek een ingrediënt"
+          />
+        </div>
+        <ul v-if="mergeCandidates.length" class="results" aria-label="Samenvoegen met">
+          <li v-for="other in mergeCandidates" :key="other.id">
+            <div>
+              <p class="food-name">{{ other.name }}</p>
+              <p class="muted small">{{ other.nevo_food?.name ?? 'niet gekoppeld' }}</p>
+            </div>
+            <button
+              type="button"
+              :disabled="mergeBusy"
+              :aria-label="`Samenvoegen met ${other.name}`"
+              @click="mergeInto(other)"
+            >
+              Kies
+            </button>
+          </li>
+        </ul>
+        <p v-else-if="mergeQuery.trim()" class="muted small">Geen ingrediënt gevonden.</p>
+        <button type="button" class="cancel-merge" @click="stopMerge">Annuleren</button>
+      </template>
+      <p v-if="mergeError" class="error" role="alert">{{ mergeError }}</p>
+    </section>
   </template>
 
   <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+
+  <ConfirmDialog ref="confirmDialog" />
 </template>
 
 <style scoped>
+.merge {
+  margin-top: var(--space-6);
+}
+
+.cancel-merge {
+  margin-top: var(--space-2);
+}
+
 .back-link.top {
   margin-top: 0;
 }

@@ -221,3 +221,128 @@ describe('IngredientEditView', () => {
     expect(wrapper.find('h1').text()).toBe('Ingrediënt niet gevonden')
   })
 })
+
+describe('IngredientEditView: samenvoegen', () => {
+  const LIST = [
+    { id: 2, name: 'ei', nevo_food: EGG_FOOD, label_values: false, needs_review: false },
+    { id: 5, name: 'eieren', nevo_food: null, label_values: false, needs_review: false },
+    { id: 6, name: 'eiwit', nevo_food: null, label_values: false, needs_review: false },
+  ]
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    sessionStorage.clear()
+  })
+
+  // Het bewerkscherm van "eieren" (5); samenvoegen met "ei" (2).
+  function fakeMergeApi(mergeResponse) {
+    const eieren = egg({ id: 5, name: 'eieren', nevo_food: null, needs_review: false })
+    return mockFetch((method, url) => {
+      if (url === '/api/ingredients/5' && method === 'GET') return jsonResponse(eieren)
+      if (url === '/api/ingredients/2' && method === 'GET')
+        return jsonResponse(egg({ needs_review: false }))
+      if (url === '/api/ingredients') return jsonResponse(LIST)
+      if (url.startsWith('/api/nevo_foods')) return jsonResponse([])
+      if (url === '/api/admin/ingredients/5/merge') return mergeResponse()
+      throw new Error(`Onverwacht: ${method} ${url}`)
+    })
+  }
+
+  const merged = (overrides = {}) =>
+    jsonResponse({
+      target: egg({ needs_review: false }),
+      source_deleted: true,
+      moved_recipes: ['Pannenkoeken'],
+      skipped_recipes: [],
+      copied: [],
+      ...overrides,
+    })
+
+  async function chooseTarget(wrapper, query = 'ei') {
+    await wrapper.find('.start-merge').trigger('click')
+    await flushPromises()
+    await wrapper.find('#merge-search').setValue(query)
+  }
+
+  async function mountRouted(path) {
+    setActivePinia(createPinia())
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    await router.push(path)
+    const wrapper = mount(RouterView, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    return { wrapper, router }
+  }
+
+  it('zonder beheercode: het venster vraagt de code; daarna naar het doel met een melding', async () => {
+    const fetch = fakeMergeApi(() => merged())
+    const { wrapper, router } = await mountRouted('/ingredienten/5')
+
+    await chooseTarget(wrapper)
+    const candidates = wrapper.findAll('.merge .results li')
+    expect(candidates.map((c) => c.find('.food-name').text())).toEqual(['ei', 'eiwit'])
+    await candidates[0].find('button').trigger('click')
+
+    const dialog = wrapper.find('dialog')
+    expect(dialog.find('h2').text()).toBe('"eieren" samenvoegen met "ei"?')
+    expect(dialog.find('input[type="password"]').exists()).toBe(true)
+    await dialog.find('input[type="password"]').setValue('geheim')
+    await dialog.find('.confirm').trigger('click')
+    await flushPromises()
+
+    const call = fetch.mock.calls.find((c) => c[0] === '/api/admin/ingredients/5/merge')
+    expect(call[1].method).toBe('POST')
+    expect(call[1].headers.Authorization).toBe('Bearer geheim')
+    expect(JSON.parse(call[1].body)).toEqual({ target_id: 2 })
+    expect(router.currentRoute.value.path).toBe('/ingredienten/2')
+    expect(wrapper.find('.notice-success').text()).toBe('"eieren" is samengevoegd met "ei".')
+    wrapper.unmount()
+  })
+
+  it('ingelogd: alleen bevestigen; Annuleren doet niets', async () => {
+    sessionStorage.setItem('adminCode', 'geheim')
+    const fetch = fakeMergeApi(() => merged())
+    const { wrapper } = await mountRouted('/ingredienten/5')
+
+    await chooseTarget(wrapper)
+    await wrapper.find('.merge .results button').trigger('click')
+    expect(wrapper.find('dialog input').exists()).toBe(false)
+    await wrapper.find('dialog .cancel').trigger('click')
+    await flushPromises()
+
+    expect(fetch.mock.calls.some((c) => c[0].includes('/merge'))).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('een recept met allebei: blijft staan en noemt het recept', async () => {
+    sessionStorage.setItem('adminCode', 'geheim')
+    fakeMergeApi(() => merged({ source_deleted: false, skipped_recipes: ['Omelet'] }))
+    const { wrapper, router } = await mountRouted('/ingredienten/5')
+
+    await chooseTarget(wrapper)
+    await wrapper.find('.merge .results button').trigger('click')
+    await wrapper.find('dialog .confirm').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/ingredienten/5')
+    expect(wrapper.find('.notice-success').text()).toContain(
+      'Overgeslagen, want het recept bevat ze allebei: Omelet.',
+    )
+    wrapper.unmount()
+  })
+
+  it('een onjuiste code: een melding, niets veranderd', async () => {
+    fakeMergeApi(() => jsonResponse({ error: 'De beheercode is onjuist of verlopen.' }, 401))
+    const { wrapper, router } = await mountRouted('/ingredienten/5')
+
+    await chooseTarget(wrapper)
+    await wrapper.find('.merge .results button').trigger('click')
+    await wrapper.find('dialog input[type="password"]').setValue('fout')
+    await wrapper.find('dialog .confirm').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.merge .error').text()).toBe('De beheercode is onjuist.')
+    expect(router.currentRoute.value.path).toBe('/ingredienten/5')
+    expect(sessionStorage.getItem('adminCode')).toBeNull()
+    wrapper.unmount()
+  })
+})

@@ -1,0 +1,204 @@
+# Eenmalige opschoning van de ingrediënten: bin/rails ingredients:cleanup [DRY_RUN=1].
+# Uitleg van de onderdelen: lib/importers/ingredient_cleanup.rb. Gebaseerd op de
+# ingrediënten in productie (nevo:auto_link dry-run van 16 oktober 2026).
+#
+# Een naam die er niet (meer) is, wordt overgeslagen; twee keer draaien is veilig.
+# Etiketwaarden staan hier bewust niet in: die vul je zelf in, van het echte etiket.
+
+# "suiker 2tl" was een naam met de hoeveelheid erin: de regels zonder hoeveelheid krijgen
+# die hoeveelheid, daarna gaat het op in het gewone ingrediënt.
+quantity_in_name:
+  suiker 2tl: { into: suiker, quantity: 2, unit: tl }
+  zout 2.5 tl: { into: zout, quantity: 2.5, unit: tl }
+
+# Dubbel (bron: doel). Een recept met allebei wordt overgeslagen en gemeld.
+merge:
+  blauwe bessen: blauwe bes
+  chia zaad: chiazaad
+  creme fresh: crème fraîche
+  trostomaten: trostomaat
+  zoete aardappelen: zoete aardappel
+  philadelphia: roomkaas
+
+# Een typfout zonder bestaand goed ingrediënt: alleen de naam verandert. Er is geen gewone
+# yoghurt (alleen griekse yoghurt en yoghurtsaus), dus "yohgurt" wordt "yoghurt".
+rename:
+  yohgurt: yoghurt
+
+# Rommel: verwijderd als niets het gebruikt, anders alleen gemeld met waar het staat.
+# In productie staan gh en eten in de recepten "Hi" en "Hoi" (vermoedelijk testrecepten):
+# die blijven dus staan tot die recepten weg zijn.
+junk:
+  - gh
+  - eten
+  - x
+
+# Namen die alleen als extra ingrediënt in een variatie staan, zonder eigen ingrediënt:
+# zo krijgen die variaties ook voedingswaarde. kipschnitzel wordt hieronder aangemaakt.
+variation_names:
+  zalm: zalmfilet
+
+# Per ingrediënt: NEVO-code, gram per stuk, gram per ml, en of het gecontroleerd is.
+# Een ingevulde waarde vervangt de huidige. reviewed: false houdt "te controleren" aan,
+# met in note wat je zelf moet doen. Ongekoppeld blijven (verwaarloosbaar): bakpoeder,
+# zuiveringszout, kurkuma, vanille-extract.
+ingredients:
+  # Groente en fruit (stuks = één middelgroot exemplaar, eetbaar deel)
+  aardappel: { code: 1, grams_per_piece: 150, reviewed: true }
+  aardbei: { code: 148, grams_per_piece: 15, reviewed: true }
+  appel: { code: 875, grams_per_piece: 180, reviewed: true }
+  aubergine: { code: 10, grams_per_piece: 300, reviewed: true }
+  avocado: { code: 689, grams_per_piece: 150, reviewed: true }
+  banaan: { code: 151, grams_per_piece: 120, reviewed: true }
+  blauwe bes: { code: 152, reviewed: true }
+  bleekselderij: { code: 557, grams_per_piece: 40, reviewed: true }  # stuks = één stengel
+  bloemkool: { code: 14, grams_per_piece: 600, reviewed: true }
+  bosui: { code: 2737, grams_per_piece: 15, reviewed: true }
+  broccoli: { code: 921, grams_per_piece: 400, reviewed: true }
+  champignons: { code: 19, grams_per_piece: 15, reviewed: true }
+  cherrytomaatjes: { code: 2731, grams_per_piece: 15, reviewed: true }
+  citroen: { code: 158, grams_per_piece: 100, reviewed: true }
+  courgette: { code: 922, grams_per_piece: 300, reviewed: true }
+  dadels: { code: 181, grams_per_piece: 10, reviewed: true }
+  diepvriesspinazie: { code: 1146, reviewed: true }
+  doperwten: { code: 23, reviewed: true }
+  edamame: { code: 971, reviewed: true }
+  gember: { code: 832, grams_per_piece: 15, reviewed: true }  # stuks = een duim
+  gepelde tomaten: { code: 2293, reviewed: true }
+  granaatappelpitjes: { code: 1007, reviewed: true }
+  groentemix: { code: 5268, reviewed: true }
+  kidneybonen: { code: 3184, reviewed: true }
+  kikkererwten: { code: 3185, reviewed: true }
+  knoflook: { code: 830, grams_per_piece: 5, reviewed: true }  # stuks = één teen
+  komkommer: { code: 2739, grams_per_piece: 350, reviewed: true }
+  limoen: { code: 691, grams_per_piece: 70, reviewed: true }
+  mango: { code: 692, grams_per_piece: 300, reviewed: true }
+  paprika: { code: 2742, grams_per_piece: 150, reviewed: true }
+  prei: { code: 562, grams_per_piece: 150, reviewed: true }
+  rode ui: { code: 5459, grams_per_piece: 100, reviewed: true }
+  sjalot: { code: 63, grams_per_piece: 30, reviewed: true }  # NEVO heeft geen sjalot; ui is prima
+  sla: { code: 2346, reviewed: true }
+  sperziebonen: { code: 50, reviewed: true }
+  spinazie: { code: 51, reviewed: true }
+  spinazie à la crème: { code: 651, reviewed: true }
+  taugé: { code: 58, reviewed: true }
+  tomaat: { code: 2734, grams_per_piece: 120, reviewed: true }
+  trostomaat: { code: 2730, grams_per_piece: 100, reviewed: true }
+  ui: { code: 63, grams_per_piece: 100, reviewed: true }
+  wortel: { code: 71, grams_per_piece: 80, reviewed: true }
+  zoete aardappel: { code: 671, grams_per_piece: 300, reviewed: true }
+  zongedroogde tomaten: { code: 2378, grams_per_piece: 8, reviewed: true }
+
+  # Kruiden en specerijen (kleine hoeveelheden: benaderingen zijn prima)
+  basilicum: { code: 2177, reviewed: true }
+  bieslook: { code: 829, reviewed: true }
+  gehaktkruiden: { code: 2681, grams_per_ml: 0.5, reviewed: true }
+  italiaanse kruiden: { code: 1228, grams_per_ml: 0.2, reviewed: true }
+  paprikapoeder: { code: 1229, grams_per_ml: 0.45, reviewed: true }
+  peper: { code: 823, grams_per_ml: 0.5, reviewed: true }
+  peterselie: { code: 128, reviewed: true }
+  rozemarijn: { code: 1231, reviewed: true }
+  salie: { code: 5415, reviewed: true }
+  tijm: { code: 5415, grams_per_ml: 0.2, reviewed: true }  # Prei broccoli soep: 1 tl
+  zout: { code: 841, grams_per_ml: 1.2, reviewed: true }
+
+  # Granen, pasta, brood
+  bloem: { code: 220, grams_per_ml: 0.55, reviewed: true }
+  bruschettatoastjes: { code: 2937, grams_per_piece: 5, reviewed: true }
+  farfalle: { code: 4, reviewed: true }
+  flammkuchen deeg: { code: 1914, grams_per_piece: 260, reviewed: true }  # pizzabodem als benadering; 1 stuks = een rol
+  flatbread: { code: 1361, grams_per_piece: 80, reviewed: true }
+  gnocchi: { code: 5418, reviewed: true }
+  granola: { code: 5593, grams_per_ml: 0.45, reviewed: true }
+  hamburgerbroodje: { code: 230, grams_per_piece: 60, reviewed: true }
+  havermout fijn: { code: 213, grams_per_ml: 0.4, reviewed: true }
+  orecchiette: { code: 4, reviewed: true }
+  orzo: { code: 4, reviewed: true }
+  panko: { code: 1013, grams_per_ml: 0.25, reviewed: true }
+  pasta: { code: 4, reviewed: true }
+  pitabroodje: { code: 2790, grams_per_piece: 70, reviewed: true }
+  platte pasta: { code: 4, reviewed: true }
+  quinoa: { code: 3153, grams_per_ml: 0.75, reviewed: true }
+  rijst: { code: 5, grams_per_ml: 0.85, reviewed: true }
+  rijstnoedels:
+    code: 3206
+    reviewed: false
+    note: "NEVO heeft alleen GEKOOKTE rijstnoedels; recepten wegen ze droog. Vul de etiketwaarden per 100 g van een pak droge rijstnoedels in (energie, eiwit, koolhydraten, vet, vezels)."
+  risottorijst: { code: 5, grams_per_ml: 0.85, reviewed: true }
+  taco's: { code: 1937, grams_per_piece: 12, reviewed: true }
+  wraps: { code: 2359, grams_per_piece: 60, reviewed: true }
+  zelfrijzend bakmeel: { code: 1020, grams_per_ml: 0.55, reviewed: true }
+  amandelmeel: { code: 5579, grams_per_ml: 0.4, reviewed: true }
+  gist: { code: 1025, grams_per_ml: 0.6, reviewed: true }
+
+  # Vlees en vis (stuks = één filet of stuk)
+  gehakt half-om-half: { code: 1434, reviewed: true }
+  gerookte zalm: { code: 1096, reviewed: true }
+  hamburger: { code: 1435, grams_per_piece: 125, reviewed: true }
+  kip: { code: 1305, grams_per_piece: 125, reviewed: true }  # kip zonder vel gemiddeld: past bij filet én dij
+  kipdijfilet: { code: 1305, grams_per_piece: 100, reviewed: true }  # was "kip met vel" (218 kcal); zonder vel 139 kcal
+  kipfilet: { code: 1634, grams_per_piece: 150, reviewed: true }
+  kipgehakt: { code: 3139, reviewed: true }
+  kipschnitzel: { create: true, code: 2341, grams_per_piece: 150, reviewed: true }  # alleen in variatie "Met kipschnitzel" (Wraps); gepaneerde kipfilet
+  parmaham: { code: 328, reviewed: true }
+  shoarmavlees: { code: 3027, reviewed: true }
+  spekjes: { code: 343, reviewed: true }
+  tonijn: { code: 1590, reviewed: true }
+  zalmfilet: { code: 1587, grams_per_piece: 125, reviewed: true }
+
+  # Zuivel, kaas, ei
+  burrata: { code: 1955, grams_per_piece: 125, reviewed: true }
+  crème fraîche: { code: 1808, grams_per_ml: 1.0, reviewed: true }
+  ei: { code: 83, grams_per_piece: 50, reviewed: true }
+  feta: { code: 3362, grams_per_piece: 200, reviewed: true }  # stuks = een blok
+  gezouten boter: { code: 879, grams_per_ml: 0.95, reviewed: true }
+  griekse yoghurt: { code: 2503, grams_per_ml: 1.05, reviewed: true }
+  kaas: { code: 513, grams_per_ml: 0.4, reviewed: true }  # g/ml voor geraspte kaas
+  kookroom: { code: 2275, grams_per_ml: 1.0, reviewed: true }
+  kruidenkaas: { code: 3368, reviewed: true }
+  mozzarella: { code: 1955, grams_per_piece: 125, reviewed: true }  # stuks = één bol
+  pecorino: { code: 718, grams_per_ml: 0.4, reviewed: true }
+  roomkaas: { code: 1302, grams_per_ml: 1.0, reviewed: true }
+  slagroom: { code: 299, grams_per_ml: 1.0, reviewed: true }
+  strooikaas: { code: 304, grams_per_ml: 0.4, reviewed: true }
+  witte kaas: { code: 3370, grams_per_piece: 200, reviewed: true }
+  yoghurt: { code: 278, grams_per_ml: 1.03, reviewed: true }  # na het hernoemen van "yohgurt"
+  zuivelspread: { code: 2678, reviewed: true }
+
+  # Sauzen, olie, smaakmakers
+  balsamicoazijn: { code: 5253, grams_per_ml: 1.1, reviewed: true }
+  balsamicocrème: { code: 5253, grams_per_ml: 1.3, reviewed: true }  # balsamico-azijn als benadering; kleine hoeveelheid
+  bouillon: { code: 1528, grams_per_ml: 1.0, reviewed: true }
+  bouillonblokje: { code: 429, grams_per_piece: 10, reviewed: true }
+  champignonbouillonblokje: { code: 429, grams_per_piece: 10, reviewed: true }
+  hamburgersaus: { code: 437, grams_per_ml: 1.0, reviewed: true }
+  kippenbouillonblokje: { code: 429, grams_per_piece: 10, reviewed: true }
+  knoflooksaus: { code: 2573, grams_per_ml: 1.0, reviewed: true }
+  kokosolie: { code: 3243, grams_per_ml: 0.92, reviewed: true }
+  mayonaise met yoghurt: { code: 1260, grams_per_ml: 0.95, reviewed: true }
+  oestersaus: { code: 5153, grams_per_ml: 1.2, reviewed: true }
+  olijfolie: { code: 601, grams_per_ml: 0.92, reviewed: true }
+  pesto: { code: 2178, grams_per_ml: 1.0, reviewed: true }
+  pokesaus: { code: 5471, grams_per_ml: 1.1, reviewed: true }  # teriyaki-woksaus als benadering
+  rode pesto: { code: 3222, grams_per_ml: 1.0, reviewed: true }
+  tomatenpuree: { code: 141, grams_per_ml: 1.1, reviewed: true }
+  truffelolie: { code: 601, grams_per_ml: 0.92, reviewed: true }
+  vissaus: { code: 5470, grams_per_ml: 1.2, reviewed: true }  # sojasaus als benadering (NEVO heeft geen vissaus)
+  water: { code: 1885, grams_per_ml: 1.0, reviewed: true }
+  yoghurtsaus: { code: 5141, grams_per_ml: 1.05, reviewed: true }
+
+  # Zoet, noten, zaden
+  chiazaad: { code: 3447, grams_per_ml: 0.65, reviewed: true }
+  chocolade: { code: 432, reviewed: true }
+  chocoladechips: { code: 432, grams_per_ml: 0.6, reviewed: true }
+  noten: { code: 207, reviewed: true }
+  pinda's: { code: 204, reviewed: true }
+  pindakaas: { code: 455, grams_per_ml: 1.1, reviewed: true }
+  sesamzaad: { code: 838, grams_per_ml: 0.6, reviewed: true }
+  tofu:
+    code: 5519
+    grams_per_piece: 200
+    reviewed: false
+    note: "Pad thai max heeft \"2 g tofu\": vast een invoerfout (2 stuks? 200 g?). Pas het recept aan en zet dan Klopt."
+  suiker: { code: 377, grams_per_ml: 0.85, reviewed: true }
+  zonnebloempitten: { code: 872, grams_per_ml: 0.55, reviewed: true }

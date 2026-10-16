@@ -1,8 +1,10 @@
 <script setup>
 import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
 import CategoryPicker from '@/components/CategoryPicker.vue'
+import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
+import { useIngredientNames } from '@/composables/useIngredientNames'
 import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
 import { numberText, UNITS } from '@/utils/quantity'
 
@@ -23,6 +25,9 @@ const props = defineProps({
 // Emits: berichten die dit component terugstuurt naar de ouder.
 const emit = defineEmits(['submit', 'dirty-change'])
 
+// Bestaande ingrediënten, voor "Bedoel je: …?" onder een nieuwe naam.
+const ingredientNames = useIngredientNames()
+
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.
 // Geen eigen validatie: de server beslist wat geldig is. (Eén uitzondering: een lege
@@ -39,7 +44,32 @@ const form = reactive({
 let nextKey = 1
 
 function newIngredient() {
-  return { key: nextKey++, id: null, quantity: '', unit: 'stuks', ingredient_name: '', optional: false }
+  return {
+    key: nextKey++,
+    id: null,
+    quantity: '',
+    unit: 'stuks',
+    ingredient_name: '',
+    optional: false,
+    alternatives: [],
+    removedAlternativeIds: [],
+  }
+}
+
+// Een alternatief ("of: tofu"). Zonder hoeveelheid geldt die van het origineel; de
+// eenheid begint bij die van het origineel, zodat je alleen het getal hoeft te typen.
+function newAlternative(row) {
+  return { key: nextKey++, id: null, ingredient_name: '', quantity: '', unit: row.unit }
+}
+
+function alternativeFrom(alternative, row) {
+  return {
+    key: nextKey++,
+    id: alternative.id,
+    ingredient_name: alternative.name,
+    quantity: numberText(alternative.quantity),
+    unit: alternative.unit ?? row.unit ?? 'stuks',
+  }
 }
 
 function newStep() {
@@ -56,6 +86,9 @@ function ingredientFrom(row) {
     unit: row.unit ?? 'stuks',
     ingredient_name: row.name,
     optional: row.optional ?? false,
+    alternatives: (row.alternatives ?? []).map((alternative) => alternativeFrom(alternative, row)),
+    // Weggehaalde bestaande alternatieven: die gaan mee als { id, _destroy: true }.
+    removedAlternativeIds: [],
   }
 }
 
@@ -110,6 +143,36 @@ function stepIsEmpty(step) {
   return !step.body.trim()
 }
 
+function alternativeIsEmpty(alternative) {
+  return !alternative.quantity.trim() && !alternative.ingredient_name.trim()
+}
+
+function addAlternative(row) {
+  row.alternatives.push(newAlternative(row))
+}
+
+function removeAlternative(row, index) {
+  const [alternative] = row.alternatives.splice(index, 1)
+  if (alternative.id) row.removedAlternativeIds.push(alternative.id)
+}
+
+// Net als bij de regels: lege nieuwe alternatieven gaan niet mee, weggehaalde bestaande
+// achteraan. Zonder alternatieven gaat de sleutel helemaal niet mee.
+function alternativesRequest(row) {
+  const sent = row.alternatives.filter((alternative) => alternative.id || !alternativeIsEmpty(alternative))
+  const list = [
+    ...sent.map((alternative) =>
+      withId(alternative, {
+        ingredient_name: alternative.ingredient_name,
+        quantity: alternative.quantity.trim() || null,
+        unit: alternative.unit,
+      }),
+    ),
+    ...row.removedAlternativeIds.map((id) => ({ id, _destroy: true })),
+  ]
+  return { list, keys: sent.map((alternative) => alternative.key) }
+}
+
 function addIngredient() {
   ingredients.value.push(newIngredient())
 }
@@ -149,15 +212,19 @@ function buildRequest() {
     recipe_ingredients: ingredients.value.filter((row) => row.id || !ingredientIsEmpty(row)),
     steps: steps.value.filter((step) => step.id || !stepIsEmpty(step)),
   }
+  const alternativeKeys = {}
   const attributes = {
-    recipe_ingredients: sent.recipe_ingredients.map((row) =>
-      withId(row, {
+    recipe_ingredients: sent.recipe_ingredients.map((row) => {
+      const alternatives = alternativesRequest(row)
+      alternativeKeys[row.key] = alternatives.keys
+      return withId(row, {
         ingredient_name: row.ingredient_name,
         quantity: row.quantity.trim() || null,
         unit: row.unit,
         optional: row.optional,
-      }),
-    ),
+        ...(alternatives.list.length ? { alternatives_attributes: alternatives.list } : {}),
+      })
+    }),
     steps: sent.steps.map((step) => withId(step, { body: step.body })),
   }
 
@@ -171,7 +238,7 @@ function buildRequest() {
   if (variationOpen.value && variationForm.value) {
     body.variations_attributes = [variationForm.value.buildRequest().body]
   }
-  const keys = {}
+  const keys = { alternatives: alternativeKeys }
   for (const kind of ['recipe_ingredients', 'steps']) {
     const removed = removedIds[kind].map((id) => ({ id, _destroy: true }))
     const list = [...attributes[kind], ...removed]
@@ -192,7 +259,9 @@ watch(dirty, (value) => emit('dirty-change', value))
 // Welke regel (key) zat op welke plek in de laatst verstuurde request. De server meldt
 // fouten als "steps[1].body", waarbij 1 de plek in de request is, niet in het formulier:
 // lege regels zijn niet meegestuurd en regels kunnen daarna nog verschoven zijn.
-const sentKeys = ref({ recipe_ingredients: [], steps: [] })
+// alternatives: per regel (key) de keys van de meegestuurde alternatieven, voor
+// "recipe_ingredients[0].alternatives[1].quantity".
+const sentKeys = ref({ recipe_ingredients: [], steps: [], alternatives: {} })
 
 function onSubmit() {
   // "Nieuwe categorie…" zonder naam zou stilletjes "geen categorie" worden.
@@ -211,21 +280,40 @@ const VARIATION_PREFIX = 'variations[0].'
 // het variatieformulier zelf.
 const variationErrors = computed(() => errorsUnder(props.errors, VARIATION_PREFIX))
 
-// De overige serverfouten: per regel (op key) en algemeen (bovenaan het formulier).
+const LABELS = {
+  recipe_ingredients: 'Ingrediënten',
+  steps: 'Stappen',
+  variations: 'Variaties',
+  alternatives: 'Alternatieven',
+  ingredient_name: 'Naam',
+  quantity: 'Hoeveelheid',
+  unit: 'Eenheid',
+  body: 'Stap',
+}
+
+// "alternatives[1].quantity" wordt "Alternatief 2: hoeveelheid".
+function labelOf(field) {
+  const match = field.match(/^alternatives\[(\d+)\]\.(\w+)$/)
+  if (!match) return LABELS[field]
+
+  return `Alternatief ${Number(match[1]) + 1}: ${(LABELS[match[2]] ?? match[2]).toLowerCase()}`
+}
+
+// De overige serverfouten: per regel (op key) en algemeen (bovenaan het formulier). Een
+// fout van een alternatief hoort bij zijn ingrediëntregel.
 const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
   skip: (attribute) => FORM_FIELDS.includes(attribute) || attribute.startsWith(VARIATION_PREFIX),
-  rowPattern: /^(?<list>recipe_ingredients|steps)\[(?<index>\d+)\]\.(?<field>\w+)$/,
+  rowPattern:
+    /^(?<list>recipe_ingredients|steps)\[(?<index>\d+)\]\.(?<field>(?:alternatives\[\d+\]\.)?\w+)$/,
   keyOf: ({ list, index }) => sentKeys.value[list][Number(index)],
-  labels: {
-    recipe_ingredients: 'Ingrediënten',
-    steps: 'Stappen',
-    variations: 'Variaties',
-    ingredient_name: 'Naam',
-    quantity: 'Hoeveelheid',
-    unit: 'Eenheid',
-    body: 'Stap',
-  },
+  labels: labelOf,
 })
+
+// Het veld van een alternatief rood maken: zijn plek in de laatst verstuurde request.
+function isAlternativeInvalid(row, alternative, field) {
+  const index = sentKeys.value.alternatives[row.key]?.indexOf(alternative.key) ?? -1
+  return index >= 0 && isInvalid(row, `alternatives[${index}].${field}`)
+}
 
 // Stappen groeien mee met de tekst. CSS doet dat met field-sizing: content; browsers
 // die dat (nog) niet kennen, krijgen de hoogte hier: eerst 'auto' zodat hij ook kan
@@ -360,6 +448,70 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
             ×
           </button>
         </div>
+        <IngredientSuggestion
+          :name="row.ingredient_name"
+          :names="ingredientNames"
+          @use="row.ingredient_name = $event"
+        />
+        <!-- Alternatieven ("of: tofu"): ingeklapt achter "+ alternatief". -->
+        <div
+          v-for="(alternative, altIndex) in row.alternatives"
+          :key="alternative.key"
+          class="alternative"
+          :data-key="alternative.key"
+        >
+          <span class="of" aria-hidden="true">of</span>
+          <input
+            v-model="alternative.ingredient_name"
+            type="text"
+            class="alt-name"
+            placeholder="bijv. tofu"
+            :aria-label="`Alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
+            :aria-invalid="isAlternativeInvalid(row, alternative, 'ingredient_name')"
+          />
+          <input
+            v-model="alternative.quantity"
+            type="text"
+            inputmode="decimal"
+            class="alt-quantity"
+            placeholder="zelfde als origineel"
+            :aria-label="`Hoeveelheid alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
+            :aria-invalid="isAlternativeInvalid(row, alternative, 'quantity')"
+          />
+          <!-- Zonder hoeveelheid geldt die van het origineel, en telt de eenheid niet. -->
+          <select
+            v-model="alternative.unit"
+            class="alt-unit"
+            :disabled="!alternative.quantity.trim()"
+            :aria-label="`Eenheid alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
+            :aria-invalid="isAlternativeInvalid(row, alternative, 'unit')"
+          >
+            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+          </select>
+          <button
+            type="button"
+            class="alt-remove"
+            :aria-label="`Alternatief ${altIndex + 1} voor ingrediënt ${index + 1} verwijderen`"
+            @click="removeAlternative(row, altIndex)"
+          >
+            ×
+          </button>
+          <!-- Dezelfde "Bedoel je: …?" als bij de naam van het ingrediënt. -->
+          <IngredientSuggestion
+            class="alt-suggestion"
+            :name="alternative.ingredient_name"
+            :names="ingredientNames"
+            @use="alternative.ingredient_name = $event"
+          />
+        </div>
+        <button
+          type="button"
+          class="add-alternative"
+          :aria-label="`Alternatief voor ingrediënt ${index + 1} toevoegen`"
+          @click="addAlternative(row)"
+        >
+          + alternatief
+        </button>
         <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
           {{ message }}
         </p>
@@ -601,6 +753,89 @@ legend {
   }
 
   .inputs .name {
+    grid-column: auto;
+  }
+}
+
+/* Een alternatief: ingesprongen onder zijn ingrediënt, met "of" ervoor. Mobiel de naam
+   (en ×) op de eerste regel, hoeveelheid en eenheid eronder. */
+.alternative {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 5.5rem var(--tap);
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--color-brand-soft);
+}
+
+.alternative .of {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.alternative .alt-name {
+  grid-column: 2 / 4;
+}
+
+.alternative .alt-quantity {
+  grid-column: 2;
+}
+
+.alternative .alt-quantity,
+.alternative .alt-unit {
+  min-width: 0;
+}
+
+.alternative .alt-quantity::placeholder {
+  font-size: var(--text-sm);
+}
+
+.alternative .alt-unit {
+  padding-right: var(--space-1);
+}
+
+.alternative .alt-unit:disabled {
+  opacity: 0.5;
+}
+
+.alternative .alt-suggestion {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+
+.alternative .alt-remove {
+  grid-row: 1;
+  grid-column: 4;
+  width: var(--tap);
+  padding: 0;
+  font-size: var(--text-xl);
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+/* Klein en licht: de meeste ingrediënten hebben geen alternatief. Wel een volledig
+   tikvlak (--tap hoog), zoals elke knop. */
+.add-alternative {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-accent-text);
+  background: transparent;
+  border: 0;
+}
+
+@media (min-width: 40rem) {
+  .alternative {
+    grid-template-columns: auto minmax(0, 1fr) 10rem 6rem var(--tap);
+  }
+
+  .alternative .alt-name,
+  .alternative .alt-quantity {
+    grid-column: auto;
+  }
+
+  .alternative .alt-remove {
+    grid-row: auto;
     grid-column: auto;
   }
 }

@@ -42,6 +42,10 @@ Rails.application.routes.draw do
     # Only with the admin code: deletion requests and versions.
     namespace :admin do
       resources :deletion_requests, only: :index
+      # Merging deletes the source ingredient, so it needs the code too.
+      resources :ingredients, only: [] do
+        post :merge, on: :member
+      end
 
       resources :variations, only: :destroy, controller: "recipe_variations" do
         patch :restore, on: :member

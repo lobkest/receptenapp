@@ -6,6 +6,7 @@ import { createVariation, requestVariationDeletion, updateVariation } from '@/ap
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
+import { swappedAlternativeIds } from '@/utils/alternatives'
 
 // De variaties op de receptpagina. De kaarten tonen de verschillen met het basisrecept;
 // het formulier klapt open op de pagina, voor een nieuwe variatie onder de kaarten, bij
@@ -20,6 +21,8 @@ const props = defineProps({
   recipe: { type: Object, required: true },
   // Het gekozen aantal porties op de pagina.
   servings: { type: Number, required: true },
+  // De gewisselde ingrediënten van het basisrecept: { regel-id: alternatief-id }.
+  swaps: { type: Object, default: () => ({}) },
 })
 
 // reload: na een 409 de nieuwste versie laden; dat doet de pagina.
@@ -114,12 +117,18 @@ function reloadAfterConflict() {
   emit('reload')
 }
 
-// Wat op het scherm staat: het gekozen aantal porties. De server rekent de regels uit.
+// Wat op het scherm staat: het gekozen aantal porties en de gewisselde ingrediënten. De
+// server rekent de regels uit; een ingrediënt dat de variatie weglaat, blijft weg.
 async function addVariationToList(variation) {
   busyVariationId.value = variation.id
   resetVariationFeedback()
   try {
-    await shoppingList.addVariation(props.recipe.id, variation.id, props.servings)
+    await shoppingList.addVariation(
+      props.recipe.id,
+      variation.id,
+      props.servings,
+      swappedAlternativeIds(props.swaps),
+    )
     variationMessage.value = `"${variation.name}" staat op je boodschappenlijst.`
   } catch (e) {
     variationError.value = e.message

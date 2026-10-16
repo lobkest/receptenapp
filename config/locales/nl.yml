@@ -11,16 +11,21 @@ nl:
       shopping_list_addition:
         servings: Porties
         ingredient_ids: Ingrediënten
+        alternative_ids: Alternatieven
     errors:
       models:
         shopping_list_addition:
           attributes:
             ingredient_ids:
               other_recipe: "bevat een ingrediënt dat niet bij dit recept hoort"
+            alternative_ids:
+              other_recipe: "bevat een alternatief dat niet bij dit recept hoort"
+              one_per_ingredient: "bevat twee alternatieven voor hetzelfde ingrediënt"
   activerecord:
     models:
       recipe: recept
       recipe_ingredient: ingrediënt
+      recipe_ingredient_alternative: alternatief
       ingredient: ingrediënt
       nevo_food: NEVO-product
       step: stap
@@ -78,6 +83,12 @@ nl:
         quantity: Hoeveelheid
         unit: Eenheid
         optional: Optioneel
+        alternatives: Alternatieven
+      recipe_ingredient_alternative:
+        ingredient_name: Naam
+        quantity: Hoeveelheid
+        unit: Eenheid
+        recipe_ingredient: Ingrediënt
       ingredient:
         name: Naam
         nevo_food: NEVO-product
@@ -137,6 +148,15 @@ nl:
               tag_with_comma: "bevat een tag met een komma: \"%{name}\""
             removed_tag_names:
               tag_not_on_recipe: "bevat \"%{name}\", maar die tag heeft het recept niet"
+        recipe_ingredient:
+          attributes:
+            alternatives:
+              same_as_original: "bevatten het ingrediënt zelf"
+        recipe_ingredient_alternative:
+          attributes:
+            ingredient_name:
+              same_as_original: "is hetzelfde als het ingrediënt zelf"
+              taken: "staat al als alternatief bij dit ingrediënt"
         variation_change:
           attributes:
             recipe_ingredient:

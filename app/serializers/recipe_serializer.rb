@@ -62,7 +62,18 @@ module RecipeSerializer
   end
 
   def ingredient(row)
-    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "optional" => row.optional }
+    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "optional" => row.optional,
+      "alternatives" => row.alternatives.map { |alternative| alternative(alternative) } }
+  end
+
+  # quantity and unit: as stored, null for "zelfde als origineel" (what the edit form
+  # shows). effective_quantity and effective_unit: what to use, the row's own when null.
+  def alternative(alternative)
+    {
+      "id" => alternative.id, "name" => alternative.ingredient_name,
+      "quantity" => number(alternative.quantity), "unit" => alternative.unit,
+      "effective_quantity" => number(alternative.effective_quantity), "effective_unit" => alternative.effective_unit
+    }
   end
 
   # Rails turns a BigDecimal into the string "200.0"; the API sends the number 200 or 0.5.

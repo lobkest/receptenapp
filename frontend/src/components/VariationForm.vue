@@ -1,6 +1,8 @@
 <script setup>
 import { computed, reactive, ref, useId } from 'vue'
+import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
 import TagPicker from '@/components/TagPicker.vue'
+import { useIngredientNames } from '@/composables/useIngredientNames'
 import { useServerErrors } from '@/composables/useServerErrors'
 import { formatQuantity, numberText, UNITS } from '@/utils/quantity'
 
@@ -28,6 +30,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['submit', 'cancel'])
+
+// Bestaande ingrediënten, voor "Bedoel je: …?" onder een extra ingrediënt.
+const ingredientNames = useIngredientNames()
 
 const uid = useId()
 
@@ -233,6 +238,7 @@ function amount(row) {
             ×
           </button>
         </div>
+        <IngredientSuggestion :name="row.name" :names="ingredientNames" @use="row.name = $event" />
         <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
           {{ message }}
         </p>

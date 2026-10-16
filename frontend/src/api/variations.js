@@ -36,11 +36,13 @@ export function requestVariationDeletion(recipeId, id, reason) {
 }
 
 // Zet de variatie op de boodschappenlijst, geschaald naar servings. De server rekent:
-// het basisrecept min de weggelaten en optionele ingrediënten, plus de extra's. Geeft de
-// nieuwe regels terug.
-export function addVariationToShoppingList(recipeId, id, servings) {
+// het basisrecept min de weggelaten en optionele ingrediënten, plus de extra's. Met
+// alternativeIds gaan gewisselde ingrediënten als hun alternatief mee. Geeft de nieuwe
+// regels terug.
+export function addVariationToShoppingList(recipeId, id, servings, alternativeIds = []) {
+  const body = alternativeIds.length ? { servings, alternative_ids: alternativeIds } : { servings }
   return request(`${variationPath(recipeId, id)}/add_to_shopping_list`, {
     method: 'POST',
-    body: JSON.stringify({ servings }),
+    body: JSON.stringify(body),
   })
 }

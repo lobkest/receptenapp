@@ -37,7 +37,10 @@ class Recipe < ApplicationRecord
   # ones are edited through their own endpoint, with their own lock_version.
   accepts_nested_attributes_for :variations, limit: RecipeVariation::MAX_PER_RECIPE
 
-  scope :with_details, -> { includes(:tags, :category, :steps, recipe_ingredients: { ingredient: :nevo_food }, visible_variations: RecipeVariation::DETAILS) }
+  scope :with_details, -> {
+    includes(:tags, :category, :steps, recipe_ingredients: [ { ingredient: :nevo_food }, { alternatives: :ingredient } ],
+      visible_variations: RecipeVariation::DETAILS)
+  }
 
   # Recipes that have ALL of the given tags. One subquery: take the recipe_tags rows whose
   # tag is one of the names, group them per recipe, and keep the recipes with as many
@@ -115,16 +118,17 @@ class Recipe < ApplicationRecord
 
   # What "Alles op lijst" (only: nil, without the optional ingredients) or "+ lijst"
   # (only: [ row id ]) puts on the shopping list, scaled to servings. Attributes for
-  # ShoppingListItem (see ShoppingListAddition).
-  def shopping_list_items(servings:, only: nil)
+  # ShoppingListItem (see ShoppingListAddition). swaps: { row id => alternative } for the
+  # rows swapped on the recipe page; an optional row stays optional when swapped.
+  def shopping_list_items(servings:, only: nil, swaps: {})
     rows = only ? recipe_ingredients.select { |row| only.include?(row.id) } : recipe_ingredients.reject(&:optional)
 
-    ShoppingListItem.lines_for(rows.map { |row| [ row.ingredient_name, row.quantity, row.unit ] },
+    ShoppingListItem.lines_for(rows.map { |row| row.shopping_line(swaps[row.id]) },
       factor: Rational(servings, self.servings), source_label: title, recipe_id: id)
   end
 
-  # Puts an older version back: title, description, servings, category, tags, ingredients,
-  # steps and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
+  # Puts an older version back: title, description, servings, category, tags, ingredients
+  # (with their alternatives), steps and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
   # That also deletes the variations' removals (on_delete: :cascade), so the variations are
   # rebuilt afterwards, with each removal linked again by ingredient name.
   # This is a change like any other, so it makes a new version too ("Teruggezet naar ...").
@@ -142,8 +146,12 @@ class Recipe < ApplicationRecord
 
       # Not through *_attributes=: an old version may have no ingredients or steps, and
       # that minimum only applies to what a person submits.
+      # A version from before alternatives existed has none.
       recipe_ingredients.each(&:mark_for_destruction)
-      snapshot["ingredients"].each { |row| recipe_ingredients.build(row) }
+      snapshot["ingredients"].each do |row|
+        built = recipe_ingredients.build(row.except("alternatives"))
+        row.fetch("alternatives", []).each { |alternative| built.alternatives.build(alternative) }
+      end
       steps.each(&:mark_for_destruction)
       snapshot["steps"].each.with_index(1) { |step, position| steps.build(body: step["body"], position: position) }
 

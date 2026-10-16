@@ -34,21 +34,32 @@ class RecipeVersion < ApplicationRecord
   # ingredient name, because restoring makes new ingredient rows. The category by name too,
   # like the tags.
   def self.snapshot_of(recipe)
-    recipe = Recipe.includes(:tags, :category, :steps, recipe_ingredients: :ingredient, variations: RecipeVariation::DETAILS).find(recipe.id)
+    recipe = Recipe.includes(:tags, :category, :steps, recipe_ingredients: [ :ingredient, { alternatives: :ingredient } ],
+      variations: RecipeVariation::DETAILS).find(recipe.id)
     {
       "title" => recipe.title,
       "description" => recipe.description,
       "servings" => recipe.servings,
       "category" => recipe.category&.name,
       "tag_names" => recipe.tags.map(&:name).sort,
-      "ingredients" => recipe.recipe_ingredients.map { |row|
-        { "ingredient_name" => row.ingredient_name, "quantity" => row.quantity&.to_s("F"),
-          "unit" => row.unit, "optional" => row.optional }
-      },
+      "ingredients" => recipe.recipe_ingredients.map { |row| ingredient_snapshot(row) },
       "steps" => recipe.steps.map { |step| { "body" => step.body } },
       "variations" => recipe.variations.map { |variation| variation_snapshot(variation) }
     }
   end
+
+  # "alternatives" only when the row has them: a snapshot of a recipe without alternatives
+  # stays equal to one from before they existed, so no empty version is made.
+  def self.ingredient_snapshot(row)
+    snapshot = { "ingredient_name" => row.ingredient_name, "quantity" => row.quantity&.to_s("F"),
+      "unit" => row.unit, "optional" => row.optional }
+    return snapshot if row.alternatives.empty?
+
+    snapshot.merge("alternatives" => row.alternatives.map { |alternative|
+      { "ingredient_name" => alternative.ingredient_name, "quantity" => alternative.quantity&.to_s("F"), "unit" => alternative.unit }
+    })
+  end
+  private_class_method :ingredient_snapshot
 
   def self.variation_snapshot(variation)
     {

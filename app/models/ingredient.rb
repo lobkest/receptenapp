@@ -11,6 +11,7 @@ class Ingredient < ApplicationRecord
 
   # An ingredient still used by a recipe cannot be deleted.
   has_many :recipe_ingredients, dependent: :restrict_with_error
+  has_many :recipe_ingredient_alternatives, dependent: :restrict_with_error
   # Optional: an ingredient without a link is simply not counted in the nutrition.
   belongs_to :nevo_food, optional: true
 

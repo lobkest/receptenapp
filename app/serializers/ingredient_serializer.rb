@@ -13,7 +13,7 @@ module IngredientSerializer
     }
   end
 
-  # For the edit page. units: how recipes and variations use it, so the page can say which
+  # For the edit page. units: how recipes, alternatives and variations use it, so the page can say which
   # conversion is needed (stuks → gram per stuk; ml, tl, el → gram per ml).
   def detail(ingredient)
     summary(ingredient).merge(
@@ -37,6 +37,7 @@ module IngredientSerializer
 
   def units(ingredient)
     (ingredient.recipe_ingredients.where.not(unit: nil).distinct.pluck(:unit) +
+      ingredient.recipe_ingredient_alternatives.where.not(unit: nil).distinct.pluck(:unit) +
       VariationChange.kind_add.where(name: ingredient.name).where.not(unit: nil).distinct.pluck(:unit)).uniq.sort
   end
 

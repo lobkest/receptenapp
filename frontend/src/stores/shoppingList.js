@@ -149,16 +149,20 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // "Alles op lijst" (ingredientIds null: alles behalve de optionele) of "+ lijst" (één
     // id) op de receptpagina. De server schaalt en rondt af (app/models/quantity.rb), net
     // als bij een variatie, en geeft de nieuwe regels terug.
-    async addRecipe(recipeId, servings, ingredientIds = null) {
+    async addRecipe(recipeId, servings, ingredientIds = null, alternativeIds = []) {
       this.changes++
-      this.items.push(...(await addRecipeToShoppingList(recipeId, servings, ingredientIds)))
+      this.items.push(
+        ...(await addRecipeToShoppingList(recipeId, servings, ingredientIds, alternativeIds)),
+      )
       this.persist()
     },
 
     // "Variatie op lijst": de server stelt de regels samen en geeft ze terug.
-    async addVariation(recipeId, variationId, servings) {
+    async addVariation(recipeId, variationId, servings, alternativeIds = []) {
       this.changes++
-      this.items.push(...(await addVariationToShoppingList(recipeId, variationId, servings)))
+      this.items.push(
+        ...(await addVariationToShoppingList(recipeId, variationId, servings, alternativeIds)),
+      )
       this.persist()
     },
 

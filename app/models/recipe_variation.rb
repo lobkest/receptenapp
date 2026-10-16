@@ -99,12 +99,14 @@ class RecipeVariation < ApplicationRecord
   # removed rows and without optional ingredients, plus the added ones, all scaled to
   # servings. Attributes for ShoppingListItem (see ShoppingListAddition).
   # only: picking single rows is for the recipe itself (Recipe#shopping_list_items).
-  def shopping_list_items(servings:, only: nil)
+  # swaps: rows of the base recipe swapped for an alternative; a removed row stays removed.
+  # The added ingredients have no alternatives.
+  def shopping_list_items(servings:, only: nil, swaps: {})
     raise ArgumentError, "a variation always goes on the list as a whole" if only
 
     removed = removed_ingredient_ids
     rows = recipe.recipe_ingredients.reject { |row| row.optional || removed.include?(row.id) }
-      .map { |row| [ row.ingredient_name, row.quantity, row.unit ] }
+      .map { |row| row.shopping_line(swaps[row.id]) }
     rows += additions.map { |addition| [ addition.name, addition.quantity, addition.unit ] }
 
     ShoppingListItem.lines_for(rows, factor: Rational(servings, recipe.servings),

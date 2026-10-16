@@ -16,8 +16,11 @@ import { computed, toValue } from 'vue'
 //
 // Een composable is een functie die reactieve staat (computed, ref) teruggeeft; elk
 // component dat hem aanroept krijgt zijn eigen exemplaar. Vergelijk met een hulpklasse.
+//
+// labels: { body: 'Stap' }, of een functie (field) => label voor velden met een eigen
+// vorm, zoals "alternatives[1].quantity" in RecipeForm.
 export function useServerErrors(errors, { skip = () => false, rowPattern, keyOf, labels = {} }) {
-  const label = (field) => labels[field] ?? field
+  const label = (field) => (typeof labels === 'function' ? labels(field) : labels[field]) ?? field
 
   // byRow: meldingen per regel (key); invalid: per regel welke velden fout zijn (voor de
   // rode rand, aria-invalid); general: de rest, bovenaan het formulier.

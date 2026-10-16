@@ -49,9 +49,11 @@ export function requestDeletion(id, reason) {
 
 // "Alles op lijst" of "+ lijst": alleen wat en voor hoeveel porties; de server rekent de
 // hoeveelheden uit en zet de regels op de boodschappenlijst. ingredientIds null: alles
-// behalve de optionele ingrediënten. Geeft de nieuwe regels terug.
-export function addRecipeToShoppingList(id, servings, ingredientIds = null) {
+// behalve de optionele ingrediënten. alternativeIds: de gewisselde ingrediënten ("⇄ tofu").
+// Geeft de nieuwe regels terug.
+export function addRecipeToShoppingList(id, servings, ingredientIds = null, alternativeIds = []) {
   const body = ingredientIds ? { servings, ingredient_ids: ingredientIds } : { servings }
+  if (alternativeIds.length) body.alternative_ids = alternativeIds
   return request(`/api/recipes/${encodeURIComponent(id)}/add_to_shopping_list`, {
     method: 'POST',
     body: JSON.stringify(body),

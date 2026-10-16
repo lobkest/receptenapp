@@ -56,3 +56,13 @@ export function restoreRecipeVersion(code, id, versionId) {
     method: 'POST',
   })
 }
+
+// Samenvoegen: ingrediënt id gaat op in targetId (recepten, variaties, lijsten); daarna
+// is id weg, behalve als een recept ze allebei bevat (skipped_recipes).
+// { target, source_deleted, moved_recipes, skipped_recipes, copied }
+export function mergeIngredient(code, id, targetId) {
+  return adminRequest(code, `${BASE}/ingredients/${encodeURIComponent(id)}/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId }),
+  })
+}

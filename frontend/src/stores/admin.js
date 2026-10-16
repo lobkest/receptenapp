@@ -112,6 +112,17 @@ export const useAdminStore = defineStore('admin', {
       return this.call(api.fetchRecipeVersions, id)
     },
 
+    // code: als je nog niet bent ingelogd, de code uit het bevestigingsvenster. Lukt het,
+    // dan blijft die bewaard zoals na inloggen.
+    async mergeIngredient(id, targetId, code = null) {
+      if (!code) return this.call(api.mergeIngredient, id, targetId)
+
+      const result = await api.mergeIngredient(code, id, targetId)
+      this.code = code
+      storeCode(code)
+      return result
+    },
+
     async restoreVersion(id, versionId) {
       const recipe = await this.call(api.restoreRecipeVersion, id, versionId)
       this.refreshPublicRecipes()

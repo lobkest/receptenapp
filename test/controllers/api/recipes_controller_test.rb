@@ -100,9 +100,9 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 2, 3 ], body["steps"].map { |step| step["position"] }
     assert_equal steps(:pannenkoeken_beslag).id, body["steps"].first["id"]
     assert_match "glad beslag", body["steps"].first["body"]
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_bloem).id, "name" => "bloem", "quantity" => 250, "unit" => "g", "optional" => false }
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_ei).id, "name" => "ei", "quantity" => 2, "unit" => "stuks", "optional" => false }
-    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_zout).id, "name" => "zout", "quantity" => nil, "unit" => nil, "optional" => true }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_bloem).id, "name" => "bloem", "quantity" => 250, "unit" => "g", "optional" => false, "alternatives" => [] }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_ei).id, "name" => "ei", "quantity" => 2, "unit" => "stuks", "optional" => false, "alternatives" => [] }
+    assert_includes body["ingredients"], { "id" => recipe_ingredients(:pannenkoeken_zout).id, "name" => "zout", "quantity" => nil, "unit" => nil, "optional" => true, "alternatives" => [] }
   end
 
   test "show loads ingredients without one query per row" do
@@ -174,9 +174,9 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ [ 1, "Schillen." ], [ 2, "Koken." ], [ 3, "Stampen." ] ],
       body["steps"].map { |step| [ step["position"], step["body"] ] }
     assert_equal [
-      { "name" => "wortel", "quantity" => 1000, "unit" => "g", "optional" => false },
-      { "name" => "ui", "quantity" => 1.5, "unit" => "stuks", "optional" => false },
-      { "name" => "peper", "quantity" => nil, "unit" => nil, "optional" => true }
+      { "name" => "wortel", "quantity" => 1000, "unit" => "g", "optional" => false, "alternatives" => [] },
+      { "name" => "ui", "quantity" => 1.5, "unit" => "stuks", "optional" => false, "alternatives" => [] },
+      { "name" => "peper", "quantity" => nil, "unit" => nil, "optional" => true, "alternatives" => [] }
     ], body["ingredients"].map { |row| row.except("id") }
     assert_equal [ 1, 2, 3 ], Recipe.find(body["id"]).steps.pluck(:position)
   end

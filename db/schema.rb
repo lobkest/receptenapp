@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_100002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,6 +57,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100002) do
     t.datetime "updated_at", null: false
     t.index ["code"], name: "index_nevo_foods_on_code", unique: true
     t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying]::text[])", name: "nevo_foods_unit_known"
+  end
+
+  create_table "recipe_ingredient_alternatives", force: :cascade do |t|
+    t.bigint "recipe_ingredient_id", null: false
+    t.bigint "ingredient_id", null: false
+    t.decimal "quantity", precision: 10, scale: 2
+    t.string "unit"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ingredient_id"], name: "index_recipe_ingredient_alternatives_on_ingredient_id"
+    t.index ["recipe_ingredient_id", "ingredient_id"], name: "index_recipe_ingredient_alternatives_on_row_and_ingredient", unique: true
+    t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "recipe_ingredient_alternatives_quantity_has_unit"
+    t.check_constraint "quantity > 0::numeric", name: "recipe_ingredient_alternatives_quantity_positive"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "recipe_ingredient_alternatives_unit_known"
   end
 
   create_table "recipe_ingredients", force: :cascade do |t|
@@ -190,6 +205,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_100002) do
   end
 
   add_foreign_key "ingredients", "nevo_foods", on_delete: :nullify
+  add_foreign_key "recipe_ingredient_alternatives", "ingredients"
+  add_foreign_key "recipe_ingredient_alternatives", "recipe_ingredients", on_delete: :cascade
   add_foreign_key "recipe_ingredients", "ingredients"
   add_foreign_key "recipe_ingredients", "recipes"
   add_foreign_key "recipe_tags", "recipes"

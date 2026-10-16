@@ -10,21 +10,34 @@ import { nextTick, ref, useId, useTemplateRef } from 'vue'
 // Met een invulveld (bijv. een reden):
 //   const reason = await confirmDialog.value.askWithInput({ title, inputLabel: 'Reden (optioneel)' })
 // geeft null bij Annuleren of Escape, anders de ingevulde tekst (mag leeg zijn).
+// secret: true geeft een wachtwoordveld in plaats van een tekstvak (bijv. de beheercode).
 
 const uid = useId()
 const dialog = useTemplateRef('dialog')
 const cancelButton = useTemplateRef('cancelButton')
 
-const content = ref({ title: '', text: '', confirmLabel: 'Verwijderen', inputLabel: null })
+const content = ref({
+  title: '',
+  text: '',
+  confirmLabel: 'Verwijderen',
+  inputLabel: null,
+  secret: false,
+})
 const input = ref('')
 let answer = null
 
 async function ask({ title, text = '', confirmLabel = 'Verwijderen' }) {
-  return open({ title, text, confirmLabel, inputLabel: null })
+  return open({ title, text, confirmLabel, inputLabel: null, secret: false })
 }
 
-async function askWithInput({ title, text = '', confirmLabel = 'Verwijderen', inputLabel }) {
-  const confirmed = await open({ title, text, confirmLabel, inputLabel })
+async function askWithInput({
+  title,
+  text = '',
+  confirmLabel = 'Verwijderen',
+  inputLabel,
+  secret = false,
+}) {
+  const confirmed = await open({ title, text, confirmLabel, inputLabel, secret })
   return confirmed ? input.value.trim() : null
 }
 
@@ -72,7 +85,21 @@ defineExpose({ ask, askWithInput })
     <p v-if="content.text" :id="`${uid}-text`" class="text">{{ content.text }}</p>
     <div v-if="content.inputLabel" class="field">
       <label :for="`${uid}-input`">{{ content.inputLabel }}</label>
-      <textarea :id="`${uid}-input`" v-model="input" class="dialog-input" rows="2"></textarea>
+      <input
+        v-if="content.secret"
+        :id="`${uid}-input`"
+        v-model="input"
+        type="password"
+        class="dialog-input"
+        autocomplete="current-password"
+      />
+      <textarea
+        v-else
+        :id="`${uid}-input`"
+        v-model="input"
+        class="dialog-input"
+        rows="2"
+      ></textarea>
     </div>
     <div class="actions">
       <button ref="cancelButton" type="button" class="cancel" @click="close(false)">

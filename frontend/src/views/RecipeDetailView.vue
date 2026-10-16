@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref, useTemplateRef, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import RecipeDetailActions from '@/components/RecipeDetailActions.vue'
 import RecipeDetailIngredients from '@/components/RecipeDetailIngredients.vue'
@@ -11,6 +11,7 @@ import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRecipesStore } from '@/stores/recipes'
+import { formatSwaps, parseSwaps } from '@/utils/alternatives'
 
 // De receptpagina. Deze view laadt het recept en houdt de staat die meerdere delen nodig
 // hebben (het recept en het gekozen aantal porties); de delen zelf zijn componenten:
@@ -39,6 +40,20 @@ provideConfirmDialog(useTemplateRef('confirmDialog'))
 // Bewust niet bewaard: het is een keuze voor één keer koken, en bij een volgend bezoek
 // begin je weer bij het recept zelf.
 const servings = ref(null)
+
+// Gewisselde ingrediënten ("⇄ tofu"): in de URL (?wissel=12:3), zodat herladen of een
+// gedeelde link dezelfde keuze laat zien. Wat niet (meer) bij het recept hoort, telt niet.
+// router.replace, geen push: wisselen is geen nieuwe pagina, "terug" gaat gewoon terug.
+const route = useRoute()
+const router = useRouter()
+const swaps = computed(() => parseSwaps(route.query.wissel, recipe.value?.ingredients ?? []))
+
+function setSwaps(next) {
+  const query = { ...route.query }
+  delete query.wissel
+  const wissel = formatSwaps(next, recipe.value?.ingredients ?? [])
+  router.replace({ query: wissel ? { ...query, wissel } : query })
+}
 
 // keepServings: na herladen (bijv. na een conflict) blijft de gekozen porties staan.
 async function load(id, { keepServings = false } = {}) {
@@ -97,14 +112,17 @@ watch(() => props.id, load, { immediate: true })
     <!-- Oudere recepten hebben geen ingrediënten of stappen; dan vervalt het kopje. -->
     <RecipeDetailIngredients
       v-if="recipe.ingredients?.length"
+      :swaps="swaps"
       :recipe="recipe"
       :servings="servings"
+      @update:swaps="setSwaps"
     />
     <RecipeDetailSteps v-if="recipe.steps?.length" :steps="recipe.steps" />
     <RecipeDetailVariations
       v-model:variations="recipe.variations"
       :recipe="recipe"
       :servings="servings"
+      :swaps="swaps"
       @reload="reload"
     />
     <!-- Alleen als er minstens één ingrediënt meetelt. -->

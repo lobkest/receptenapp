@@ -6,9 +6,12 @@ import { createRecipe } from '@/api/recipes'
 import { useRecipesStore } from '@/stores/recipes'
 
 const router = useRouter()
-// De bestaande tags voor de tag-kiezer, en de melding op de receptpagina.
+// De bestaande tags en categorieën voor het formulier, en de melding op de receptpagina.
 const recipes = useRecipesStore()
-onMounted(() => recipes.loadTags())
+onMounted(() => {
+  recipes.loadTags()
+  recipes.loadCategories()
+})
 
 const errors = ref({})
 const message = ref(null)
@@ -44,6 +47,7 @@ async function handleSubmit(values) {
     :errors="errors"
     :submitting="submitting"
     :available-tags="recipes.tagNames"
+    :available-categories="recipes.categories"
     @submit="handleSubmit"
   />
 </template>

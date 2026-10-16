@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { fetchRecipes, fetchTags } from '@/api/recipes'
+import { fetchCategories, fetchRecipes, fetchTags } from '@/api/recipes'
 
 // Telt elke load(): alleen het antwoord op de laatste mag de lijst vullen. Tik je snel
 // twee filters aan, dan kan het antwoord op de eerste anders later binnenkomen.
@@ -16,6 +16,8 @@ export const useRecipesStore = defineStore('recipes', {
     filter: [],
     // Alle tags van zichtbare recepten, met aantal: [{ name, count }].
     tags: [],
+    // Alle categorieën op volgorde, ook zonder recepten: [{ id, name, position }].
+    categories: [],
     // Korte melding die een paginawissel overleeft, bijv. "… is opgeslagen."
     notice: null,
   }),
@@ -61,6 +63,16 @@ export const useRecipesStore = defineStore('recipes', {
         this.tags = await fetchTags()
       } catch {
         // De oude tags blijven staan.
+      }
+    },
+
+    // Net als bij de tags: zonder categorieën werkt alles, je kunt dan alleen een nieuwe
+    // categorie typen, en het overzicht haalt de secties uit de recepten zelf.
+    async loadCategories() {
+      try {
+        this.categories = await fetchCategories()
+      } catch {
+        // De oude categorieën blijven staan.
       }
     },
   },

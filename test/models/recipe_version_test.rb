@@ -13,7 +13,7 @@ class RecipeVersionTest < ActiveSupport::TestCase
     version = recipe.versions.sole
     assert_equal "Eerste versie", version.summary
     assert_equal({
-      "title" => "Tosti", "description" => nil, "servings" => 1, "tag_names" => [ "snel" ],
+      "title" => "Tosti", "description" => nil, "servings" => 1, "category" => nil, "tag_names" => [ "snel" ],
       "ingredients" => [ { "ingredient_name" => "kaas", "quantity" => "1.5", "unit" => "stuks", "optional" => true } ],
       "steps" => [ { "body" => "Beleggen." }, { "body" => "Bakken." } ],
       "variations" => []
@@ -59,6 +59,40 @@ class RecipeVersionTest < ActiveSupport::TestCase
     assert_equal [ 1, 2, 3 ], @recipe.steps.map(&:position)
     assert_equal 3, @recipe.versions.count
     assert_match "Teruggezet naar de versie van", @recipe.versions.newest_first.first.summary
+  end
+
+  test "a change of category is a new version, and restoring brings the old category back" do
+    @recipe.update!(category_name: "Ontbijt")
+    with_breakfast = @recipe.versions.newest_first.first
+    assert_equal "Ontbijt", with_breakfast.snapshot["category"]
+
+    @recipe.update!(category_name: "Diner")
+    assert_equal "Gewijzigd: categorie", @recipe.versions.newest_first.first.summary
+
+    @recipe.reload.restore_version!(with_breakfast)
+    assert_equal categories(:ontbijt), @recipe.reload.category
+
+    @recipe.update!(category_name: "")
+    @recipe.reload.restore_version!(@recipe.versions.find_by!(summary: "Oorspronkelijke versie"))
+    assert_nil @recipe.reload.category, "the original version had no category"
+  end
+
+  test "a version from before categories existed keeps the current category" do
+    old = RecipeVersion.record!(@recipe)
+    old.update_columns(snapshot: old.snapshot.except("category"))
+    @recipe.update!(title: "Flensjes", category_name: "Lunch")
+
+    @recipe.reload.restore_version!(old)
+
+    assert_equal "Pannenkoeken", @recipe.reload.title
+    assert_equal categories(:lunch), @recipe.category
+  end
+
+  test "an old snapshot without category counts as none: no new version for nothing" do
+    old = RecipeVersion.record!(@recipe)
+    old.update_columns(snapshot: old.snapshot.except("category"))
+
+    assert_nil RecipeVersion.record!(@recipe.reload)
   end
 
   test "an old version without ingredients or steps can be restored too" do

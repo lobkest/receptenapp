@@ -28,17 +28,29 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     get api_recipes_url, as: :json
 
     recipe = response.parsed_body.find { |r| r["title"] == "Pannenkoeken" }
-    assert_equal %w[ created_at description id servings tags title updated_at ], recipe.keys.sort
+    assert_equal %w[ category created_at description id servings tags title updated_at ], recipe.keys.sort
     assert_equal %w[ vega zoet ], recipe["tags"]
+    assert_nil recipe["category"], "a recipe from before categories has none"
   end
 
-  test "index loads tags without one query per recipe" do
-    3.times { |i| create_recipe("Extra #{i}", tag_names: [ "vega", "tag #{i}" ]) }
+  test "index loads tags and categories without one query per recipe" do
+    3.times { |i| create_recipe("Extra #{i}", tag_names: [ "vega", "tag #{i}" ], category_name: "Categorie #{i}") }
 
     queries = count_queries { get api_recipes_url, as: :json }
 
-    # recipes, recipe_tags and tags: the same for 1 or 100 recipes.
-    assert_operator queries, :<=, 3
+    # recipes, recipe_tags, tags and categories: the same for 1 or 100 recipes.
+    assert_operator queries, :<=, 4
+  end
+
+  test "index and show include the category with id, name and position" do
+    @recipe.update!(category: categories(:ontbijt))
+    expected = { "id" => categories(:ontbijt).id, "name" => "Ontbijt", "position" => 1 }
+
+    get api_recipes_url, as: :json
+    assert_equal expected, response.parsed_body.find { |r| r["id"] == @recipe.id }["category"]
+
+    get api_recipe_url(@recipe), as: :json
+    assert_equal expected, response.parsed_body["category"]
   end
 
   test "index with tags returns only visible recipes with ALL of them" do
@@ -239,6 +251,49 @@ class Api::RecipesControllerTest < ActionDispatch::IntegrationTest
     post api_recipes_url, params: { recipe: recipe_params(tag_names: [ "a" * 31 ]) }, as: :json
     assert_response :unprocessable_content
     assert_match "maximaal 30 tekens", response.parsed_body["errors"]["tag_names"].first
+  end
+
+  test "create with an existing category, in any case, reuses it" do
+    assert_no_difference("Category.count") do
+      post api_recipes_url, params: { recipe: recipe_params(category_name: "  dINER ") }, as: :json
+    end
+
+    assert_response :created
+    assert_equal categories(:diner).id, response.parsed_body["category"]["id"]
+    assert_equal categories(:diner), Recipe.find(response.parsed_body["id"]).category
+  end
+
+  test "create with a new category makes it, at the end of the order" do
+    assert_difference("Category.count", 1) do
+      post api_recipes_url, params: { recipe: recipe_params(category_name: " Bijgerecht ") }, as: :json
+    end
+
+    assert_response :created
+    assert_equal({ "name" => "Bijgerecht", "position" => 5 }, response.parsed_body["category"].except("id"))
+    get api_categories_url, as: :json
+    assert_equal %w[ Ontbijt Lunch Diner Snacks Bijgerecht ], response.parsed_body.pluck("name")
+  end
+
+  test "create without a category, or with an empty one, has none" do
+    post api_recipes_url, params: { recipe: recipe_params }, as: :json
+    assert_nil response.parsed_body["category"]
+
+    assert_no_difference("Category.count") do
+      post api_recipes_url, params: { recipe: recipe_params(category_name: "  ") }, as: :json
+    end
+    assert_response :created
+    assert_nil response.parsed_body["category"]
+  end
+
+  test "create refuses an invalid new category, in Dutch, and makes nothing" do
+    assert_no_difference([ "Recipe.count", "Category.count" ]) do
+      post api_recipes_url, params: { recipe: recipe_params(category_name: "a" * 31) }, as: :json
+    end
+    assert_response :unprocessable_content
+    assert_equal [ "is te lang (maximaal 30 tekens)" ], response.parsed_body["errors"]["category_name"]
+
+    post api_recipes_url, params: { recipe: recipe_params(category_name: "overig") }, as: :json
+    assert_equal [ "kan niet \"Overig\" zijn, die naam is gereserveerd" ], response.parsed_body["errors"]["category_name"]
   end
 
   test "create is rate limited per IP" do

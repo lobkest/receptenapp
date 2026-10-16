@@ -1,5 +1,5 @@
-# A full copy of a recipe after a change: title, description, servings, tags, ingredients,
-# steps and variations, as one JSON document (snapshot). Recipe#restore_version! puts it back.
+# A full copy of a recipe after a change: title, description, servings, category, tags,
+# ingredients, steps and variations, as one JSON document (snapshot). Recipe#restore_version! puts it back.
 #
 # Why not paper_trail: it versions one table at a time. Bringing back a recipe together
 # with its ingredients, steps and tags needs the separate paper_trail-association_tracking
@@ -12,14 +12,16 @@ class RecipeVersion < ApplicationRecord
     "title" => "titel",
     "description" => "beschrijving",
     "servings" => "porties",
+    "category" => "categorie",
     "tag_names" => "tags",
     "ingredients" => "ingrediënten",
     "steps" => "stappen",
     "variations" => "variaties"
   }.freeze
 
-  # Versions from before variations existed have no "variations": that counts as none.
-  DEFAULTS = { "variations" => [] }.freeze
+  # Versions from before variations or categories existed have no "variations" or
+  # "category": that counts as none.
+  DEFAULTS = { "variations" => [], "category" => nil }.freeze
 
   belongs_to :recipe
 
@@ -29,13 +31,15 @@ class RecipeVersion < ApplicationRecord
   # just removed are really gone. Quantities as text ("1.5"), so nothing is rounded.
   # All variations, also hidden ones: restoring a version must not bring back or drop a
   # variation whose deletion the admin still has to decide on. A removal is stored by
-  # ingredient name, because restoring makes new ingredient rows.
+  # ingredient name, because restoring makes new ingredient rows. The category by name too,
+  # like the tags.
   def self.snapshot_of(recipe)
-    recipe = Recipe.includes(:tags, :steps, recipe_ingredients: :ingredient, variations: RecipeVariation::DETAILS).find(recipe.id)
+    recipe = Recipe.includes(:tags, :category, :steps, recipe_ingredients: :ingredient, variations: RecipeVariation::DETAILS).find(recipe.id)
     {
       "title" => recipe.title,
       "description" => recipe.description,
       "servings" => recipe.servings,
+      "category" => recipe.category&.name,
       "tag_names" => recipe.tags.map(&:name).sort,
       "ingredients" => recipe.recipe_ingredients.map { |row|
         { "ingredient_name" => row.ingredient_name, "quantity" => row.quantity&.to_s("F"),

@@ -1,0 +1,17 @@
+# The start categories (see migration AddStartCategories). The fixture recipes have no
+# category: like the recipes from before categories existed, they are under "Overig".
+ontbijt:
+  name: Ontbijt
+  position: 1
+
+lunch:
+  name: Lunch
+  position: 2
+
+diner:
+  name: Diner
+  position: 3
+
+snacks:
+  name: Snacks
+  position: 4

@@ -17,10 +17,11 @@ const TAGS = [
 ]
 
 // Een nep-server zoals Rails: /api/recipes?tags=a,b geeft de recepten met ALLE tags.
-function fakeApi({ recipes = RECIPES, tags = TAGS } = {}) {
+function fakeApi({ recipes = RECIPES, tags = TAGS, categories = [] } = {}) {
   return mockFetch((method, url) => {
     const [path, query = ''] = url.split('?')
     if (path === '/api/tags') return jsonResponse(tags)
+    if (path === '/api/categories') return jsonResponse(categories)
     if (path === '/api/recipes') {
       const wanted = new URLSearchParams(query).get('tags')?.split(',').filter(Boolean) ?? []
       return jsonResponse(recipes.filter((r) => wanted.every((tag) => r.tags.includes(tag))))
@@ -39,11 +40,11 @@ async function mountAt(path = '/') {
 }
 
 function titles(wrapper) {
-  return wrapper.findAll('.recipe-grid h2').map((h) => h.text())
+  return wrapper.findAll('.recipe-grid h3').map((h) => h.text())
 }
 
 function chip(wrapper, name) {
-  return wrapper.findAll('.filter-chip').find((c) => c.text().startsWith(name))
+  return wrapper.findAll('.tag-chips .filter-chip').find((c) => c.text().startsWith(name))
 }
 
 function recipeUrls(fetch) {
@@ -114,10 +115,10 @@ describe('RecipeListView', () => {
       fakeApi()
       const { wrapper } = await mountAt()
 
-      const chips = wrapper.findAll('.filter-chip')
+      const chips = wrapper.findAll('.tag-chips .filter-chip')
       expect(chips.map((c) => c.text())).toEqual(['snel 2', 'vega 2', 'zoet 1'])
       expect(chips.map((c) => c.attributes('aria-pressed'))).toEqual(['false', 'false', 'false'])
-      expect(wrapper.find('.chip-row').attributes('aria-label')).toBe('Filter op tag')
+      expect(wrapper.find('.tag-chips').attributes('aria-label')).toBe('Filter op tag')
       expect(wrapper.find('.clear-filters').exists()).toBe(false)
     })
 
@@ -219,6 +220,7 @@ describe('RecipeListView', () => {
       let releaseVega
       mockFetch((method, url) => {
         if (url === '/api/tags') return jsonResponse(TAGS)
+        if (url === '/api/categories') return jsonResponse([])
         if (url === '/api/recipes?tags=vega') {
           return new Promise((resolve) => (releaseVega = () => resolve(jsonResponse([RECIPES[0]]))))
         }
@@ -233,6 +235,133 @@ describe('RecipeListView', () => {
       await flushPromises()
 
       expect(titles(wrapper)).toEqual(['Tosti'])
+    })
+  })
+
+  describe('categorieën', () => {
+    const BREAKFAST = { id: 1, name: 'Ontbijt', position: 1 }
+    const LUNCH = { id: 2, name: 'Lunch', position: 2 }
+    const DINNER = { id: 3, name: 'Diner', position: 3 }
+    const CATEGORIES = [BREAKFAST, LUNCH, DINNER]
+    const WITH_CATEGORIES = [
+      { id: 1, title: 'Pannenkoeken', servings: 4, tags: ['vega', 'zoet'], category: BREAKFAST },
+      { id: 2, title: 'Tosti', servings: 1, tags: ['snel'], category: null },
+      { id: 3, title: 'Groentesoep', servings: 4, tags: ['snel', 'vega'], category: DINNER },
+      { id: 4, title: 'Wentelteefjes', servings: 2, tags: ['zoet'], category: BREAKFAST },
+    ]
+
+    async function mountWithCategories(path = '/') {
+      const fetch = fakeApi({ recipes: WITH_CATEGORIES, categories: CATEGORIES })
+      return { fetch, ...(await mountAt(path)) }
+    }
+
+    function categoryChips(wrapper) {
+      return wrapper
+        .findAll('.category-chips .filter-chip')
+        .map((c) => [c.text(), c.attributes('aria-pressed')])
+    }
+
+    function categoryChip(wrapper, name) {
+      return wrapper.findAll('.category-chips .filter-chip').find((c) => c.text() === name)
+    }
+
+    function sections(wrapper) {
+      return wrapper
+        .findAll('.category-section')
+        .map((section) => [
+          section.find('h2').text(),
+          section.findAll('.recipe-grid h3').map((h) => h.text()),
+        ])
+    }
+
+    it('toont bij "Alles" een sectie per categorie op volgorde, zonder lege, met "Overig" onderaan', async () => {
+      const { wrapper } = await mountWithCategories()
+
+      expect(categoryChips(wrapper)).toEqual([
+        ['Alles', 'true'],
+        ['Ontbijt', 'false'],
+        ['Lunch', 'false'],
+        ['Diner', 'false'],
+        ['Overig', 'false'],
+      ])
+      expect(sections(wrapper)).toEqual([
+        ['Ontbijt', ['Pannenkoeken', 'Wentelteefjes']],
+        ['Diner', ['Groentesoep']],
+        ['Overig', ['Tosti']],
+      ])
+    })
+
+    it('kiest één categorie: in de URL, alleen die sectie, zonder nieuwe request', async () => {
+      const { wrapper, router, fetch } = await mountWithCategories()
+
+      await categoryChip(wrapper, 'Ontbijt').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.query.category).toBe('1')
+      expect(categoryChip(wrapper, 'Ontbijt').attributes('aria-pressed')).toBe('true')
+      expect(categoryChip(wrapper, 'Alles').attributes('aria-pressed')).toBe('false')
+      expect(sections(wrapper)).toEqual([['Ontbijt', ['Pannenkoeken', 'Wentelteefjes']]])
+      expect(recipeUrls(fetch)).toEqual(['/api/recipes'])
+
+      await categoryChip(wrapper, 'Diner').trigger('click')
+      await flushPromises()
+      expect(categoryChips(wrapper).filter(([, pressed]) => pressed === 'true')).toEqual([
+        ['Diner', 'true'],
+      ])
+
+      await categoryChip(wrapper, 'Alles').trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.query.category).toBeUndefined()
+      expect(sections(wrapper)).toHaveLength(3)
+    })
+
+    it('combineert de categorie met de tag-chips: het recept moet aan beide voldoen', async () => {
+      const { wrapper } = await mountWithCategories('/?category=1')
+
+      await chip(wrapper, 'vega').trigger('click')
+      await flushPromises()
+
+      expect(sections(wrapper)).toEqual([['Ontbijt', ['Pannenkoeken']]])
+
+      await categoryChip(wrapper, 'Alles').trigger('click')
+      await flushPromises()
+      expect(sections(wrapper)).toEqual([
+        ['Ontbijt', ['Pannenkoeken']],
+        ['Diner', ['Groentesoep']],
+      ])
+    })
+
+    it('"Overig" toont de recepten zonder categorie', async () => {
+      const { wrapper } = await mountWithCategories('/?category=overig')
+
+      expect(sections(wrapper)).toEqual([['Overig', ['Tosti']]])
+    })
+
+    it('meldt een categorie zonder (passende) recepten, en "Wis filters" wist ook de categorie', async () => {
+      const { wrapper, router } = await mountWithCategories('/?category=2')
+
+      expect(wrapper.find('.no-results').text()).toBe('Geen recepten in Lunch')
+
+      await router.replace('/?category=3&tags=zoet')
+      await flushPromises()
+      expect(wrapper.find('.no-results').text()).toBe('Geen recepten in Diner met zoet')
+
+      await wrapper.find('.clear-filters').trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(sections(wrapper)).toHaveLength(3)
+    })
+
+    it('geen "Overig"-chip als alle recepten een categorie hebben', async () => {
+      fakeApi({ recipes: WITH_CATEGORIES.filter((r) => r.category), categories: CATEGORIES })
+      const { wrapper } = await mountAt('/')
+
+      expect(categoryChips(wrapper).map(([name]) => name)).toEqual([
+        'Alles',
+        'Ontbijt',
+        'Lunch',
+        'Diner',
+      ])
     })
   })
 })

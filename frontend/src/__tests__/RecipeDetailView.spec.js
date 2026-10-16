@@ -42,6 +42,16 @@ describe('RecipeDetailView', () => {
     expect(actions.find('a.versions').exists()).toBe(false)
   })
 
+  it('toont de categorie klein boven de titel, en niets zonder categorie', async () => {
+    mockFetch(() => jsonResponse({ ...SOUP, category: { id: 3, name: 'Diner', position: 3 } }))
+    const { wrapper } = await mountAt('/recepten/5')
+    expect(wrapper.find('.category-label').text()).toBe('Diner')
+
+    mockFetch(() => jsonResponse({ ...SOUP, category: null }))
+    const { wrapper: without } = await mountAt('/recepten/5')
+    expect(without.find('.category-label').exists()).toBe(false)
+  })
+
   it('toont voor de beheerder ook een link naar de versies', async () => {
     sessionStorage.setItem('adminCode', 'geheim')
     mockFetch(() => jsonResponse(SOUP))

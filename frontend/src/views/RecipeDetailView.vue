@@ -84,6 +84,8 @@ watch(() => props.id, load, { immediate: true })
 
   <article v-else-if="recipe">
     <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
+    <!-- De categorie klein boven de titel; zonder categorie niets. -->
+    <p v-if="recipe.category" class="category-label">{{ recipe.category.name }}</p>
     <h1>{{ recipe.title }}</h1>
     <ul v-if="recipe.tags?.length" class="recipe-tags" aria-label="Tags">
       <li v-for="tag in recipe.tags" :key="tag" class="tag">{{ tag }}</li>
@@ -118,6 +120,15 @@ watch(() => props.id, load, { immediate: true })
   font-size: var(--text-lg);
   color: var(--color-text-muted);
   white-space: pre-line;
+}
+
+.category-label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-text);
+  text-transform: uppercase;
 }
 
 .recipe-tags {

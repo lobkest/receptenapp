@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
@@ -15,6 +15,8 @@ const props = defineProps({
   submitLabel: { type: String, default: 'Recept toevoegen' },
   // Bestaande tags om uit te kiezen (namen, uit /api/tags).
   availableTags: { type: Array, default: () => [] },
+  // Bestaande categorieën om uit te kiezen, op volgorde: [{ id, name, position }].
+  availableCategories: { type: Array, default: () => [] },
 })
 
 // Emits: berichten die dit component terugstuurt naar de ouder.
@@ -22,7 +24,8 @@ const emit = defineEmits(['submit', 'dirty-change'])
 
 // Eenmalig een kopie van de beginwaarden: props zijn alleen-lezen,
 // het formulier past alleen zijn eigen kopie aan.
-// Geen eigen validatie: de server beslist wat geldig is.
+// Geen eigen validatie: de server beslist wat geldig is. (Eén uitzondering: een lege
+// nieuwe categorie, zie onSubmit.)
 const form = reactive({
   title: props.initial.title ?? '',
   description: props.initial.description ?? '',
@@ -69,6 +72,39 @@ const steps = ref(props.initial.steps?.length ? props.initial.steps.map(stepFrom
 // Bij bewerken staan de bestaande tags al gekozen.
 const tags = ref([...(props.initial.tags ?? [])])
 const lists = { recipe_ingredients: ingredients, steps }
+
+// Categorie: een keuzelijst met de bestaande, plus "Nieuwe categorie…" met een tekstveld
+// (zoals bij de standaardboodschappen). De waarde is het id als tekst, '' voor geen
+// categorie, of NEW_CATEGORY. Die kan niet botsen: een id is altijd een getal.
+const NEW_CATEGORY = 'new'
+const category = ref(props.initial.category ? String(props.initial.category.id) : '')
+const newCategory = ref('')
+const newCategoryError = ref(null)
+
+// Ook de eigen categorie van het recept, voor het geval die (nog) niet in de lijst staat.
+const categoryOptions = computed(() => {
+  const own = props.initial.category
+  return own && !props.availableCategories.some((option) => option.id === own.id)
+    ? [...props.availableCategories, own]
+    : props.availableCategories
+})
+
+const newCategoryInput = useTemplateRef('newCategoryInput')
+
+// Kies je "Nieuwe categorie…", dan verschijnt het tekstveld en krijgt het meteen de focus.
+async function onCategoryChange() {
+  newCategoryError.value = null
+  if (category.value !== NEW_CATEGORY) return
+  await nextTick()
+  newCategoryInput.value?.focus()
+}
+
+// De server kent een categorie op naam (category_name), net als tags: een bestaande naam
+// kiest die categorie, een nieuwe maakt hem aan, '' betekent geen.
+function categoryName() {
+  if (category.value === NEW_CATEGORY) return newCategory.value.trim()
+  return categoryOptions.value.find((option) => String(option.id) === category.value)?.name ?? ''
+}
 
 // Een nieuwe variatie, opgeslagen samen met het recept. Standaard ingeklapt: de meeste
 // recepten krijgen er geen bij het invullen. Bestaande variaties bewerk je op de receptpagina.
@@ -153,8 +189,13 @@ function buildRequest() {
     steps: sent.steps.map((step) => withId(step, { body: step.body })),
   }
 
-  // tag_names gaat altijd mee: een lege lijst betekent "geen tags meer".
-  const body = { ...form, servings: form.servings.trim(), tag_names: [...tags.value] }
+  // tag_names en category_name gaan altijd mee: leeg betekent "geen (meer)".
+  const body = {
+    ...form,
+    servings: form.servings.trim(),
+    category_name: categoryName(),
+    tag_names: [...tags.value],
+  }
   if (variationOpen.value && variationForm.value) {
     body.variations_attributes = [variationForm.value.buildRequest().body]
   }
@@ -182,13 +223,21 @@ watch(dirty, (value) => emit('dirty-change', value))
 const sentKeys = ref({ recipe_ingredients: [], steps: [] })
 
 function onSubmit() {
+  // "Nieuwe categorie…" zonder naam zou stilletjes "geen categorie" worden.
+  if (category.value === NEW_CATEGORY && !newCategory.value.trim()) {
+    newCategoryError.value = 'Vul een naam voor de nieuwe categorie in.'
+    newCategoryInput.value?.focus()
+    return
+  }
+  newCategoryError.value = null
+
   const { body, keys } = buildRequest()
   sentKeys.value = keys
   if (body.variations_attributes) body.variations_attributes = [variationForm.value.submitted()]
   emit('submit', body)
 }
 
-const FORM_FIELDS = ['title', 'description', 'servings', 'tag_names']
+const FORM_FIELDS = ['title', 'description', 'servings', 'tag_names', 'category_name']
 const VARIATION_PREFIX = 'variations[0].'
 
 // De fouten van de variatie ("variations[0].name") gaan, zonder dat voorvoegsel, naar
@@ -254,6 +303,42 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
         Beschrijving {{ errors.description.join(', ') }}
       </p>
     </div>
+
+    <div class="field">
+      <label for="category">Categorie <span class="muted optional-label">(optioneel)</span></label>
+      <select
+        id="category"
+        v-model="category"
+        :aria-invalid="!!errors.category_name && category !== NEW_CATEGORY"
+        @change="onCategoryChange"
+      >
+        <option value="">Geen categorie</option>
+        <option v-for="option in categoryOptions" :key="option.id" :value="String(option.id)">
+          {{ option.name }}
+        </option>
+        <option :value="NEW_CATEGORY">Nieuwe categorie…</option>
+      </select>
+    </div>
+
+    <div v-if="category === NEW_CATEGORY" class="field">
+      <label for="new-category">Nieuwe categorie</label>
+      <input
+        id="new-category"
+        ref="newCategoryInput"
+        v-model="newCategory"
+        type="text"
+        placeholder="bijv. Bijgerecht"
+        :aria-invalid="!!(newCategoryError || errors.category_name)"
+        :aria-describedby="newCategoryError || errors.category_name ? 'category-error' : undefined"
+      />
+    </div>
+    <p
+      v-if="newCategoryError || errors.category_name"
+      id="category-error"
+      class="error category-error"
+    >
+      {{ newCategoryError ?? `Categorie ${errors.category_name.join(', ')}` }}
+    </p>
 
     <!-- Porties (smal) en tags naast elkaar op één rij. -->
     <div class="meta-row">
@@ -511,6 +596,11 @@ legend {
 
 .optional-label {
   font-weight: 400;
+}
+
+/* Direct onder het veld, zoals bij de standaardboodschappen. */
+.category-error {
+  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
 }
 
 /* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */

@@ -17,7 +17,7 @@ class Api::RecipesController < ApplicationController
   # GET /api/recipes
   # GET /api/recipes?tags=vega,snel  (only recipes with all of these tags)
   def index
-    @recipes = Recipe.visible.tagged_with_all(params[:tags].to_s.split(",")).includes(:tags).order(:id)
+    @recipes = Recipe.visible.tagged_with_all(params[:tags].to_s.split(",")).includes(:tags, :category).order(:id)
 
     render json: @recipes.map { |recipe| RecipeSerializer.summary(recipe) }
   end
@@ -28,6 +28,8 @@ class Api::RecipesController < ApplicationController
   end
 
   # POST /api/recipes  (visible right away)
+  # category_name: "Diner" picks that category (in any case), a new name makes a new one,
+  # "" or null means none. Left out on update: the category stays as it is.
   def create
     @recipe = Recipe.new(create_params)
 
@@ -76,7 +78,7 @@ class Api::RecipesController < ApplicationController
     # [ [ ... ] ] means "an array of hashes with these keys".
     # variations_attributes: new variations only (no id), from "+ Variatie toevoegen".
     def create_params
-      params.expect(recipe: [ :title, :description, :servings, tag_names: [],
+      params.expect(recipe: [ :title, :description, :servings, :category_name, tag_names: [],
         steps_attributes: [ [ :body ] ],
         recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional ] ],
         variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
@@ -86,7 +88,7 @@ class Api::RecipesController < ApplicationController
     # every id belongs to this recipe. Positions still come from the order. Existing rows
     # keep their id, so a variation that leaves out a row ("− tofu") stays attached to it.
     def update_params
-      params.expect(recipe: [ :title, :description, :servings, :lock_version, tag_names: [],
+      params.expect(recipe: [ :title, :description, :servings, :category_name, :lock_version, tag_names: [],
         steps_attributes: [ [ :id, :body, :_destroy ] ],
         recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy ] ],
         variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])

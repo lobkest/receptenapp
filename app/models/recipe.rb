@@ -20,6 +20,10 @@ class Recipe < ApplicationRecord
   has_many :recipe_tags, dependent: :destroy
   has_many :tags, through: :recipe_tags
 
+  # Optional: without a category the recipe is shown under "Overig". Set it by name with
+  # category_name= (like tag_names=).
+  belongs_to :category, optional: true
+
   # The database deletes versions and variations together with the recipe (on_delete: :cascade).
   has_many :versions, class_name: "RecipeVersion", dependent: nil
   has_many :variations, -> { order(:position, :id) }, class_name: "RecipeVariation",
@@ -33,7 +37,7 @@ class Recipe < ApplicationRecord
   # ones are edited through their own endpoint, with their own lock_version.
   accepts_nested_attributes_for :variations, limit: RecipeVariation::MAX_PER_RECIPE
 
-  scope :with_details, -> { includes(:tags, :steps, recipe_ingredients: :ingredient, visible_variations: RecipeVariation::DETAILS) }
+  scope :with_details, -> { includes(:tags, :category, :steps, recipe_ingredients: :ingredient, visible_variations: RecipeVariation::DETAILS) }
 
   # Recipes that have ALL of the given tags. One subquery: take the recipe_tags rows whose
   # tag is one of the names, group them per recipe, and keep the recipes with as many
@@ -54,6 +58,7 @@ class Recipe < ApplicationRecord
   validates :servings, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_SERVINGS }
   validate :row_counts
   validate :tag_names_allowed, if: -> { @tag_names }
+  validate :category_name_allowed, if: -> { @category_name.present? }
 
   # A recipe from before versions existed: keep its old state before the first change.
   # prepend: before link_tags, which already writes the new tags to the database.
@@ -61,6 +66,7 @@ class Recipe < ApplicationRecord
 
   # Tags are linked in the same transaction as the recipe, and only once it is valid.
   before_save :link_tags, if: -> { @tag_names }
+  before_save :link_category, unless: -> { @category_name.nil? }
   before_save :touch_for_locking, if: :persisted?
 
   after_save :record_version, unless: :restoring?
@@ -96,6 +102,17 @@ class Recipe < ApplicationRecord
     @tag_names || tags.map(&:name)
   end
 
+  # category_name: "Diner" (in any case) picks that category; a new name makes a new one,
+  # at the end of the order (see Category.named). "" or nil: no category. Without
+  # category_name in a request, the category stays as it is.
+  def category_name=(name)
+    @category_name = Category.normalize_value_for(:name, name.to_s)
+  end
+
+  def category_name
+    @category_name.nil? ? category&.name : @category_name.presence
+  end
+
   # What "Alles op lijst" (only: nil, without the optional ingredients) or "+ lijst"
   # (only: [ row id ]) puts on the shopping list, scaled to servings. Attributes for
   # ShoppingListItem (see ShoppingListAddition).
@@ -106,8 +123,8 @@ class Recipe < ApplicationRecord
       factor: Rational(servings, self.servings), source_label: title, recipe_id: id)
   end
 
-  # Puts an older version back: title, description, servings, tags, ingredients, steps
-  # and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
+  # Puts an older version back: title, description, servings, category, tags, ingredients,
+  # steps and variations. Ingredient rows are replaced by new ones, in the order of the snapshot.
   # That also deletes the variations' removals (on_delete: :cascade), so the variations are
   # rebuilt afterwards, with each removal linked again by ingredient name.
   # This is a change like any other, so it makes a new version too ("Teruggezet naar ...").
@@ -120,6 +137,8 @@ class Recipe < ApplicationRecord
       @restoring = true
       assign_attributes(snapshot.slice("title", "description", "servings"))
       self.tag_names = snapshot["tag_names"]
+      # A version from before categories existed says nothing about them: keep the current one.
+      self.category_name = snapshot["category"] if snapshot.key?("category")
 
       # Not through *_attributes=: an old version may have no ingredients or steps, and
       # that minimum only applies to what a person submits.
@@ -187,13 +206,27 @@ class Recipe < ApplicationRecord
 
     def forget_submitted_lists
       @steps_submitted = @recipe_ingredients_submitted = false
-      @tag_names = nil
+      @tag_names = @category_name = nil
       association(:steps).target.each { |step| step.request_order = nil }
     end
 
     # The same rules as Tag#name (see TagNames), with the errors on "tag_names".
     def tag_names_allowed
       validate_tag_names(:tag_names, @tag_names, max: MAX_TAGS)
+    end
+
+    # A new name must be a valid category name; an existing one is fine as it is.
+    def category_name_allowed
+      return if Category.find_named(@category_name)
+
+      category = Category.new(name: @category_name, position: 0)
+      return if category.valid?
+
+      category.errors.each { |error| errors.add(:category_name, error.type, **error.options) }
+    end
+
+    def link_category
+      self.category = @category_name.empty? ? nil : Category.named(@category_name)
     end
 
     # Existing tags are reused; new ones created (see Tag.named). Variations that added a

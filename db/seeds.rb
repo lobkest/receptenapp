@@ -7,3 +7,10 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+# The start categories, the same as migration AddStartCategories. A new database made
+# from db/schema.rb (db:prepare, db:setup) skips the migrations and gets them here.
+# An existing name (in any case) is left alone.
+[ "Ontbijt", "Lunch", "Diner", "Snacks" ].each.with_index(1) do |name, position|
+  Category.find_named(name) || Category.create!(name: name, position: position)
+end

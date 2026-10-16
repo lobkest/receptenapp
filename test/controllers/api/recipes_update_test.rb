@@ -129,6 +129,30 @@ class Api::RecipesUpdateTest < ActionDispatch::IntegrationTest
     assert_equal [], response.parsed_body["tags"]
   end
 
+  test "update sets, changes and clears the category, and keeps it without category_name" do
+    edit @recipe, category_name: "ontbijt"
+    assert_response :ok
+    assert_equal "Ontbijt", response.parsed_body["category"]["name"]
+
+    edit @recipe.reload, title: "Flensjes"
+    assert_equal categories(:ontbijt), @recipe.reload.category
+
+    assert_difference("Category.count", 1) { edit @recipe, category_name: "Zondag" }
+    assert_equal "Zondag", @recipe.reload.category.name
+
+    edit @recipe, category_name: ""
+    assert_response :ok
+    assert_nil response.parsed_body["category"]
+    assert_nil @recipe.reload.category
+  end
+
+  test "an older recipe without a category can be given one" do
+    edit @older, category_name: "Diner"
+
+    assert_response :ok
+    assert_equal categories(:diner), @older.reload.category
+  end
+
   test "an id of another recipe's row is refused" do
     other = recipes(:erwtensoep).steps.create!(body: "Niet van jou.", position: 1)
 

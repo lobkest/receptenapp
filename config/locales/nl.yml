@@ -29,6 +29,7 @@ nl:
       tag: tag
       recipe_tag: tag van recept
       recipe_variation: variatie
+      category: categorie
       variation_change: ingrediëntwijziging
       variation_tag_change: tagwijziging
     attributes:
@@ -40,6 +41,8 @@ nl:
         recipe_ingredients: Ingrediënten
         tags: Tags
         tag_names: Tags
+        category: Categorie
+        category_name: Categorie
         lock_version: Versie
         deletion_reason: Reden
         deletion_requested_at: Verwijderen aangevraagd op
@@ -91,6 +94,10 @@ nl:
         checked: Afgevinkt
       tag:
         name: Naam
+        recipes: Recepten
+      category:
+        name: Naam
+        position: Volgorde
         recipes: Recepten
       recipe_tag:
         recipe: Recept
@@ -147,3 +154,5 @@ nl:
     messages:
       too_many: "heeft te veel regels (maximaal %{count})"
       too_many_rows: "heeft te veel regels"
+      # Category: "Overig" is the heading for recipes without a category.
+      reserved: "kan niet \"%{name}\" zijn, die naam is gereserveerd"

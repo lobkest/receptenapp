@@ -13,6 +13,11 @@ export function fetchTags() {
   return request('/api/tags')
 }
 
+// [{ id: 1, name: 'Ontbijt', position: 1 }]: alle categorieën, op volgorde (position).
+export function fetchCategories() {
+  return request('/api/categories')
+}
+
 export function fetchRecipe(id) {
   return request(`/api/recipes/${encodeURIComponent(id)}`)
 }

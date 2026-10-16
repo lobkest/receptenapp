@@ -10,13 +10,19 @@ const TAGS = [
   { name: 'vega', count: 2 },
 ]
 
-// /api/tags geeft altijd TAGS; het toevoegen (POST /api/recipes) krijgt submitResponse().
+const CATEGORIES = [
+  { id: 1, name: 'Ontbijt', position: 1 },
+  { id: 3, name: 'Diner', position: 3 },
+]
+
+// /api/tags geeft altijd TAGS, /api/categories CATEGORIES; het toevoegen (POST /api/recipes) krijgt submitResponse().
 // Na toevoegen opent de receptpagina: GET /api/recipes/7 geeft dan het nieuwe recept.
 const CREATED = { id: 7, title: 'Pannenkoeken', servings: 6, ingredients: [], steps: [] }
 
 function fakeApi(submitResponse) {
   return mockFetch((method, url) => {
     if (url === '/api/tags') return jsonResponse(TAGS)
+    if (url === '/api/categories') return jsonResponse(CATEGORIES)
     if (method === 'GET') return jsonResponse(CREATED)
     return submitResponse()
   })
@@ -69,6 +75,7 @@ describe('RecipeNewView', () => {
         title: 'Pannenkoeken',
         description: 'Beslag maken en bakken.',
         servings: '6',
+        category_name: '',
         tag_names: [],
         recipe_ingredients_attributes: [
           { ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
@@ -96,7 +103,9 @@ describe('RecipeNewView', () => {
 
   it('kan zonder /api/tags gewoon insturen, met alleen nieuwe tags', async () => {
     const fetch = mockFetch((method, url) =>
-      url === '/api/tags' ? jsonResponse({}, 500) : jsonResponse(CREATED, 201),
+      url === '/api/tags' || url === '/api/categories'
+        ? jsonResponse({}, 500)
+        : jsonResponse(CREATED, 201),
     )
     const wrapper = await mountView()
 

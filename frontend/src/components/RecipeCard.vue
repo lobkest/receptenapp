@@ -35,7 +35,8 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
     </div>
 
     <div class="body">
-      <h2 class="title">{{ recipe.title }}</h2>
+      <!-- h3: op het overzicht staat het kopje van de sectie (h2) erboven. -->
+      <h3 class="title">{{ recipe.title }}</h3>
       <p class="servings">
         {{ recipe.servings }} {{ recipe.servings === 1 ? 'portie' : 'porties' }}
       </p>

@@ -37,6 +37,7 @@ en:
     messages:
       too_many: "has too many rows (maximum is %{count})"
       too_many_rows: "has too many rows"
+      reserved: "cannot be \"%{name}\", that name is reserved"
   activerecord:
     errors:
       models:

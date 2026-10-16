@@ -84,6 +84,7 @@ test('recepten: grid met twee kolommen', async ({ page }) => {
 
   const columns = await page
     .locator('.recipe-grid')
+    .first()
     .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').length)
   expect(columns).toBe(2)
 
@@ -283,7 +284,7 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   const card = page.locator('.recipe-card', { hasText: 'Tomatensalade' })
   await expect(card.locator('.tag')).toHaveText(['vega', 'zomer'])
 
-  const row = page.locator('.chip-row')
+  const row = page.locator('.tag-chips')
   const { rowScrolls } = await row.evaluate((el) => ({
     rowScrolls: el.scrollWidth > el.clientWidth,
   }))

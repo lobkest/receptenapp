@@ -34,10 +34,11 @@ export default defineConfig({
   webServer: [
     {
       // RAILS_ENV=test: de testdatabase, nooit je development-data. Eerst klaarzetten
-      // en leegmaken, dan starten. Eigen pid-bestand, anders weigert Rails te starten
+      // en leegmaken, dan de startcategorieën (db/seeds.rb, zoals de migratie die in
+      // productie aanmaakt), dan starten. Eigen pid-bestand, anders weigert Rails te starten
       // als je gewone server al draait. De rate limit staat in deze omgeving in
       // :memory_store, dus elke run begint met een nieuwe teller.
-      command: `bin/rails db:prepare && bin/rails db:truncate_all && bin/rails server -p ${RAILS_PORT} -P tmp/pids/e2e.pid`,
+      command: `bin/rails db:prepare && bin/rails db:truncate_all && bin/rails db:seed && bin/rails server -p ${RAILS_PORT} -P tmp/pids/e2e.pid`,
       cwd: '..',
       url: `${RAILS_URL}/up`,
       // Hoge limieten: na een mislukte test start Playwright opnieuw en maakt het de

@@ -13,7 +13,7 @@ describe('RecipeCard', () => {
   it('toont titel en porties', () => {
     const wrapper = mountCard()
 
-    expect(wrapper.find('h2').text()).toBe('Pannenkoeken')
+    expect(wrapper.find('h3').text()).toBe('Pannenkoeken')
     expect(wrapper.text()).toContain('4 porties')
   })
 

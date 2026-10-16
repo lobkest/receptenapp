@@ -11,9 +11,13 @@ const props = defineProps({
 })
 
 const router = useRouter()
-// De bestaande tags voor de tag-kiezer, en de melding op de receptpagina na opslaan.
+// De bestaande tags en categorieën voor het formulier, en de melding op de receptpagina
+// na opslaan.
 const recipes = useRecipesStore()
-onMounted(() => recipes.loadTags())
+onMounted(() => {
+  recipes.loadTags()
+  recipes.loadCategories()
+})
 
 const recipe = ref(null)
 const loading = ref(false)
@@ -117,6 +121,7 @@ watch(() => props.id, load, { immediate: true })
       :errors="errors"
       :submitting="submitting"
       :available-tags="recipes.tagNames"
+      :available-categories="recipes.categories"
       submit-label="Opslaan"
       @submit="handleSubmit"
       @dirty-change="dirty = $event"

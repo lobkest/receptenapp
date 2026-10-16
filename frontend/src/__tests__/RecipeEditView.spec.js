@@ -85,6 +85,7 @@ describe('RecipeEditView (bewerken vanaf de receptpagina)', () => {
     expect(patchBody(fetch).recipe).toMatchObject({
       title: 'Flensjes',
       lock_version: 3,
+      category_name: '',
       tag_names: ['zoet'],
       recipe_ingredients_attributes: [
         { id: 21, ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },

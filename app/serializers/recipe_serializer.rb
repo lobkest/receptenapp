@@ -5,9 +5,18 @@ module RecipeSerializer
 
   module_function
 
-  # For lists: no ingredients or steps. Load with includes(:tags) to avoid one query per recipe.
+  # For lists: no ingredients or steps. Load with includes(:tags, :category) to avoid one
+  # query per recipe. category is null for a recipe without one ("Overig").
   def summary(recipe)
-    recipe.slice(*SUMMARY_FIELDS).merge("tags" => recipe.tags.map(&:name).sort)
+    recipe.slice(*SUMMARY_FIELDS).merge(
+      "tags" => recipe.tags.map(&:name).sort,
+      "category" => recipe.category && category(recipe.category)
+    )
+  end
+
+  # Also what /api/categories sends per category.
+  def category(category)
+    category.slice("id", "name", "position")
   end
 
   # For a single recipe. Load it with Recipe.with_details to avoid one query per ingredient

@@ -183,6 +183,7 @@ describe('RecipeForm', () => {
       title: 'Pannenkoeken',
       description: 'Dun en goudbruin.',
       servings: '4',
+      category_name: '',
       tag_names: [],
       recipe_ingredients_attributes: [
         { ingredient_name: 'bloem', quantity: '250', unit: 'g', optional: false },
@@ -352,6 +353,7 @@ describe('RecipeForm bij bewerken', () => {
       title: 'Pannenkoeken',
       description: 'Dun.',
       servings: '4',
+      category_name: '',
       tag_names: [],
       recipe_ingredients_attributes: [
         { id: 21, ingredient_name: 'bloem', quantity: '300', unit: 'g', optional: false },
@@ -412,8 +414,80 @@ describe('RecipeForm bij bewerken', () => {
       title: 'Soep',
       description: '',
       servings: '2',
+      category_name: '',
       tag_names: [],
     })
+  })
+})
+
+describe('RecipeForm: categorie', () => {
+  const CATEGORIES = [
+    { id: 1, name: 'Ontbijt', position: 1 },
+    { id: 3, name: 'Diner', position: 3 },
+  ]
+
+  function options(wrapper) {
+    return wrapper.findAll('#category option').map((option) => option.text())
+  }
+
+  it('biedt geen categorie, de bestaande op volgorde, en "Nieuwe categorie…"', async () => {
+    const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
+
+    expect(options(wrapper)).toEqual(['Geen categorie', 'Ontbijt', 'Diner', 'Nieuwe categorie…'])
+    expect((await submit(wrapper)).category_name).toBe('')
+
+    await wrapper.find('#category').setValue('3')
+    expect((await submit(wrapper)).category_name).toBe('Diner')
+  })
+
+  it('toont bij "Nieuwe categorie…" een tekstveld en stuurt die naam mee', async () => {
+    const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
+    expect(wrapper.find('#new-category').exists()).toBe(false)
+
+    await wrapper.find('#category').setValue('new')
+    await wrapper.find('#new-category').setValue('  Bijgerecht ')
+
+    expect((await submit(wrapper)).category_name).toBe('Bijgerecht')
+  })
+
+  it('verstuurt niet met een lege nieuwe categorie', async () => {
+    const wrapper = mount(RecipeForm, { props: { availableCategories: CATEGORIES } })
+
+    await wrapper.find('#category').setValue('new')
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.find('.category-error').text()).toBe('Vul een naam voor de nieuwe categorie in.')
+  })
+
+  it('zet bij bewerken de categorie van het recept klaar, ook als die niet in de lijst staat', async () => {
+    const brunch = { id: 9, name: 'Brunch', position: 5 }
+    const wrapper = mount(RecipeForm, {
+      props: { initial: { ...PANCAKES, category: brunch }, availableCategories: CATEGORIES },
+    })
+
+    expect(wrapper.find('#category').element.value).toBe('9')
+    expect(options(wrapper)).toContain('Brunch')
+    expect((await submit(wrapper)).category_name).toBe('Brunch')
+  })
+
+  it('stuurt een lege naam als je de categorie weghaalt', async () => {
+    const wrapper = mount(RecipeForm, {
+      props: { initial: { ...PANCAKES, category: CATEGORIES[0] }, availableCategories: CATEGORIES },
+    })
+
+    await wrapper.find('#category').setValue('')
+
+    expect((await submit(wrapper)).category_name).toBe('')
+  })
+
+  it('toont een fout van de server bij de categorie', () => {
+    const wrapper = mount(RecipeForm, {
+      props: { errors: { category_name: ['is te lang (maximaal 30 tekens)'] } },
+    })
+
+    expect(wrapper.find('.category-error').text()).toBe('Categorie is te lang (maximaal 30 tekens)')
+    expect(wrapper.find('.general-errors').exists()).toBe(false)
   })
 })
 

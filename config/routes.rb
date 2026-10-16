@@ -21,6 +21,7 @@ Rails.application.routes.draw do
       end
     end
     resources :tags, only: :index
+    resources :categories, only: :index
 
     # Public, no code needed: anyone with the link shares these two lists.
     resources :shopping_list_items, only: %i[ index create update destroy ] do

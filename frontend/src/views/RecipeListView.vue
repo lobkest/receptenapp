@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecipeCard from '@/components/RecipeCard.vue'
 import { useRecipesStore } from '@/stores/recipes'
+import { categoryChips, recipeSections } from '@/utils/categories'
 
 const store = useRecipesStore()
 // Een melding van de vorige pagina, bijv. "… is verwijderd." na een verwijderverzoek.
@@ -18,6 +19,37 @@ const selectedTags = computed(() =>
     .map((tag) => tag.trim())
     .filter(Boolean),
 )
+
+// De gekozen categorie, ook in de URL: ?category=3, of ?category=overig voor recepten
+// zonder categorie. Zonder: "Alles". Filteren op categorie gebeurt hier in de browser;
+// de lijst van de server (al gefilterd op tags) blijft dezelfde.
+const selectedCategory = computed(() =>
+  route.query.category ? String(route.query.category) : null,
+)
+
+const categoryFilterChips = computed(() =>
+  categoryChips(store.categories, store.recipes, selectedCategory.value),
+)
+
+// Bij "Alles" een sectie per categorie met recepten; bij een gekozen categorie alleen die.
+const sections = computed(() =>
+  recipeSections(store.recipes, store.categories, {
+    selected: selectedCategory.value,
+    tags: selectedTags.value,
+  }),
+)
+
+// "Geen recepten in Lunch met vega + snel". Een onbekende categorie (oude link) heeft
+// geen naam.
+const noResultsInCategory = computed(() => {
+  const name = categoryFilterChips.value.find((chip) => chip.key === selectedCategory.value)?.name
+  const tags = selectedTags.value.length ? ` met ${selectedTags.value.join(' + ')}` : ''
+  return `Geen recepten in ${name ?? 'deze categorie'}${tags}`
+})
+
+function selectCategory(key) {
+  router.replace({ query: { ...route.query, category: key ?? undefined } })
+}
 
 // Alle tags met hun aantal, plus een gekozen tag die (niet meer) in /api/tags staat,
 // bijv. uit een oude link: die moet je ook weer uit kunnen zetten.
@@ -38,6 +70,11 @@ function setTags(tags) {
   router.replace({ query: { ...route.query, tags: tags.length ? tags.join(',') : undefined } })
 }
 
+// "Wis filters": tags en categorie, terug naar alles.
+function clearFilters() {
+  router.replace({ query: { ...route.query, tags: undefined, category: undefined } })
+}
+
 function toggle(name) {
   setTags(
     isSelected(name)
@@ -53,7 +90,10 @@ watch(
   () => store.load(selectedTags.value),
   { immediate: true },
 )
-onMounted(() => store.loadTags())
+onMounted(() => {
+  store.loadTags()
+  store.loadCategories()
+})
 </script>
 
 <template>
@@ -61,9 +101,34 @@ onMounted(() => store.loadTags())
 
   <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
 
-  <div v-if="filterChips.length" class="filter">
-    <!-- Bij veel tags scrolt alleen deze rij opzij, niet de hele pagina. -->
-    <div class="chip-row" role="group" aria-label="Filter op tag">
+  <div v-if="categoryFilterChips.length > 1 || filterChips.length" class="filter">
+    <!-- Eén categorie tegelijk ("Alles" is geen filter). Bij veel chips scrolt alleen
+         de rij opzij, niet de hele pagina. Alleen "Alles" (nog niets geladen) is geen rij. -->
+    <div
+      v-if="categoryFilterChips.length > 1"
+      class="chip-row category-chips"
+      role="group"
+      aria-label="Filter op categorie"
+    >
+      <button
+        v-for="chip in categoryFilterChips"
+        :key="chip.key ?? 'alles'"
+        type="button"
+        class="filter-chip category-chip"
+        :aria-pressed="chip.key === selectedCategory"
+        @click="selectCategory(chip.key)"
+      >
+        {{ chip.name }}
+      </button>
+    </div>
+
+    <!-- Tags: meerdere tegelijk, een recept moet ze allemaal hebben. -->
+    <div
+      v-if="filterChips.length"
+      class="chip-row tag-chips"
+      role="group"
+      aria-label="Filter op tag"
+    >
       <button
         v-for="tag in filterChips"
         :key="tag.name"
@@ -76,7 +141,12 @@ onMounted(() => store.loadTags())
         <span v-if="tag.count != null" class="count">{{ tag.count }}</span>
       </button>
     </div>
-    <button v-if="selectedTags.length" type="button" class="clear-filters" @click="setTags([])">
+    <button
+      v-if="selectedTags.length || selectedCategory"
+      type="button"
+      class="clear-filters"
+      @click="clearFilters"
+    >
       Wis filters
     </button>
   </div>
@@ -94,11 +164,25 @@ onMounted(() => store.loadTags())
 
   <p v-else-if="store.isEmpty" class="muted">Er zijn nog geen recepten.</p>
 
-  <ul v-else class="recipe-grid">
-    <li v-for="recipe in store.recipes" :key="recipe.id">
-      <RecipeCard :recipe="recipe" />
-    </li>
-  </ul>
+  <p v-else-if="!sections.length" class="no-results card" role="status">
+    {{ noResultsInCategory }}
+  </p>
+
+  <div v-else class="sections">
+    <section
+      v-for="section in sections"
+      :key="section.key"
+      class="category-section"
+      :aria-labelledby="`category-${section.key}`"
+    >
+      <h2 :id="`category-${section.key}`" class="section-title">{{ section.name }}</h2>
+      <ul class="recipe-grid">
+        <li v-for="recipe in section.recipes" :key="recipe.id">
+          <RecipeCard :recipe="recipe" />
+        </li>
+      </ul>
+    </section>
+  </div>
 </template>
 
 <style scoped>
@@ -122,6 +206,11 @@ onMounted(() => store.loadTags())
   display: none;
 }
 
+/* Tags onder de categorieën, met wat lucht ertussen. */
+.tag-chips {
+  margin-top: var(--space-1);
+}
+
 .filter-chip {
   flex-shrink: 0;
   gap: var(--space-1);
@@ -131,6 +220,13 @@ onMounted(() => store.loadTags())
   background: var(--color-surface);
   border-color: var(--color-border-strong);
   border-radius: var(--radius-full);
+}
+
+/* Categorieën: één keuze, iets steviger dan de tags, zodat de twee rijen niet op
+   elkaar lijken. */
+.category-chip {
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .filter-chip[aria-pressed='true'] {
@@ -156,6 +252,15 @@ onMounted(() => store.loadTags())
 
 .no-results {
   text-align: center;
+}
+
+.category-section + .category-section {
+  margin-top: var(--space-6);
+}
+
+.section-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-xl);
 }
 
 /* Twee kolommen op de telefoon, drie vanaf 640px (40rem), vier vanaf 1024px (64rem).

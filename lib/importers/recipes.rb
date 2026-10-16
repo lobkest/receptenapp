@@ -9,14 +9,14 @@
 #
 # A recipe whose title exists (in any case) is skipped. Ingredients are matched by name
 # by RecipeIngredient itself (Ingredient#name is lower case); only unknown ones are made.
-# Amounts only in g or ml. Without an amount ("naar smaak") leave out quantity and unit.
+# Amounts in g, ml or stuks (the units of the model). Without an amount ("naar smaak") leave out quantity and unit.
 module Importers
   class Recipes < Base
     FIELDS = %w[ title servings category description tags ingredients steps variations ].freeze
     INGREDIENT_FIELDS = %w[ name quantity unit optional ].freeze
     VARIATION_FIELDS = %w[ name add remove notes ].freeze
     ADDITION_FIELDS = %w[ name quantity unit ].freeze
-    UNITS = %w[ g ml ].freeze
+    UNITS = HasQuantity::UNITS
 
     private
       def import(row, line)
@@ -88,7 +88,7 @@ module Importers
         end
       end
 
-      # Unknown fields and units other than g or ml, before anything is saved.
+      # Unknown fields and units the model does not know, before anything is saved.
       def check_fields!(row)
         reject_unknown_keys!(row, FIELDS, "recept")
         amounts = ingredients(row).map { |ingredient| [ "ingrediënt", ingredient, INGREDIENT_FIELDS ] }
@@ -101,7 +101,7 @@ module Importers
           reject_unknown_keys!(amount, fields, "#{where} #{amount['name']}")
           next if amount["unit"].blank? || UNITS.include?(amount["unit"])
 
-          "#{where} '#{amount['name']}': eenheid '#{amount['unit']}' niet toegestaan (alleen g of ml)"
+          "#{where} '#{amount['name']}': eenheid '#{amount['unit']}' niet toegestaan (alleen #{UNITS.to_sentence(last_word_connector: ' of ', two_words_connector: ' of ')})"
         end
         raise Rejected, errors if errors.any?
       end

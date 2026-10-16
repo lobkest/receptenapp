@@ -1,0 +1,1017 @@
+[
+  {
+    "title": "Pasta",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "kookroom"
+      },
+      {
+        "name": "courgette"
+      },
+      {
+        "name": "noten",
+        "quantity": 150,
+        "unit": "g"
+      },
+      {
+        "name": "pesto"
+      },
+      {
+        "name": "aubergine"
+      },
+      {
+        "name": "strooikaas"
+      },
+      {
+        "name": "kipgehakt"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "gnocchi"
+      },
+      {
+        "name": "kruidenkaas"
+      },
+      {
+        "name": "spinazie"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met crème fraîche",
+        "remove": [
+          "kookroom"
+        ],
+        "add": [
+          {
+            "name": "crème fraîche"
+          }
+        ]
+      },
+      {
+        "name": "Met pasta",
+        "remove": [
+          "gnocchi"
+        ],
+        "add": [
+          {
+            "name": "pasta"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Pita shoarma",
+    "servings": 2,
+    "category": "Diner",
+    "description": "Groentemix: origineel 'zak groente'.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "knoflooksaus"
+      },
+      {
+        "name": "shoarmavlees"
+      },
+      {
+        "name": "groentemix"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "kidneybonen"
+      },
+      {
+        "name": "strooikaas"
+      },
+      {
+        "name": "pitabroodje"
+      },
+      {
+        "name": "sla"
+      },
+      {
+        "name": "rode ui"
+      },
+      {
+        "name": "paprika"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pasta salade tonijn",
+    "servings": 2,
+    "category": "Lunch",
+    "description": "Tonijn: tonijnstukken in water.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "tonijn",
+        "quantity": 160,
+        "unit": "g"
+      },
+      {
+        "name": "mayonaise met yoghurt",
+        "quantity": 60,
+        "unit": "ml"
+      },
+      {
+        "name": "appel",
+        "quantity": 1,
+        "unit": "stuks"
+      },
+      {
+        "name": "broccoli"
+      },
+      {
+        "name": "rode ui"
+      },
+      {
+        "name": "farfalle",
+        "quantity": 200,
+        "unit": "g"
+      },
+      {
+        "name": "ei",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "paprika",
+        "optional": true
+      },
+      {
+        "name": "kikkererwten",
+        "optional": true
+      },
+      {
+        "name": "peterselie"
+      },
+      {
+        "name": "zongedroogde tomaten",
+        "quantity": 2,
+        "unit": "stuks"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pien champignon saus pasta",
+    "servings": 4,
+    "category": "Diner",
+    "description": "Knoflook: 4 tenen.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "slagroom",
+        "quantity": 300,
+        "unit": "ml"
+      },
+      {
+        "name": "champignons",
+        "quantity": 500,
+        "unit": "g"
+      },
+      {
+        "name": "platte pasta",
+        "quantity": 450,
+        "unit": "g"
+      },
+      {
+        "name": "pecorino",
+        "quantity": 60,
+        "unit": "g"
+      },
+      {
+        "name": "sjalot",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "knoflook",
+        "quantity": 4,
+        "unit": "stuks"
+      },
+      {
+        "name": "bouillon",
+        "quantity": 250,
+        "unit": "ml"
+      },
+      {
+        "name": "tijm",
+        "quantity": 10,
+        "unit": "g"
+      },
+      {
+        "name": "salie",
+        "quantity": 10,
+        "unit": "g"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Orzo spinazie",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "citroen"
+      },
+      {
+        "name": "kipfilet"
+      },
+      {
+        "name": "zongedroogde tomaten"
+      },
+      {
+        "name": "sperziebonen"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "orzo"
+      },
+      {
+        "name": "roomkaas"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met spekjes",
+        "remove": [
+          "kipfilet"
+        ],
+        "add": [
+          {
+            "name": "spekjes"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Prei broccoli soep",
+    "servings": 4,
+    "category": "Lunch",
+    "description": "Met 1,5 l water. Kookroom: origineel 'room'.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "prei",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "broccoli",
+        "quantity": 1,
+        "unit": "stuks"
+      },
+      {
+        "name": "tijm"
+      },
+      {
+        "name": "kippenbouillonblokje",
+        "quantity": 3,
+        "unit": "stuks"
+      },
+      {
+        "name": "ui",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "kookroom",
+        "quantity": 200,
+        "unit": "ml"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pasta champignonsaus",
+    "servings": 2,
+    "category": "Diner",
+    "description": "Balsamicoazijn: 1 el.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "champignons"
+      },
+      {
+        "name": "kookroom",
+        "quantity": 250,
+        "unit": "ml"
+      },
+      {
+        "name": "bouillonblokje",
+        "quantity": 1,
+        "unit": "stuks"
+      },
+      {
+        "name": "balsamicoazijn",
+        "quantity": 15,
+        "unit": "ml"
+      },
+      {
+        "name": "rozemarijn"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "ui"
+      },
+      {
+        "name": "pasta"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Zalm oven",
+    "servings": 2,
+    "category": "Diner",
+    "description": "Peterselie + bieslook samen 15 g. Olijfolie: 1,5 el. Panko: 3 el.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "feta"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "zalmfilet",
+        "quantity": 360,
+        "unit": "g"
+      },
+      {
+        "name": "cherrytomaatjes"
+      },
+      {
+        "name": "olijfolie",
+        "quantity": 22.5,
+        "unit": "ml"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "peterselie"
+      },
+      {
+        "name": "bieslook"
+      },
+      {
+        "name": "panko",
+        "quantity": 45,
+        "unit": "ml"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Avocado toast",
+    "servings": 1,
+    "category": "Ontbijt",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "witte kaas"
+      },
+      {
+        "name": "avocado"
+      },
+      {
+        "name": "granaatappelpitjes"
+      },
+      {
+        "name": "ei"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Gnocchi",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "zuivelspread"
+      },
+      {
+        "name": "gnocchi"
+      },
+      {
+        "name": "courgette"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "spekjes"
+      },
+      {
+        "name": "citroen"
+      },
+      {
+        "name": "doperwten"
+      },
+      {
+        "name": "sjalot"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Soep",
+    "servings": 4,
+    "category": "Lunch",
+    "description": "Origineel: 'zuivel'.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "broccoli"
+      },
+      {
+        "name": "prei"
+      },
+      {
+        "name": "kookroom"
+      },
+      {
+        "name": "wortel"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "ui"
+      },
+      {
+        "name": "paprika"
+      },
+      {
+        "name": "citroen"
+      },
+      {
+        "name": "tijm"
+      },
+      {
+        "name": "gember"
+      },
+      {
+        "name": "tomaat"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Wraps zalm",
+    "servings": 2,
+    "category": "Lunch",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "gerookte zalm"
+      },
+      {
+        "name": "wraps"
+      },
+      {
+        "name": "roomkaas"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Bruschetta toastjes",
+    "servings": 4,
+    "category": "Snacks",
+    "description": "Knoflook: 2 tenen.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "balsamicocrème"
+      },
+      {
+        "name": "basilicum"
+      },
+      {
+        "name": "olijfolie"
+      },
+      {
+        "name": "zout"
+      },
+      {
+        "name": "peper"
+      },
+      {
+        "name": "knoflook",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "trostomaat",
+        "quantity": 3,
+        "unit": "stuks"
+      },
+      {
+        "name": "bruschettatoastjes"
+      },
+      {
+        "name": "mozzarella"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Chocolate chip koekjes",
+    "servings": 24,
+    "category": "Snacks",
+    "description": "Suiker verlaagd van 445 g naar 300 g. Vanille-extract: 2 tl. Bakpoeder: ½ tl. Zout en zuiveringszout: 1 tl.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "gezouten boter",
+        "quantity": 227,
+        "unit": "g"
+      },
+      {
+        "name": "chocoladechips",
+        "quantity": 396,
+        "unit": "g"
+      },
+      {
+        "name": "suiker",
+        "quantity": 300,
+        "unit": "g"
+      },
+      {
+        "name": "vanille-extract",
+        "quantity": 10,
+        "unit": "ml"
+      },
+      {
+        "name": "bakpoeder",
+        "quantity": 2.5,
+        "unit": "ml"
+      },
+      {
+        "name": "zout",
+        "quantity": 5,
+        "unit": "ml"
+      },
+      {
+        "name": "bloem",
+        "quantity": 410,
+        "unit": "g"
+      },
+      {
+        "name": "zuiveringszout",
+        "quantity": 5,
+        "unit": "ml"
+      },
+      {
+        "name": "ei",
+        "quantity": 2,
+        "unit": "stuks"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Poke bowl",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "pokesaus",
+        "optional": true
+      },
+      {
+        "name": "avocado"
+      },
+      {
+        "name": "edamame"
+      },
+      {
+        "name": "wortel"
+      },
+      {
+        "name": "mango"
+      },
+      {
+        "name": "kipfilet"
+      },
+      {
+        "name": "rijst"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": [
+      {
+        "name": "Met zalm",
+        "remove": [
+          "kipfilet"
+        ],
+        "add": [
+          {
+            "name": "zalm"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Pasta marry me",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "tomatenpuree"
+      },
+      {
+        "name": "kookroom"
+      },
+      {
+        "name": "italiaanse kruiden"
+      },
+      {
+        "name": "ui"
+      },
+      {
+        "name": "orecchiette"
+      },
+      {
+        "name": "kaas"
+      },
+      {
+        "name": "spinazie"
+      },
+      {
+        "name": "slagroom"
+      },
+      {
+        "name": "knoflook"
+      },
+      {
+        "name": "kipdijfilet"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Yoghurt bagels",
+    "servings": 2,
+    "category": "Ontbijt",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "ei"
+      },
+      {
+        "name": "zelfrijzend bakmeel"
+      },
+      {
+        "name": "griekse yoghurt"
+      },
+      {
+        "name": "sesamzaad"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Orzo salade",
+    "servings": 2,
+    "category": "Lunch",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "doperwten"
+      },
+      {
+        "name": "spinazie à la crème"
+      },
+      {
+        "name": "cherrytomaatjes"
+      },
+      {
+        "name": "pesto"
+      },
+      {
+        "name": "feta",
+        "optional": true
+      },
+      {
+        "name": "orzo"
+      },
+      {
+        "name": "kikkererwten",
+        "optional": true
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Salade lob",
+    "servings": 2,
+    "category": "Lunch",
+    "description": "Kip gemarineerd met maïzena, sojasaus enz.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "granaatappelpitjes"
+      },
+      {
+        "name": "tonijn"
+      },
+      {
+        "name": "paprika"
+      },
+      {
+        "name": "yoghurtsaus",
+        "optional": true
+      },
+      {
+        "name": "kipfilet"
+      },
+      {
+        "name": "feta"
+      },
+      {
+        "name": "rode ui"
+      },
+      {
+        "name": "kikkererwten"
+      },
+      {
+        "name": "zoete aardappel"
+      },
+      {
+        "name": "bleekselderij"
+      },
+      {
+        "name": "tomaat"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pad thai max",
+    "servings": 2,
+    "category": "Diner",
+    "description": "2 eieren p.p.",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "ei",
+        "quantity": 4,
+        "unit": "stuks"
+      },
+      {
+        "name": "limoen"
+      },
+      {
+        "name": "tofu",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "pinda's"
+      },
+      {
+        "name": "komkommer"
+      },
+      {
+        "name": "taugé"
+      },
+      {
+        "name": "bosui"
+      },
+      {
+        "name": "rijstnoedels"
+      },
+      {
+        "name": "sjalot"
+      },
+      {
+        "name": "vissaus"
+      },
+      {
+        "name": "oestersaus"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Orzo kip zoete aardappel",
+    "servings": 2,
+    "category": "Diner",
+    "tags": [],
+    "ingredients": [
+      {
+        "name": "bosui"
+      },
+      {
+        "name": "feta"
+      },
+      {
+        "name": "sjalot",
+        "quantity": 1,
+        "unit": "stuks"
+      },
+      {
+        "name": "tomaat",
+        "quantity": 1,
+        "unit": "stuks"
+      },
+      {
+        "name": "spinazie à la crème"
+      },
+      {
+        "name": "kipdijfilet",
+        "quantity": 300,
+        "unit": "g"
+      },
+      {
+        "name": "zoete aardappel",
+        "quantity": 2,
+        "unit": "stuks"
+      },
+      {
+        "name": "orzo"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Pindakaas chocolade bar",
+    "servings": 12,
+    "category": "Snacks",
+    "description": "Dadels i.p.v. ahornsiroop. Halve batch: dadels 90 g, pindakaas 172 g. Amandelmeel eventueel +25 g. Kokosolie: 1 el.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "dadels",
+        "quantity": 180,
+        "unit": "g"
+      },
+      {
+        "name": "pindakaas",
+        "quantity": 345,
+        "unit": "g"
+      },
+      {
+        "name": "chocolade",
+        "quantity": 170,
+        "unit": "g"
+      },
+      {
+        "name": "amandelmeel",
+        "quantity": 25,
+        "unit": "g"
+      },
+      {
+        "name": "kokosolie",
+        "quantity": 15,
+        "unit": "ml"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  },
+  {
+    "title": "Brood deeg",
+    "servings": 1,
+    "description": "Suiker: een snufje. Zout stond als 6 mg, aangenomen 6 g.",
+    "tags": [
+      "vegetarisch"
+    ],
+    "ingredients": [
+      {
+        "name": "bloem",
+        "quantity": 500,
+        "unit": "g"
+      },
+      {
+        "name": "gist",
+        "quantity": 7,
+        "unit": "g"
+      },
+      {
+        "name": "water",
+        "quantity": 320,
+        "unit": "ml"
+      },
+      {
+        "name": "suiker"
+      },
+      {
+        "name": "zout",
+        "quantity": 6,
+        "unit": "g"
+      }
+    ],
+    "steps": [
+      "Bereiding nog onbekend."
+    ],
+    "variations": []
+  }
+]

@@ -89,7 +89,7 @@ onUnmounted(() => {
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M12 5v14M5 12h14" />
       </svg>
-      <!-- Op mobiel alleen "Recept" (naast het plus-icoon): met zes items paste "toevoegen"
+      <!-- Op mobiel alleen "Recept" (naast het plus-icoon): op een smalle telefoon past "toevoegen"
            alleen afgebroken over drie regels. Schermlezers horen het hele label. -->
       <span class="nav-label">Recept<span class="nav-wide"> toevoegen</span></span>
     </RouterLink>
@@ -101,7 +101,7 @@ onUnmounted(() => {
       </svg>
       <!-- "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
            Op mobiel staat het aantal als bolletje op het icoon (zie .nav-count), zodat
-           het label met zes menu-items op twee regels past; de tekst blijft hetzelfde. -->
+           het label op een smalle telefoon op twee regels past; de tekst blijft hetzelfde. -->
       <span class="nav-label"
         >Boodschappen<span v-if="shoppingList.openCount" class="nav-count"
           ><span class="paren"> (</span>{{ shoppingList.openCount
@@ -116,14 +116,6 @@ onUnmounted(() => {
       </svg>
       <span class="nav-label">Standaard</span>
     </RouterLink>
-    <!-- Ook actief op een ingrediënt zelf (/ingredienten/12), zie .ingredients-link. -->
-    <RouterLink to="/ingredienten" class="nav-link ingredients-link">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M12 21c-4.4 0-8-3.1-8-7 0-4.6 4-8.6 8-11 4 2.4 8 6.4 8 11 0 3.9-3.6 7-8 7Z" />
-        <path d="M12 21V10" />
-      </svg>
-      <span class="nav-label">Ingrediënten</span>
-    </RouterLink>
   </nav>
   <main>
     <RouterView v-slot="{ Component }">
@@ -135,8 +127,10 @@ onUnmounted(() => {
       </div>
     </RouterView>
   </main>
-  <!-- Beheer bewust niet in het hoofdmenu: bezoekers hebben er niets te zoeken. -->
+  <!-- Ingrediënten en Beheer bewust niet in het hoofdmenu: die heb je zelden nodig.
+       Ingrediënten is ook actief op een ingrediënt zelf (/ingredienten/12). -->
   <footer>
+    <RouterLink to="/ingredienten">Ingrediënten</RouterLink>
     <RouterLink to="/beheer">Beheer</RouterLink>
   </footer>
 </template>
@@ -170,8 +164,8 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  /* minmax(0, …): zes gelijke kolommen, ook als een woord breder is dan zijn kolom. */
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* minmax(0, …): vijf gelijke kolommen, ook als een woord breder is dan zijn kolom. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   /* De balk loopt door tot de onderrand; de veilige zone (thuisbalk van de
      iPhone) blijft leeg, zodat er geen link onder je duim-gebaar zit. */
   padding-bottom: env(safe-area-inset-bottom);
@@ -234,7 +228,7 @@ main {
   white-space: nowrap;
 }
 
-/* Zes items op een smalle telefoon: lange woorden ("Boodschappen", "Ingrediënten")
+/* Vijf items op een smalle telefoon: lange woorden ("Boodschappen")
    breken af met een streepje in plaats van uit de balk te lopen. */
 .nav-label {
   max-width: 100%;
@@ -258,15 +252,12 @@ main {
   outline-offset: -4px;
 }
 
-/* RouterLink zet deze class op de link van de huidige pagina. Ingrediënten ook op een
-   ingrediënt zelf (router-link-active: elke pagina onder /ingredienten). */
-.nav-link.router-link-exact-active,
-.ingredients-link.router-link-active {
+/* RouterLink zet deze class op de link van de huidige pagina. */
+.nav-link.router-link-exact-active {
   color: var(--color-accent-text);
 }
 
-.nav-link.router-link-exact-active::before,
-.ingredients-link.router-link-active::before {
+.nav-link.router-link-exact-active::before {
   content: '';
   position: absolute;
   top: 0;
@@ -315,8 +306,7 @@ footer {
     background: var(--color-surface-hover);
   }
 
-  .nav-link.router-link-exact-active::before,
-  .ingredients-link.router-link-active::before {
+  .nav-link.router-link-exact-active::before {
     top: auto;
     bottom: 0;
     left: var(--space-3);
@@ -352,6 +342,9 @@ footer {
 /* ---------- Footer ---------- */
 
 footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
   font-size: var(--text-sm);
@@ -362,5 +355,11 @@ footer a {
   align-items: center;
   min-height: var(--tap);
   color: var(--color-text-muted);
+}
+
+/* Op de ingrediëntenpagina's (ook /ingredienten/12) zie je waar je bent. */
+footer a.router-link-active {
+  color: var(--color-accent-text);
+  font-weight: 600;
 }
 </style>

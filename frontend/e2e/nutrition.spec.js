@@ -116,7 +116,9 @@ test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ pag
   await page.goto('/ingredienten')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Ingrediënten' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Ingrediënten/ }).first()).toHaveClass(
+  // Ingrediënten staat in de voettekst (naast Beheer), niet in het menu.
+  await expect(page.locator('.main-nav').getByRole('link', { name: /Ingrediënten/ })).toHaveCount(0)
+  await expect(page.locator('footer').getByRole('link', { name: 'Ingrediënten' })).toHaveClass(
     /router-link-active/,
   )
   const bieten = page.locator('.ingredient-list li', { hasText: 'bieten' })

@@ -236,11 +236,15 @@ describe('ShoppingListView', () => {
     expect(server.shoppingDb).toEqual([])
   })
 
-  it('toont de beheerlink in de voettekst en niet in het menu', async () => {
+  it('toont ingrediënten en beheer in de voettekst en niet in het menu', async () => {
     ;({ wrapper } = await mountApp())
 
-    expect(wrapper.find('footer a').attributes('href')).toBe('/beheer')
+    const footerLinks = wrapper.findAll('footer a')
+    expect(footerLinks.map((a) => a.text())).toEqual(['Ingrediënten', 'Beheer'])
+    expect(footerLinks.map((a) => a.attributes('href'))).toEqual(['/ingredienten', '/beheer'])
     expect(wrapper.find('nav').text()).not.toContain('Beheer')
+    expect(wrapper.find('nav').text()).not.toContain('Ingrediënten')
+    expect(wrapper.findAll('nav a')).toHaveLength(5)
   })
 
   describe('offline', () => {

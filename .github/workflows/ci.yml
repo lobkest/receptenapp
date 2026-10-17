@@ -110,7 +110,7 @@ jobs:
 
       # Without --fix (unlike `npm run lint`), so CI fails instead of silently fixing.
       - name: Lint
-        run: npx oxlint . && npx eslint .
+        run: npx oxlint . && npx eslint . && npx prettier --check .
 
       - name: Unit tests
         run: npm run test:unit -- --run

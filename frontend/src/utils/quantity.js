@@ -7,6 +7,9 @@
 // lineair en worden nooit omgerekend naar ml. Bewust geen cups.
 export const UNITS = ['g', 'ml', 'stuks', 'tl', 'el']
 
+// Waar een nieuwe regel in een formulier mee begint.
+export const DEFAULT_UNIT = 'stuks'
+
 // Kleinste waarde die we tonen als er wél iets nodig is; nooit afronden naar 0.
 const MINIMUM = { g: 0.1, ml: 0.1, tl: 0.1, el: 0.1, stuks: 0.5 }
 

@@ -46,7 +46,7 @@ class Nutrition
     recipe ||= Recipe.includes(recipe_ingredients: [ { ingredient: :nevo_food }, { alternatives: { ingredient: :nevo_food } } ])
       .find(variation.recipe_id)
     removed = variation.removed_ingredient_ids
-    ingredients ||= Ingredient.includes(:nevo_food).where(name: variation.additions.map(&:name)).index_by(&:name)
+    ingredients ||= Ingredient.for_additions([ variation ])
 
     lines = recipe.recipe_ingredients.reject { |row| removed.include?(row.id) }.map { |row| row_line(row) }
     lines += variation.additions.map do |addition|

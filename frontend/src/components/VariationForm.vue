@@ -4,7 +4,7 @@ import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import { useIngredientNames } from '@/composables/useIngredientNames'
 import { useServerErrors } from '@/composables/useServerErrors'
-import { formatQuantity, numberText, UNITS } from '@/utils/quantity'
+import { DEFAULT_UNIT, formatQuantity, numberText, UNITS } from '@/utils/quantity'
 
 // Een variatie toevoegen of bewerken: naam, notities, ingrediënten eraf (uit het
 // basisrecept) en erbij, en tags erbij of eraf.
@@ -56,7 +56,7 @@ const removedIds = ref(
 let nextKey = 1
 
 function newAddition() {
-  return { key: nextKey++, name: '', quantity: '', unit: 'stuks' }
+  return { key: nextKey++, name: '', quantity: '', unit: DEFAULT_UNIT }
 }
 
 const additions = ref(
@@ -66,7 +66,7 @@ const additions = ref(
       key: nextKey++,
       name: change.name,
       quantity: numberText(change.quantity),
-      unit: change.unit ?? 'stuks',
+      unit: change.unit ?? DEFAULT_UNIT,
     })),
 )
 if (additions.value.length === 0) additions.value.push(newAddition())

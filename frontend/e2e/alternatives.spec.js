@@ -67,7 +67,11 @@ async function checkLayout(page, errors, name = null) {
   }))
   expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
   if (name) {
-    await page.screenshot({ path: `e2e/screenshots/${name}.png`, fullPage: true, animations: 'disabled' })
+    await page.screenshot({
+      path: `e2e/screenshots/${name}.png`,
+      fullPage: true,
+      animations: 'disabled',
+    })
   }
   expect(errors, 'geen console-errors').toEqual([])
 }
@@ -116,7 +120,9 @@ test('wisselen, URL, herladen en Alles op lijst', async ({ page }) => {
 
   // ---- Alles op lijst: tempeh in plaats van kip; peterselie blijft optioneel en gaat niet mee.
   await page.getByRole('button', { name: 'Alles op lijst' }).click()
-  await expect(page.locator('section.ingredients [role="status"]')).toContainText('behalve de optionele')
+  await expect(page.locator('section.ingredients [role="status"]')).toContainText(
+    'behalve de optionele',
+  )
   const items = await (await api.get('/api/shopping_list_items')).json()
   expect(items.map((item) => [item.name, item.quantity, item.unit]).sort()).toEqual([
     ['paprika', 1.5, 'stuks'],
@@ -141,7 +147,9 @@ test('alternatief toevoegen via het bewerkformulier', async ({ page }) => {
   await page.goto(`/recepten/${recipeId}/bewerken`)
   await expect(page.getByRole('heading', { name: 'Recept bewerken' })).toBeVisible()
   // De bestaande alternatieven staan open bij hun regel.
-  await expect(page.getByLabel('Alternatief 1 voor ingrediënt 1', { exact: true })).toHaveValue('tofu')
+  await expect(page.getByLabel('Alternatief 1 voor ingrediënt 1', { exact: true })).toHaveValue(
+    'tofu',
+  )
 
   await page.getByRole('button', { name: 'Alternatief voor ingrediënt 2 toevoegen' }).click()
   await page.getByLabel('Alternatief 1 voor ingrediënt 2', { exact: true }).fill('Basmatirijst')
@@ -150,7 +158,10 @@ test('alternatief toevoegen via het bewerkformulier', async ({ page }) => {
   await page.getByLabel('Alternatief 1 voor ingrediënt 2', { exact: true }).scrollIntoViewIfNeeded()
   await checkTapTargets(page, '.ingredients button')
   await page.getByLabel('Alternatief 1 voor ingrediënt 2', { exact: true }).scrollIntoViewIfNeeded()
-  await page.screenshot({ path: 'e2e/screenshots/recept-bewerken-alternatief-scherm.png', animations: 'disabled' })
+  await page.screenshot({
+    path: 'e2e/screenshots/recept-bewerken-alternatief-scherm.png',
+    animations: 'disabled',
+  })
   await checkLayout(page, errors, 'recept-bewerken-alternatief')
 
   // Dubbel alternatief: de server meldt het bij de regel.

@@ -1,5 +1,5 @@
-// Gedeelde basis voor alle API-modules (recipes.js, variations.js, admin.js, shoppingList.js,
-// standardItems.js).
+// Gedeelde basis voor alle API-modules (recipes.js, variations.js, ingredients.js, pantry.js,
+// admin.js, shoppingList.js, standardItems.js).
 // URL's zijn relatief (/api/...): in development vangt de Vite-proxy ze op,
 // in productie serveert Rails de frontend zelf op hetzelfde domein.
 import { handleServerVersion, VERSION_HEADER } from '@/version'

@@ -51,7 +51,9 @@ const swaps = computed(() => parseSwaps(route.query.wissel, recipe.value?.ingred
 
 // Eerst de automatische tags (uitgerekend uit de ingrediënten), met de uitleg die nog
 // geldt: wissel je kip voor tofu, dan verdwijnt "met tofu i.p.v. kip".
-const automaticTags = computed(() => (recipe.value ? automaticTagLabels(recipe.value, swaps.value) : []))
+const automaticTags = computed(() =>
+  recipe.value ? automaticTagLabels(recipe.value, swaps.value) : [],
+)
 const hasTags = computed(() => automaticTags.value.length > 0 || recipe.value?.tags?.length > 0)
 
 function setSwaps(next) {

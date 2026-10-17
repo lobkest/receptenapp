@@ -26,7 +26,15 @@ describe('tagHint', () => {
   it('meerdere geschikte alternatieven: allemaal, met "of"', () => {
     const tag = {
       ...VEGETARISCH,
-      swaps: [{ ...VEGETARISCH.swaps[0], alternatives: [{ id: 3, name: 'tofu' }, { id: 4, name: 'tempeh' }] }],
+      swaps: [
+        {
+          ...VEGETARISCH.swaps[0],
+          alternatives: [
+            { id: 3, name: 'tofu' },
+            { id: 4, name: 'tempeh' },
+          ],
+        },
+      ],
     }
     expect(tagHint(tag)).toBe('met tofu of tempeh i.p.v. kip')
     expect(tagHint(tag, { 12: 4 })).toBeNull()
@@ -41,7 +49,9 @@ describe('tagHint', () => {
     }
     expect(tagHint(tag)).toBe('zonder spekjes')
     expect(tagHint(tag, { 14: 8 })).toBeNull()
-    expect(tagHint({ ...tag, swaps: VEGETARISCH.swaps })).toBe('met tofu i.p.v. kip, zonder spekjes')
+    expect(tagHint({ ...tag, swaps: VEGETARISCH.swaps })).toBe(
+      'met tofu i.p.v. kip, zonder spekjes',
+    )
   })
 
   it('status ja zonder uitzonderingen: geen hint', () => {
@@ -52,7 +62,10 @@ describe('tagHint', () => {
 describe('automaticTagLabels, allTagNames en needsDisclaimer', () => {
   const recipe = {
     tags: ['snel'],
-    automatic_tags: [VEGETARISCH, { name: 'glutenvrij', status: 'ja', disclaimer: true, swaps: [], without: [] }],
+    automatic_tags: [
+      VEGETARISCH,
+      { name: 'glutenvrij', status: 'ja', disclaimer: true, swaps: [], without: [] },
+    ],
   }
 
   it('labels met hint, naar de actieve wissels', () => {

@@ -47,9 +47,23 @@ describe('RecipeDetailView', () => {
       ...SOUP,
       tags: ['snel'],
       ingredients: [
-        { id: 12, name: 'kip', quantity: 200, unit: 'g', optional: false, alternatives: [
-          { id: 3, name: 'tofu', quantity: null, unit: null, effective_quantity: 200, effective_unit: 'g' },
-        ] },
+        {
+          id: 12,
+          name: 'kip',
+          quantity: 200,
+          unit: 'g',
+          optional: false,
+          alternatives: [
+            {
+              id: 3,
+              name: 'tofu',
+              quantity: null,
+              unit: null,
+              effective_quantity: 200,
+              effective_unit: 'g',
+            },
+          ],
+        },
       ],
       automatic_tags: [
         { name: 'glutenvrij', status: 'ja', disclaimer: true, swaps: [], without: [] },
@@ -57,7 +71,13 @@ describe('RecipeDetailView', () => {
           name: 'vegetarisch',
           status: 'met_wissel',
           disclaimer: false,
-          swaps: [{ recipe_ingredient_id: 12, ingredient: 'kip', alternatives: [{ id: 3, name: 'tofu' }] }],
+          swaps: [
+            {
+              recipe_ingredient_id: 12,
+              ingredient: 'kip',
+              alternatives: [{ id: 3, name: 'tofu' }],
+            },
+          ],
           without: [],
         },
       ],

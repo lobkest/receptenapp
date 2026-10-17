@@ -184,7 +184,7 @@ async function askVariationDeletion(variation) {
           :base-ingredients="recipe.ingredients ?? []"
           :base-tags="recipe.tags ?? []"
           :available-tags="recipes.manualTagNames"
-      :reserved-tags="recipes.automaticTagNames"
+          :reserved-tags="recipes.automaticTagNames"
           :errors="variationErrors"
           :submitting="savingVariation"
           @submit="saveVariation"

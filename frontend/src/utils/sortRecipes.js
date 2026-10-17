@@ -30,11 +30,12 @@ export function visibleTagChipCount(recipe) {
 
 // Recepten op kaarthoogte: weinig tag-chips eerst, dan op titel (Nederlandse volgorde).
 // Kaarten met evenveel chips komen zo naast elkaar in het grid, met minder witruimte.
-// Geeft een nieuwe lijst; de invoer blijft zoals hij was.
+// Geeft een nieuwe lijst; de invoer blijft zoals hij was. Het aantal chips één keer per
+// recept, niet bij elke vergelijking opnieuw.
 export function sortByCardHeight(recipes) {
+  const chipCounts = new Map(recipes.map((recipe) => [recipe, visibleTagChipCount(recipe)]))
   return [...recipes].sort(
     (a, b) =>
-      visibleTagChipCount(a) - visibleTagChipCount(b) ||
-      (a.title ?? '').localeCompare(b.title ?? '', 'nl'),
+      chipCounts.get(a) - chipCounts.get(b) || (a.title ?? '').localeCompare(b.title ?? '', 'nl'),
   )
 }

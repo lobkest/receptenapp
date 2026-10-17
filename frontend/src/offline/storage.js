@@ -38,15 +38,6 @@ export function writeJson(key, value) {
   }
 }
 
-export function removeKey(key) {
-  memory.delete(key)
-  try {
-    localStorage.removeItem(PREFIX + key)
-  } catch {
-    // Niets aan te doen; het geheugen is al leeg.
-  }
-}
-
 // Voor tests: het geheugen leeg, alsof de pagina opnieuw geladen is.
 export function clearMemoryStorage() {
   memory.clear()

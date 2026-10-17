@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
 import { useIngredientList, useIngredientNames } from '@/composables/useIngredientNames'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
-import { findIngredients } from '@/utils/ingredientSearch'
+import { findIngredients, MIN_QUERY_LENGTH } from '@/utils/ingredientSearch'
 
 // "Met ingrediënt…" op het receptenoverzicht: zoek een ingrediënt en kies het; dan zie je
 // de recepten waar het in zit (als origineel, als alternatief of optioneel). Meerdere
@@ -58,7 +58,9 @@ function chooseFirstMatch() {
         </button>
       </li>
     </ul>
-    <p v-else-if="query.trim().length >= 2" class="muted small">Geen ingrediënt gevonden.</p>
+    <p v-else-if="query.trim().length >= MIN_QUERY_LENGTH" class="muted small">
+      Geen ingrediënt gevonden.
+    </p>
 
     <ul v-if="chosen.length" class="chips chosen" aria-label="Gekozen ingrediënten">
       <li v-for="ingredient in chosen" :key="ingredient.id">

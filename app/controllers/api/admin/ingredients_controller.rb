@@ -9,7 +9,7 @@ class Api::Admin::IngredientsController < Api::Admin::BaseController
     result = IngredientMerge.new(source, target).call
 
     render json: {
-      "target" => IngredientSerializer.detail(Ingredient.includes(:nevo_food).find(target.id)),
+      "target" => IngredientSerializer.detail(Ingredient.with_details.find(target.id)),
       "source_deleted" => result.source_deleted,
       "moved_recipes" => result.moved_recipes,
       "skipped_recipes" => result.skipped_recipes,

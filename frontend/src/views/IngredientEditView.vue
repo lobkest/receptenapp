@@ -12,6 +12,7 @@ import {
 } from '@/api/ingredients'
 import { useTraitSaver } from '@/composables/useTraitSaver'
 import { useAdminStore } from '@/stores/admin'
+import { searchWords } from '@/utils/ingredientSearch'
 import { NUTRIENTS } from '@/utils/nutrition'
 import { toggleTrait, traitConsequence } from '@/utils/traits'
 
@@ -100,7 +101,11 @@ async function saveTraits(fields, done) {
     const { result, latest } = await traitSaver.save(ingredient.value.id, fields)
     if (!latest) return
     traitNames.value = [...result.traits]
-    ingredient.value = { ...ingredient.value, traits: result.traits, traits_checked: result.traits_checked }
+    ingredient.value = {
+      ...ingredient.value,
+      traits: result.traits,
+      traits_checked: result.traits_checked,
+    }
     traitMessage.value = done
   } catch (e) {
     traitError.value = e.message
@@ -147,6 +152,9 @@ const results = ref([])
 const searching = ref(false)
 const searchError = ref(null)
 let searchTimer = null
+// Pas zoeken vanaf zoveel tekens, en als je zo lang (ms) niet meer typt.
+const MIN_SEARCH_LENGTH = 2
+const SEARCH_DELAY_MS = 300
 // Alleen het antwoord op de laatste zoekopdracht telt (een trage eerdere komt soms later).
 let searchNumber = 0
 
@@ -154,7 +162,7 @@ async function runSearch() {
   clearTimeout(searchTimer)
   const query = search.value.trim()
   const number = ++searchNumber
-  if (query.length < 2) {
+  if (query.length < MIN_SEARCH_LENGTH) {
     results.value = []
     return
   }
@@ -172,7 +180,7 @@ async function runSearch() {
 
 function onSearchInput() {
   clearTimeout(searchTimer)
-  searchTimer = setTimeout(runSearch, 300)
+  searchTimer = setTimeout(runSearch, SEARCH_DELAY_MS)
 }
 
 onUnmounted(() => clearTimeout(searchTimer))
@@ -290,7 +298,7 @@ function stopMerge() {
 
 const MAX_CANDIDATES = 8
 const mergeCandidates = computed(() => {
-  const words = mergeQuery.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const words = searchWords(mergeQuery.value)
   if (!words.length) return []
   return allIngredients.value
     .filter((other) => other.id !== ingredient.value.id)
@@ -481,7 +489,10 @@ watch(() => props.id, load, { immediate: true })
         </div>
         <p v-if="searchError" class="error">{{ searchError }}</p>
         <p v-else-if="searching" class="muted small">Zoeken…</p>
-        <p v-else-if="search.trim().length >= 2 && !results.length" class="muted small">
+        <p
+          v-else-if="search.trim().length >= MIN_SEARCH_LENGTH && !results.length"
+          class="muted small"
+        >
           Niets gevonden. Probeer een ander woord, bijv. zonder meervoud.
         </p>
         <ul v-if="results.length" class="results" aria-label="Suggesties uit NEVO">

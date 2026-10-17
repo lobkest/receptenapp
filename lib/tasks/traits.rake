@@ -9,8 +9,7 @@
 namespace :traits do
   desc "Kenmerken voorstellen en handmatige automatische tags opruimen [DRY_RUN=1]"
   task setup: :environment do
-    config = ActiveRecord::Base.connection_db_config
-    puts "Database: #{config.database} (#{config.host || 'localhost'}), omgeving #{Rails.env}"
+    puts Importers::Base.database_line
     puts Importers::TraitsSetup.from_file(Rails.root.join("db/import/ingredient_traits.yml"),
       report_path: Rails.root.join(ENV.fetch("REPORT", "tmp/tag_verschillen.txt")), dry_run: ENV["DRY_RUN"] == "1")
   end

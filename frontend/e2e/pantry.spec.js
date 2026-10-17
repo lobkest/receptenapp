@@ -153,7 +153,10 @@ test('Ontbrekende op lijst, afstrepen zet het in huis, weer aanvinken haalt het 
   await expect(soupIn(page, 'Mist 1').locator('.added')).toHaveText('Op de lijst ✓')
 
   // Het origineel, voor de porties van het recept (3), uit het recept.
-  await page.locator('.main-nav').getByRole('link', { name: /Boodschappen/ }).click()
+  await page
+    .locator('.main-nav')
+    .getByRole('link', { name: /Boodschappen/ })
+    .click()
   const line = page.locator('.items li', { hasText: 'tomaat' })
   await expect(line.locator('.line')).toHaveText('500 g tomaat')
   await expect(line.locator('.sources')).toHaveText(`uit: ${SOUP.title}`)
@@ -166,7 +169,10 @@ test('Ontbrekende op lijst, afstrepen zet het in huis, weer aanvinken haalt het 
   await expect(page.locator('.in-house li')).toHaveText([/tomaat/, /ui/])
 
   // Weer aanvinken: eruit, want het afstrepen had het in huis gezet.
-  await page.locator('.main-nav').getByRole('link', { name: /Boodschappen/ }).click()
+  await page
+    .locator('.main-nav')
+    .getByRole('link', { name: /Boodschappen/ })
+    .click()
   await line.locator('input[type="checkbox"]').uncheck()
   await expect.poll(inHouseNames).toEqual(['ui'])
   await page.locator('.main-nav').getByRole('link', { name: 'In huis' }).click()

@@ -96,7 +96,9 @@ describe('VariationForm', () => {
   })
 
   it('toont bij weglaten geen "naar smaak" en geen losse eenheid', () => {
-    const labels = mountForm().findAll('label.check').map((l) => l.text())
+    const labels = mountForm()
+      .findAll('label.check')
+      .map((l) => l.text())
 
     expect(labels).toContain('zout')
     expect(labels.join(' ')).not.toContain('naar smaak')

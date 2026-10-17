@@ -16,8 +16,22 @@ const INGREDIENTS = [
     unit: 'g',
     optional: false,
     alternatives: [
-      { id: 3, name: 'tofu', quantity: null, unit: null, effective_quantity: 250, effective_unit: 'g' },
-      { id: 4, name: 'tempeh', quantity: 200, unit: 'g', effective_quantity: 200, effective_unit: 'g' },
+      {
+        id: 3,
+        name: 'tofu',
+        quantity: null,
+        unit: null,
+        effective_quantity: 250,
+        effective_unit: 'g',
+      },
+      {
+        id: 4,
+        name: 'tempeh',
+        quantity: 200,
+        unit: 'g',
+        effective_quantity: 200,
+        effective_unit: 'g',
+      },
     ],
   },
   { id: 13, name: 'rijst', quantity: 150, unit: 'g', optional: false, alternatives: [] },
@@ -28,7 +42,14 @@ const INGREDIENTS = [
     unit: 'g',
     optional: true,
     alternatives: [
-      { id: 7, name: 'peterselie', quantity: null, unit: null, effective_quantity: 5, effective_unit: 'g' },
+      {
+        id: 7,
+        name: 'peterselie',
+        quantity: null,
+        unit: null,
+        effective_quantity: 5,
+        effective_unit: 'g',
+      },
     ],
   },
 ]
@@ -98,7 +119,13 @@ describe('applySwaps', () => {
   it('gewisseld: naam en effectieve hoeveelheid van het alternatief; id en optioneel blijven', () => {
     const [kip, , koriander] = applySwaps(INGREDIENTS, { 12: 4, 15: 7 })
 
-    expect(kip).toMatchObject({ id: 12, name: 'tempeh', quantity: 200, unit: 'g', alternativeId: 4 })
+    expect(kip).toMatchObject({
+      id: 12,
+      name: 'tempeh',
+      quantity: 200,
+      unit: 'g',
+      alternativeId: 4,
+    })
     expect(kip.original.name).toBe('kip')
     expect(kip.others.map((a) => a.name)).toEqual(['tofu'])
     // "zelfde als origineel": de hoeveelheid van koriander, en het alternatief erft optioneel.

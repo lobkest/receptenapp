@@ -108,7 +108,9 @@ test('import: Wraps met twee variaties', async ({ page }) => {
   await checkLayout(page, errors, 'import-wraps')
 })
 
-test('import: Pasta wortel saus, geschaald naar 8 porties en alles op de lijst', async ({ page }) => {
+test('import: Pasta wortel saus, geschaald naar 8 porties en alles op de lijst', async ({
+  page,
+}) => {
   const errors = collectErrors(page)
   await page.request.delete('/api/shopping_list_items/clear_all')
   await page.goto('/')

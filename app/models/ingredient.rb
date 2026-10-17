@@ -23,6 +23,9 @@ class Ingredient < ApplicationRecord
   # The database unlinks shopping list lines when an ingredient goes (on_delete: :nullify).
   has_many :shopping_list_items, dependent: nil
 
+  # What IngredientSerializer needs (summary and detail), in one go.
+  scope :with_details, -> { includes(:nevo_food, :traits) }
+
   # "  Verse   BASILICUM " and "verse basilicum" are the same ingredient.
   normalizes :name, with: ->(name) { name.squish.downcase }
   # "1,5" from a Dutch keyboard is 1.5; empty is nil (unknown).
@@ -35,6 +38,13 @@ class Ingredient < ApplicationRecord
   LABEL_COLUMNS.each do |nutrient, column|
     validates column, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: LABEL_MAXIMUM.fetch(nutrient, 100) },
       allow_nil: true
+  end
+
+  # { name => Ingredient } for what these variations add (VariationChange#name refers to an
+  # ingredient by name), with what the nutrition and the automatic tags need.
+  def self.for_additions(variations)
+    includes(:nevo_food, :ingredient_traits)
+      .where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
   end
 
   # [value per 100, source, basis]: the label value (per 100 g) wins over NEVO (per 100 g

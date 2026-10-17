@@ -35,7 +35,7 @@ export function handleServerVersion(serverVersion, { reload = reloadToLatest } =
 // Haalt eerst de nieuwe service worker op (anders geeft de oude bij herladen weer de oude
 // index.html uit zijn cache) en herlaadt dan. Een nieuwe service worker wordt meteen actief
 // (skipWaiting) en registerSW() in main.js herlaadt dan zelf; dit is de terugval.
-export async function reloadToLatest() {
+async function reloadToLatest() {
   try {
     const registration = await navigator.serviceWorker?.getRegistration()
     await registration?.update()

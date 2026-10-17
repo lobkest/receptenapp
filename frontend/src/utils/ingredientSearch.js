@@ -2,14 +2,22 @@
 // receptentabblad. Pure functies, zodat ze zonder component te testen zijn.
 
 // Hoeveel gevonden ingrediënten een zoekveld laat zien.
-export const MAX_MATCHES = 6
+const MAX_MATCHES = 6
+
+// Vanaf zoveel tekens zegt een zoekveld "Geen ingrediënt gevonden" als er niets is.
+export const MIN_QUERY_LENGTH = 2
+
+// "  Rode UI " → ['rode', 'ui']: de woorden die er allemaal in moeten staan.
+export function searchWords(query) {
+  return query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+}
 
 // Bestaande ingrediënten ([{ id, name }], useIngredientList) waarvan de naam elk woord van
 // de zoekterm bevat, zonder die in exclude (een Set met id's). Wat precies zo heet, staat
 // bovenaan; daarna op naam.
 export function findIngredients(list, query, { exclude = new Set(), max = MAX_MATCHES } = {}) {
   const text = query.trim().toLowerCase()
-  const words = text.split(/\s+/).filter(Boolean)
+  const words = searchWords(query)
   if (!words.length) return []
   return list
     .filter((ingredient) => !exclude.has(ingredient.id))

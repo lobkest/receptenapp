@@ -20,14 +20,36 @@ const WOK = {
       unit: 'g',
       optional: false,
       alternatives: [
-        { id: 3, name: 'tofu', quantity: null, unit: null, effective_quantity: 250, effective_unit: 'g' },
-        { id: 4, name: 'tempeh', quantity: 200, unit: 'g', effective_quantity: 200, effective_unit: 'g' },
+        {
+          id: 3,
+          name: 'tofu',
+          quantity: null,
+          unit: null,
+          effective_quantity: 250,
+          effective_unit: 'g',
+        },
+        {
+          id: 4,
+          name: 'tempeh',
+          quantity: 200,
+          unit: 'g',
+          effective_quantity: 200,
+          effective_unit: 'g',
+        },
       ],
     },
     { id: 13, name: 'rijst', quantity: 150, unit: 'g', optional: false, alternatives: [] },
   ],
   variations: [
-    { id: 30, name: 'Pittig', notes: null, position: 1, lock_version: 0, changes: [], tag_changes: [] },
+    {
+      id: 30,
+      name: 'Pittig',
+      notes: null,
+      position: 1,
+      lock_version: 0,
+      changes: [],
+      tag_changes: [],
+    },
   ],
 }
 
@@ -156,6 +178,8 @@ describe('ingrediënt wisselen op de receptpagina', () => {
     await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
     await flushPromises()
 
-    expect(requests).toEqual([{ url: '/api/recipes/7/add_to_shopping_list', body: { servings: 2 } }])
+    expect(requests).toEqual([
+      { url: '/api/recipes/7/add_to_shopping_list', body: { servings: 2 } },
+    ])
   })
 })

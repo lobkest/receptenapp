@@ -4,7 +4,7 @@ import { useShoppingListStore } from '@/stores/shoppingList'
 import { byName, groupByCategory } from '@/utils/grouping'
 
 // Herkomst op de boodschappenlijst ("uit: standaard"), zonder recept.
-export const STANDARD_SOURCE = { label: 'standaard', recipeId: null }
+const STANDARD_SOURCE = { label: 'standaard', recipeId: null }
 
 // De vaste boodschappen, via de openbare API: iedereen met de link ziet en wijzigt
 // dezelfde lijst. Fouten (ApiError) gooien we door, zodat de pagina de melding kan tonen.

@@ -13,7 +13,9 @@ export function jsonResponse(body, status = 200) {
 // is altijd meteen online.
 export function mockFetch(handler) {
   const fake = vi.fn(async (url, options = {}) =>
-    url === '/up' ? new Response('', { status: 200 }) : handler(options.method ?? 'GET', url, options),
+    url === '/up'
+      ? new Response('', { status: 200 })
+      : handler(options.method ?? 'GET', url, options),
   )
   vi.stubGlobal('fetch', fake)
   return fake

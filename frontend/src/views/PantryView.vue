@@ -9,8 +9,8 @@ import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
-import { categoryKey } from '@/utils/categories'
-import { findIngredients } from '@/utils/ingredientSearch'
+import { filterRecipes } from '@/utils/categories'
+import { findIngredients, MIN_QUERY_LENGTH } from '@/utils/ingredientSearch'
 
 // "In huis": wat je in huis hebt, en welke recepten je daarmee (bijna) kunt maken. De
 // voorraad staat op de server, één voor iedereen met de link. Afgestreepte boodschappen
@@ -31,11 +31,7 @@ const groups = computed(() =>
     .map((group) => ({
       ...group,
       title: GROUP_TITLES[group.missing_count],
-      recipes: group.recipes.filter(
-        (recipe) =>
-          selectedCategory.value === null ||
-          categoryKey(recipe.category) === selectedCategory.value,
-      ),
+      recipes: filterRecipes(group.recipes, { selected: selectedCategory.value }),
     }))
     .filter((group) => group.recipes.length),
 )
@@ -243,7 +239,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
           </button>
         </li>
       </ul>
-      <p v-else-if="query.trim().length >= 2" class="muted small">
+      <p v-else-if="query.trim().length >= MIN_QUERY_LENGTH" class="muted small">
         Geen ingrediënt gevonden dat nog niet in huis is.
       </p>
 

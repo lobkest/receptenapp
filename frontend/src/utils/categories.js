@@ -7,10 +7,10 @@ import { allTagNames } from '@/utils/automaticTags'
 // De sleutel van "Overig", ook in de URL (?category=overig). Een echte categorie heeft
 // haar id als sleutel; "Overig" kan dus niet botsen (en de server weigert die naam).
 export const NO_CATEGORY = 'overig'
-export const NO_CATEGORY_NAME = 'Overig'
+const NO_CATEGORY_NAME = 'Overig'
 
 // '3' voor { id: 3, ... }, NO_CATEGORY voor null.
-export function categoryKey(category) {
+function categoryKey(category) {
   return category ? String(category.id) : NO_CATEGORY
 }
 

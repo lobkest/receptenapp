@@ -27,7 +27,8 @@ function sleepingServer() {
     }
     await awake
     if (url.startsWith('/api/recipes')) return jsonResponse(RECIPES)
-    if (url === '/api/tags') return jsonResponse([{ name: 'glutenvrij', count: 1, automatic: true }])
+    if (url === '/api/tags')
+      return jsonResponse([{ name: 'glutenvrij', count: 1, automatic: true }])
     if (url === '/api/categories') return jsonResponse([])
     if (url === '/api/shopping_list_items') return jsonResponse(ITEMS)
     return jsonResponse({}, 404)
@@ -104,7 +105,11 @@ describe('App: wachten op de server', () => {
   })
 
   it('toont op Boodschappen meteen de offline kopie, met "bijwerken…", tot de verse lijst er is', async () => {
-    saveSnapshot('shoppingList', [{ ...ITEMS[0], name: 'oude melk' }], new Date(2026, 9, 16, 9, 41).getTime())
+    saveSnapshot(
+      'shoppingList',
+      [{ ...ITEMS[0], name: 'oude melk' }],
+      new Date(2026, 9, 16, 9, 41).getTime(),
+    )
     const { wakeUp } = sleepingServer()
     wrapper = await mountApp('/boodschappen')
 

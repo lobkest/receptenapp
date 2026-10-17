@@ -11,7 +11,9 @@ const TRAITS = [
 
 describe('traitConsequence', () => {
   it('kip: niet vegetarisch, niet veganistisch', () => {
-    expect(traitConsequence(['vlees', 'dierlijk'], TRAITS)).toBe('niet vegetarisch, niet veganistisch')
+    expect(traitConsequence(['vlees', 'dierlijk'], TRAITS)).toBe(
+      'niet vegetarisch, niet veganistisch',
+    )
   })
 
   it('vlees en vis samen noemen vegetarisch één keer', () => {

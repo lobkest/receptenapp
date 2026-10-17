@@ -43,8 +43,22 @@ npm run build
 npm run test:unit
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+### Run End-to-End Tests with [Playwright](https://playwright.dev/)
+
+Starts its own Rails (test database) and Vite servers; screenshots go to `e2e/screenshots/`.
+
+```sh
+npm run test:e2e
+```
+
+### Lint with [oxlint](https://oxc.rs/) and [ESLint](https://eslint.org/)
 
 ```sh
 npm run lint
+```
+
+### Format with [Prettier](https://prettier.io/)
+
+```sh
+npm run format            # CI checks with: npx prettier --check .
 ```

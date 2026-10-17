@@ -12,7 +12,7 @@ class Api::IngredientsController < ApplicationController
 
   # GET /api/ingredients  (all of them; the page searches and filters itself)
   def index
-    ingredients = Ingredient.includes(:nevo_food, :traits).order(:name)
+    ingredients = Ingredient.with_details.order(:name)
 
     render json: ingredients.map { |ingredient| IngredientSerializer.summary(ingredient) }
   end
@@ -31,7 +31,7 @@ class Api::IngredientsController < ApplicationController
     @ingredient.needs_review = false
 
     if @ingredient.save
-      render json: IngredientSerializer.detail(Ingredient.includes(:nevo_food, :traits).find(@ingredient.id))
+      render json: IngredientSerializer.detail(Ingredient.with_details.find(@ingredient.id))
     else
       render_invalid(@ingredient)
     end
@@ -52,10 +52,10 @@ class Api::IngredientsController < ApplicationController
 
     Ingredient.transaction do
       @ingredient.traits = traits if fields.key?(:trait_names)
-      @ingredient.update_columns(traits_checked: ActiveModel::Type::Boolean.new.cast(fields[:traits_checked]) || false, updated_at: Time.current) if fields.key?(:traits_checked)
+      @ingredient.update_columns(traits_checked: boolean_param(fields[:traits_checked]), updated_at: Time.current) if fields.key?(:traits_checked)
     end
 
-    render json: IngredientSerializer.summary(Ingredient.includes(:nevo_food, :traits).find(@ingredient.id))
+    render json: IngredientSerializer.summary(Ingredient.with_details.find(@ingredient.id))
   end
 
   # PATCH /api/ingredients/1/staple  { "ingredient": { "staple": true } }
@@ -67,16 +67,16 @@ class Api::IngredientsController < ApplicationController
     raise ActionController::ParameterMissing, :staple unless fields.key?(:staple)
 
     Ingredient.transaction do
-      @ingredient.update_columns(staple: ActiveModel::Type::Boolean.new.cast(fields[:staple]) || false, updated_at: Time.current)
+      @ingredient.update_columns(staple: boolean_param(fields[:staple]), updated_at: Time.current)
       PantryItem.where(ingredient_id: @ingredient.id).delete_all
     end
 
-    render json: IngredientSerializer.summary(Ingredient.includes(:nevo_food, :traits).find(@ingredient.id))
+    render json: IngredientSerializer.summary(Ingredient.with_details.find(@ingredient.id))
   end
 
   private
     def set_ingredient
-      @ingredient = Ingredient.includes(:nevo_food, :traits).find(params[:id])
+      @ingredient = Ingredient.with_details.find(params[:id])
     end
 
     def ingredient_params

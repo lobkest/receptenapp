@@ -8,9 +8,8 @@
 namespace :import do
   run = lambda do |importer|
     file = ENV["FILE"].presence or abort "Geef het bestand op: FILE=pad/naar/bestand.json"
-    config = ActiveRecord::Base.connection_db_config
 
-    puts "Database: #{config.database} (#{config.host || 'localhost'}), omgeving #{Rails.env}"
+    puts Importers::Base.database_line
     puts importer.from_file(file, dry_run: ENV["DRY_RUN"] == "1")
   end
 

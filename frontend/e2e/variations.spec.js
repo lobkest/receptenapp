@@ -123,7 +123,11 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
   await expect(chicken.locator('.notes')).toHaveText('Kip in blokjes, eerst aanbakken.')
   // vega haalde iemand er zelf af; vegetarisch en veganistisch gaan eraf door de kip.
-  await expect(chicken.locator('.tag-change')).toHaveText(['− vega', '− veganistisch', '− vegetarisch'])
+  await expect(chicken.locator('.tag-change')).toHaveText([
+    '− vega',
+    '− veganistisch',
+    '− vegetarisch',
+  ])
   const removed = chicken.locator('.change.removed')
   expect(await removed.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(140, 29, 23)')
   expect(await removed.locator('s').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe(

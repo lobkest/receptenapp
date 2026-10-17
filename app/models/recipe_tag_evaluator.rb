@@ -49,12 +49,6 @@ class RecipeTagEvaluator
     new(rows.group_by(&:first).transform_values { |list| list.to_h { |_, id, name| [ id, name ] } })
   end
 
-  # { name => Ingredient } for what the variations add, with their traits. Additions refer
-  # to an ingredient by name (VariationChange#name).
-  def self.addition_ingredients(variations)
-    Ingredient.includes(:ingredient_traits).where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
-  end
-
   # exclusions: { tag name => { trait id => trait name } }.
   def initialize(exclusions)
     @tags = exclusions.map do |name, traits|
@@ -79,9 +73,9 @@ class RecipeTagEvaluator
 
   # The base recipe without the rows the variation leaves out, plus what it adds (never
   # optional, no alternatives). The alternatives of the base rows still count: the recipe
-  # page can swap them in a variation too. ingredients: see addition_ingredients.
+  # page can swap them in a variation too. ingredients: see Ingredient.for_additions.
   def for_variation(variation, recipe: variation.recipe, ingredients: nil)
-    ingredients ||= self.class.addition_ingredients([ variation ])
+    ingredients ||= Ingredient.for_additions([ variation ])
     removed = variation.removed_ingredient_ids
     lines = recipe.recipe_ingredients.reject { |row| removed.include?(row.id) }.map { |row| line(row) }
     lines += variation.additions.map do |addition|

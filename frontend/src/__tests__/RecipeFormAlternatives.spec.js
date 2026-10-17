@@ -15,8 +15,22 @@ const EXISTING = {
       unit: 'g',
       optional: false,
       alternatives: [
-        { id: 3, name: 'tofu', quantity: null, unit: null, effective_quantity: 250, effective_unit: 'g' },
-        { id: 4, name: 'tempeh', quantity: 0.5, unit: 'stuks', effective_quantity: 0.5, effective_unit: 'stuks' },
+        {
+          id: 3,
+          name: 'tofu',
+          quantity: null,
+          unit: null,
+          effective_quantity: 250,
+          effective_unit: 'g',
+        },
+        {
+          id: 4,
+          name: 'tempeh',
+          quantity: 0.5,
+          unit: 'stuks',
+          effective_quantity: 0.5,
+          effective_unit: 'stuks',
+        },
       ],
     },
     { id: 13, name: 'rijst', quantity: 150, unit: 'g', optional: false, alternatives: [] },
@@ -139,7 +153,9 @@ describe('RecipeForm: alternatieven', () => {
 
     await wrapper.setProps({
       errors: {
-        'recipe_ingredients[0].alternatives[1].ingredient_name': ['is hetzelfde als het ingrediënt zelf'],
+        'recipe_ingredients[0].alternatives[1].ingredient_name': [
+          'is hetzelfde als het ingrediënt zelf',
+        ],
         'recipe_ingredients[0].alternatives': ['bevatten het ingrediënt zelf'],
       },
     })

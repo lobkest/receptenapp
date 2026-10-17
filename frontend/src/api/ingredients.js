@@ -1,7 +1,8 @@
 // Ingrediënten en NEVO-online: koppelen voor de voedingswaarde. Openbaar, zoals recepten.
 import { request } from '@/api/client'
 
-// [{ id, name, nevo_food: { code, name } | null, label_values, needs_review }], op naam.
+// [{ id, name, nevo_food: { code, name } | null, label_values, needs_review, negligible,
+//    staple, traits, traits_checked }], op naam.
 export function fetchIngredients() {
   return request('/api/ingredients')
 }

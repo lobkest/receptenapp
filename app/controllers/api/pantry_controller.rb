@@ -31,7 +31,7 @@ class Api::PantryController < ApplicationController
     fields = params.expect(pantry_item: [ :present ])
     raise ActionController::ParameterMissing, :present unless fields.key?(:present)
 
-    PantryItem.set!(Ingredient.find(params[:ingredient_id]), ActiveModel::Type::Boolean.new.cast(fields[:present]) || false)
+    PantryItem.set!(Ingredient.find(params[:ingredient_id]), boolean_param(fields[:present]))
     render_pantry
   end
 

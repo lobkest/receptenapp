@@ -50,7 +50,7 @@ export function citation({ nevo_versions: versions, label_values: labelValues })
 
 // De regels zoals ze nu gelden: een gewisselde regel (swaps: { regel-id: alternatief-id },
 // zie utils/alternatives.js) rekent met zijn alternatief. swappedFrom: de naam van het origineel.
-export function activeLines(nutrition, swaps = {}) {
+function activeLines(nutrition, swaps = {}) {
   return (nutrition.lines ?? []).map((line) => {
     const chosen = line.alternatives?.find((alternative) => alternative.id === swaps[line.id])
     return chosen ? { ...chosen, swappedFrom: line.name } : line

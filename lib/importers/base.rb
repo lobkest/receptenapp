@@ -18,6 +18,13 @@ module Importers
       end
     end
 
+    # "Database: receptenapp_development (localhost), omgeving development": the first line
+    # of every rake task that writes, so you see where it goes before anything changes.
+    def self.database_line
+      config = ActiveRecord::Base.connection_db_config
+      "Database: #{config.database} (#{config.host || 'localhost'}), omgeving #{Rails.env}"
+    end
+
     def self.from_file(path, dry_run: false)
       call(JSON.parse(File.read(path)), dry_run: dry_run)
     end

@@ -8,15 +8,10 @@
 # nevo:auto_link: eenmalig de bestaande ingrediënten koppelen volgens
 # db/import/nevo_auto_links.yml; al gekoppelde ingrediënten blijven zoals ze zijn.
 namespace :nevo do
-  database = lambda do
-    config = ActiveRecord::Base.connection_db_config
-    puts "Database: #{config.database} (#{config.host || 'localhost'}), omgeving #{Rails.env}"
-  end
-
   desc "NEVO-producten importeren: FILE=/pad/naar/NEVO2025_v9.0.csv"
   task import: :environment do
     file = ENV["FILE"].presence or abort "Geef het bestand op: FILE=/pad/naar/NEVO2025_v9.0.csv"
-    database.call
+    puts Importers::Base.database_line
     puts Importers::NevoFoods.from_file(file)
   rescue Importers::NevoFoods::InvalidFile => error
     abort "Niet geïmporteerd: #{error.message}"
@@ -24,7 +19,7 @@ namespace :nevo do
 
   desc "Bestaande ingrediënten eenmalig aan NEVO koppelen [DRY_RUN=1]"
   task auto_link: :environment do
-    database.call
+    puts Importers::Base.database_line
     abort "Eerst nevo:import draaien: er zijn nog geen NEVO-producten." if NevoFood.none?
     puts Importers::NevoAutoLinks.from_file(Rails.root.join("db/import/nevo_auto_links.yml"), dry_run: ENV["DRY_RUN"] == "1")
   end

@@ -40,6 +40,7 @@ function ingredientLine(ingredient) {
 // test/fixtures/files/quantity_cases.json). De lijst staat op de server, dus dit kan mislukken.
 // De store is gedeeld: de teller in het menu telt mee.
 const shoppingList = useShoppingListStore()
+const MESSAGE_MS = 3000
 const addedMessage = ref(null)
 const addError = ref(null)
 let messageTimer = null
@@ -47,7 +48,7 @@ let messageTimer = null
 function confirmAdded(message) {
   addedMessage.value = message
   clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => (addedMessage.value = null), 3000)
+  messageTimer = setTimeout(() => (addedMessage.value = null), MESSAGE_MS)
 }
 
 onUnmounted(() => clearTimeout(messageTimer))

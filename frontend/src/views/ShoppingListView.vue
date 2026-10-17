@@ -78,8 +78,8 @@ async function clearAll() {
     :pending="list.pending"
   >
     <template v-if="list.offline" #default>
-      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen
-      en wissen kan pas weer online.
+      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen en
+      wissen kan pas weer online.
     </template>
   </OfflineNotice>
 
@@ -133,12 +133,7 @@ async function clearAll() {
       >
         Afgevinkte wissen
       </button>
-      <button
-        type="button"
-        class="clear-all btn-danger"
-        :disabled="list.offline"
-        @click="clearAll"
-      >
+      <button type="button" class="clear-all btn-danger" :disabled="list.offline" @click="clearAll">
         Alles wissen
       </button>
     </div>

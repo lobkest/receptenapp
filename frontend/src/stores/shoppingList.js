@@ -3,13 +3,7 @@ import * as api from '@/api/shoppingList'
 import { ApiError } from '@/api/client'
 import { addRecipeToShoppingList } from '@/api/recipes'
 import { addVariationToShoppingList } from '@/api/variations'
-import {
-  createActionQueue,
-  isNetworkError,
-  isOffline,
-  loadSnapshot,
-  saveSnapshot,
-} from '@/offline'
+import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapshot } from '@/offline'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Regels worden nooit samengevoegd: twee keer bloem (uit twee
@@ -80,8 +74,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
       if (pendingLoad) return pendingLoad
       if (!this.loaded) this.restoreSnapshot()
       if (isOffline()) {
-        this.offline = true
-        this.fresh = false
+        this.markOffline()
         if (this.loaded) return Promise.resolve()
         return Promise.reject(new ApiError('network', 'Geen internetverbinding.'))
       }
@@ -99,8 +92,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
         })
         .catch((e) => {
           if (!isNetworkError(e)) throw e
-          this.offline = true
-          this.fresh = false
+          this.markOffline()
           if (!this.loaded) throw e
         })
         .finally(() => (pendingLoad = null))
@@ -192,8 +184,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
       this.changes++
       const action = { item_id: id, checked, at: new Date().toISOString() }
       if (isOffline()) {
-        this.offline = true
-        this.fresh = false
+        this.markOffline()
         queue.enqueue(action)
         this.pending = queue.size
         return
@@ -209,8 +200,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
         if (this.offline || queue.size > 0) this.load().catch(() => {})
       } catch (e) {
         if (isNetworkError(e)) {
-          this.offline = true
-          this.fresh = false
+          this.markOffline()
           queue.enqueue(action)
           this.pending = queue.size
           return

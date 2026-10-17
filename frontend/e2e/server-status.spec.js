@@ -28,7 +28,9 @@ async function createRecipe(title, ingredientName) {
         title,
         servings: 2,
         steps_attributes: [{ body: 'Alles koken.' }],
-        recipe_ingredients_attributes: [{ ingredient_name: ingredientName, quantity: 200, unit: 'g' }],
+        recipe_ingredients_attributes: [
+          { ingredient_name: ingredientName, quantity: 200, unit: 'g' },
+        ],
       },
     },
   })
@@ -225,7 +227,10 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await expect(page.locator('.no-results')).toHaveCount(0)
   await checkLayout(page, errors, 'c-recepten-filter-glutenvrij')
 
-  await page.locator('nav').getByRole('link', { name: /Boodschappen/ }).click()
+  await page
+    .locator('nav')
+    .getByRole('link', { name: /Boodschappen/ })
+    .click()
   await expect(page.locator('.offline-notice')).toHaveCount(0)
 })
 

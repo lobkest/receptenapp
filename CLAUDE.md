@@ -19,5 +19,6 @@ De eigenaar is Rails-beginner: leg uit in het Nederlands, vergelijk met Flask of
   zoals CI ze draait (zelfde commando's, zelfde map, op de hele map en niet alleen op src/).
   Nu zijn dat: `bin/brakeman --no-pager`, `bin/bundler-audit`, `bin/rubocop -f github`,
   `RAILS_ENV=test bin/rails db:test:prepare test`, en in frontend/: `npm ci`,
-  `npx oxlint . && npx eslint .`, `npm run test:unit -- --run`, `npm run build`.
+  `npx oxlint . && npx eslint . && npx prettier --check .`, `npm run test:unit -- --run`,
+  `npm run build`.
   Rapporteer per CI-job of hij slaagt.

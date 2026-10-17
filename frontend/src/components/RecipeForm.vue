@@ -6,7 +6,7 @@ import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { useIngredientNames } from '@/composables/useIngredientNames'
 import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
-import { numberText, UNITS } from '@/utils/quantity'
+import { DEFAULT_UNIT, numberText, UNITS } from '@/utils/quantity'
 
 // Props: data die de ouder (RecipeNewView of RecipeEditView) naar dit component stuurt.
 const props = defineProps({
@@ -50,7 +50,7 @@ function newIngredient() {
     key: nextKey++,
     id: null,
     quantity: '',
-    unit: 'stuks',
+    unit: DEFAULT_UNIT,
     ingredient_name: '',
     optional: false,
     alternatives: [],
@@ -70,7 +70,7 @@ function alternativeFrom(alternative, row) {
     id: alternative.id,
     ingredient_name: alternative.name,
     quantity: numberText(alternative.quantity),
-    unit: alternative.unit ?? row.unit ?? 'stuks',
+    unit: alternative.unit ?? row.unit ?? DEFAULT_UNIT,
   }
 }
 
@@ -85,7 +85,7 @@ function ingredientFrom(row) {
     key: nextKey++,
     id: row.id,
     quantity: numberText(row.quantity),
-    unit: row.unit ?? 'stuks',
+    unit: row.unit ?? DEFAULT_UNIT,
     ingredient_name: row.name,
     optional: row.optional ?? false,
     alternatives: (row.alternatives ?? []).map((alternative) => alternativeFrom(alternative, row)),
@@ -161,7 +161,9 @@ function removeAlternative(row, index) {
 // Net als bij de regels: lege nieuwe alternatieven gaan niet mee, weggehaalde bestaande
 // achteraan. Zonder alternatieven gaat de sleutel helemaal niet mee.
 function alternativesRequest(row) {
-  const sent = row.alternatives.filter((alternative) => alternative.id || !alternativeIsEmpty(alternative))
+  const sent = row.alternatives.filter(
+    (alternative) => alternative.id || !alternativeIsEmpty(alternative),
+  )
   const list = [
     ...sent.map((alternative) =>
       withId(alternative, {

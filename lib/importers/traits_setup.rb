@@ -88,7 +88,7 @@ module Importers
           .order(:name).pluck(:name)
         recipes = Recipe.includes(:tags, RecipeTagEvaluator::PRELOAD, variations: RecipeVariation::DETAILS)
           .sort_by { |recipe| [ recipe.title.downcase, recipe.id ] }
-        ingredients = RecipeTagEvaluator.addition_ingredients(recipes.flat_map(&:variations))
+        ingredients = Ingredient.for_additions(recipes.flat_map(&:variations))
 
         recipes.flat_map do |recipe|
           base = evaluator.for_recipe(recipe).select { |result| @compared.include?(result.name) }.index_by { |result| result.name }

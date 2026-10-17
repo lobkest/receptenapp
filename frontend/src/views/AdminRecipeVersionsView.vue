@@ -3,6 +3,7 @@ import { ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAdminStore } from '@/stores/admin'
+import { formatDate } from '@/utils/format'
 
 // Alle bewaarde versies van één recept (maximaal 50), nieuwste eerst. De bovenste is
 // hoe het recept nu is; elke andere kun je terugzetten. Terugzetten is zelf ook een
@@ -40,16 +41,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleString('nl-NL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 async function restore(version) {

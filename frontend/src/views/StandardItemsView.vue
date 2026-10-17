@@ -49,13 +49,14 @@ async function attempt(action, setErrors = () => {}) {
 
 // Korte bevestiging onderaan, zoals op de receptpagina. toList: het ging om de
 // boodschappenlijst, dus een link "Bekijk lijst" erachter; na verwijderen niet.
+const MESSAGE_MS = 3000
 const message = ref(null)
 let messageTimer = null
 
 function confirm(text, { toList = false } = {}) {
   message.value = { text, toList }
   clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => (message.value = null), 3000)
+  messageTimer = setTimeout(() => (message.value = null), MESSAGE_MS)
 }
 
 onUnmounted(() => clearTimeout(messageTimer))

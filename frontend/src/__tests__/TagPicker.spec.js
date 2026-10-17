@@ -122,7 +122,9 @@ describe('TagPicker', () => {
     await addNew(wrapper, ' Vegetarisch ')
 
     expect(chips(wrapper)).toEqual([])
-    expect(wrapper.find('.error').text()).toBe('"vegetarisch" volgt automatisch uit de ingrediënten.')
+    expect(wrapper.find('.error').text()).toBe(
+      '"vegetarisch" volgt automatisch uit de ingrediënten.',
+    )
   })
 
   it('verwijdert een tag met de ×-knop, die een duidelijke naam heeft', async () => {

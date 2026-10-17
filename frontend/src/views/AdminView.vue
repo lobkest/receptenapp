@@ -3,6 +3,7 @@ import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAdminStore } from '@/stores/admin'
+import { formatDate } from '@/utils/format'
 
 // Beheer is er nog voor twee dingen: verwijderverzoeken afhandelen (van recepten en van
 // variaties) en versies terugzetten (via de receptpagina of de link hieronder). Toevoegen
@@ -114,16 +115,6 @@ async function destroy(request) {
   if (!sure) return
   const action = isVariation(request) ? admin.destroyVariation : admin.destroy
   act(request, action, `${nameOf(request)} is definitief verwijderd.`)
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleString('nl-NL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 // Na inloggen de lijst laden; na (automatisch) uitloggen terug naar het invulveld.

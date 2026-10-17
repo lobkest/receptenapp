@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { fetchIngredients, updateIngredientTraits } from '@/api/ingredients'
+import { searchWords } from '@/utils/ingredientSearch'
 
 // Alle ingrediënten, om ze aan NEVO te koppelen voor de voedingswaarde en hun kenmerken
 // (vlees, gluten, ...) te zien voor de automatische tags. Zoeken en filteren
@@ -85,7 +86,7 @@ async function markChecked(ingredient) {
 
 // Op de naam van het ingrediënt én van het gekoppelde NEVO-product.
 const shown = computed(() => {
-  const words = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const words = searchWords(query.value)
   const test = FILTERS.find((f) => f.key === filter.value).test
   return ingredients.value.filter((ingredient) => {
     const text = `${ingredient.name} ${ingredient.nevo_food?.name ?? ''}`.toLowerCase()

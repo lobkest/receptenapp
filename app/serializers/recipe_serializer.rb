@@ -89,7 +89,7 @@ module RecipeSerializer
   # nutrition: worked out now (Nutrition), for the recipe and for each variation.
   def detail(recipe, evaluator: RecipeTagEvaluator.load)
     variations = recipe.visible_variations
-    added = addition_ingredients(variations)
+    added = Ingredient.for_additions(variations)
 
     summary(recipe, evaluator: evaluator).merge(
       "lock_version" => recipe.lock_version,
@@ -108,7 +108,7 @@ module RecipeSerializer
   # automatic_tags: like a recipe's, for the variation as a whole.
   def variation(variation, recipe: nil, ingredients: nil, evaluator: RecipeTagEvaluator.load)
     recipe ||= variation.recipe
-    ingredients ||= addition_ingredients([ variation ])
+    ingredients ||= Ingredient.for_additions([ variation ])
     manual = variation.tag_changes.reject { |change| evaluator.automatic?(change.tag.name) }
       .map { |change| { "kind" => change.kind, "tag" => change.tag.name } }
     automatic = evaluator.variation_changes(variation, recipe: recipe, ingredients: ingredients)
@@ -125,12 +125,6 @@ module RecipeSerializer
       "automatic_tags" => automatic_tags(evaluator.for_variation(variation, recipe: recipe, ingredients: ingredients)),
       "nutrition" => Nutrition.for_variation(variation, recipe: recipe, ingredients: ingredients).to_h
     }
-  end
-
-  # { name => Ingredient } for what the variations add: for the nutrition and the automatic tags.
-  def addition_ingredients(variations)
-    Ingredient.includes(:nevo_food, :ingredient_traits)
-      .where(name: variations.flat_map { |variation| variation.additions.map(&:name) }).index_by(&:name)
   end
 
   def variation_change(change)

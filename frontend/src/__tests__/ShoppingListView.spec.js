@@ -370,4 +370,67 @@ describe('ShoppingListView', () => {
       expect(getRequests(server.fetch)).toHaveLength(1)
     })
   })
+
+  describe('standaardlijst-teller', () => {
+    beforeEach(() => {
+      server = fakeServer({
+        shopping: [
+          { id: 1, name: 'melk', source_label: 'standaard', standard_count: 2 },
+          {
+            id: 2,
+            name: 'bloem',
+            quantity: 200,
+            unit: 'g',
+            source_label: 'Wafels',
+            recipe_id: 3,
+            standard_count: 1,
+          },
+          { id: 3, name: 'zout', source_label: 'Pannenkoeken', recipe_id: 4 },
+        ],
+      })
+    })
+
+    function rowOf(wrapper, id) {
+      return wrapper.find(`.items li[data-id="${id}"]`)
+    }
+
+    it('toont "×2" en "+1", en de −-knop alleen bij iets van de standaardlijst', async () => {
+      ;({ wrapper } = await mountApp())
+
+      expect(lines(wrapper)).toEqual(['melk ×2', '200 g bloem +1', 'zout'])
+      expect(rowOf(wrapper, 2).find('.sources').text()).toBe('uit: Wafels, standaard')
+      expect(rowOf(wrapper, 1).find('.minus').exists()).toBe(true)
+      expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(true)
+      expect(rowOf(wrapper, 3).find('.minus').exists()).toBe(false)
+      expect(rowOf(wrapper, 1).find('.minus').attributes('aria-label')).toBe('Eén melk minder')
+    })
+
+    it('− telt af; een standaardregel op 0 verdwijnt, een receptregel blijft', async () => {
+      ;({ wrapper } = await mountApp())
+
+      await rowOf(wrapper, 1).find('.minus').trigger('click')
+      await flushPromises()
+      expect(lines(wrapper)[0]).toBe('melk')
+
+      await rowOf(wrapper, 1).find('.minus').trigger('click')
+      await flushPromises()
+      expect(rowOf(wrapper, 1).exists()).toBe(false)
+
+      await rowOf(wrapper, 2).find('.minus').trigger('click')
+      await flushPromises()
+      expect(lines(wrapper)).toEqual(['200 g bloem', 'zout'])
+      expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(false)
+    })
+
+    it('afvinken streept de hele regel af, met teller', async () => {
+      ;({ wrapper } = await mountApp())
+
+      await rowOf(wrapper, 1).find('input').setValue(false)
+      await rowOf(wrapper, 1).find('input').trigger('change')
+      await flushPromises()
+
+      expect(rowOf(wrapper, 1).classes()).toContain('checked')
+      expect(server.shoppingDb[0]).toMatchObject({ checked: true, standard_count: 2 })
+    })
+  })
 })

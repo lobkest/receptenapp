@@ -5,12 +5,14 @@ import StandardItemForm from '@/components/StandardItemForm.vue'
 import StandardItemRow from '@/components/StandardItemRow.vue'
 import StandardItemsBottomBar from '@/components/StandardItemsBottomBar.vue'
 import { useTimedMessage } from '@/composables/useTimedMessage'
+import { useShoppingListStore } from '@/stores/shoppingList'
 import { useStandardItemsStore } from '@/stores/standardItems'
 
 // De items staan op de server (via de store), openbaar: iedereen met de link ziet en
 // wijzigt dezelfde lijst. Wat je selecteert en welk item je bewerkt, is alleen state
 // van deze pagina. Eén regel is StandardItemRow, de balk onderaan StandardItemsBottomBar.
 const standard = useStandardItemsStore()
+const shoppingList = useShoppingListStore()
 const confirmDialog = useTemplateRef('confirmDialog')
 
 const loading = ref(false)
@@ -29,7 +31,18 @@ async function load() {
   }
 }
 
-onMounted(load)
+// De boodschappenlijst ook verversen, voor "✓ op lijst". Terug naar de app ververst App.vue
+// hem. Mislukt dat, dan blijft de oude stand staan; de boodschappenpagina meldt het.
+onMounted(() => {
+  load()
+  shoppingList.load().catch(() => {})
+})
+
+// Zelfde regel als op de receptpagina: een open regel met dezelfde naam, van welke
+// herkomst ook. Een standaarditem heeft geen ingredient_id, dus telt de naam.
+function onList(item) {
+  return shoppingList.listStatus({ name: item.name }, null).onList
+}
 
 // Voert een actie uit; een validatiefout gaat naar setErrors (bij het formulier),
 // elke andere fout bovenaan de pagina. Geeft true als het gelukt is.
@@ -99,8 +112,12 @@ async function saveEdit(id, fields) {
 // ---------- Losse acties per item ----------
 
 async function addOne(item) {
+  const already = onList(item)
   if (await attempt(() => standard.addToShoppingList([item.id]))) {
-    confirm(`${item.name} staat op je boodschappenlijst.`, { toList: true })
+    const text = already
+      ? `Nog een ${item.name} op je boodschappenlijst.`
+      : `${item.name} staat op je boodschappenlijst.`
+    confirm(text, { toList: true })
   }
 }
 
@@ -206,6 +223,7 @@ watch(
           v-model:selected="selected"
           :item="item"
           :selecting="selecting"
+          :on-list="onList(item)"
           @add="addOne"
           @edit="startEdit"
           @remove="removeOne"

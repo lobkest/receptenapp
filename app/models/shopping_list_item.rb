@@ -1,11 +1,15 @@
 # One line on the shared shopping list. There is only one list, so there is no list model:
 # every row belongs to it. Anyone with the link can read and change it.
 # Lines are never merged: adding "bloem" twice gives two lines, each with its own source.
+# The one exception is the standard list: tapping an item that is already on the list adds
+# one to standard_count of an existing line ("melk ×2", "melk 200 ml +1"), see add_standard!.
 class ShoppingListItem < ApplicationRecord
   include HasQuantity
 
   MAX_LENGTH = 100
   MAX_SOURCE_LENGTH = 255
+  # source_label of a line that only came from the standard list (no recipe, no quantity).
+  STANDARD_SOURCE = "standaard"
 
   # Optional: items from the standard list (or any POST without recipe_id) have no recipe, and
   # deleting a recipe sets recipe_id to NULL (foreign key with on_delete: :nullify).
@@ -16,6 +20,7 @@ class ShoppingListItem < ApplicationRecord
   belongs_to :ingredient, optional: true
 
   before_validation :normalize_fields
+  before_validation :count_standard_line, on: :create
   before_validation :link_ingredient_by_name, if: :link_by_name?
   before_update :update_pantry, if: :will_save_change_to_checked?
 
@@ -23,6 +28,7 @@ class ShoppingListItem < ApplicationRecord
   # A plain inclusion check, as before: no enum methods needed on a shopping list line.
   has_quantity unit_inclusion: true
   validates :source_label, length: { maximum: MAX_SOURCE_LENGTH }
+  validates :standard_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   # belongs_to optional skips the existence check; without this an unknown id hits the
   # foreign key and becomes a 500 instead of a 422.
   validates :recipe, presence: true, if: -> { recipe_id.present? }
@@ -36,13 +42,66 @@ class ShoppingListItem < ApplicationRecord
     end
   end
 
+  # Not ticked off yet. Only these count as "on the list".
+  scope :unchecked, -> { where(checked: false) }
+
+  # One tap on the standard list for name. Already on the list (an open line with the same
+  # name, whatever its source): one more on an existing line, preferring a line that only
+  # came from the standard list, otherwise the oldest. Not on the list: a new standard line.
+  # Standard items have no ingredient, so this matches on name, like the browser does.
+  # Returns the line.
+  def self.add_standard!(name)
+    name = name.to_s.squish.downcase
+    matching = unchecked.where(name: name).order(:id).to_a
+    line = matching.find(&:standard_only?) || matching.first
+    return create!(name: name, source_label: STANDARD_SOURCE, standard_count: 1) if line.nil?
+
+    line.increment!(:standard_count, touch: true)
+  end
+
+  # Only from the standard list: no recipe part (and so no quantity).
+  def standard_only?
+    recipe_id.nil? && source_label == STANDARD_SOURCE
+  end
+
+  # The minus button on the shopping list: one less from the standard list. A standard line
+  # that reaches 0 is removed (returns nil); a recipe line keeps its recipe part.
+  def remove_standard!
+    return self if standard_count.zero?
+    return destroy_line if standard_only? && standard_count == 1
+
+    decrement!(:standard_count, touch: true)
+  end
+
+  # "✓ op lijst" on a recipe takes the recipe part off. Was the line also added from the
+  # standard list, it stays as a standard line (same count); otherwise it is removed
+  # (returns nil).
+  def remove_recipe_part!
+    return destroy_line if standard_count.zero?
+
+    update!(recipe: nil, quantity: nil, unit: nil, source_label: STANDARD_SOURCE)
+    self
+  end
+
   private
+    # Removed: there is no line left to send back.
+    def destroy_line
+      destroy!
+      nil
+    end
+
     # "  Rode  UI " is stored as "rode ui", like on the standard list. A unit without an
     # amount is cleared by HasQuantity.
     def normalize_fields
       self.name = name.to_s.squish.downcase
       self.unit = unit.presence
       self.source_label = source_label.to_s.squish.presence
+    end
+
+    # A new standard line counts once, also when the request does not say so (an older
+    # version of the app, still open on a phone, posts the line without standard_count).
+    def count_standard_line
+      self.standard_count = 1 if standard_only? && standard_count.to_i.zero?
     end
 
     # A new line without an ingredient, or a renamed one. Not when ticking it off changed

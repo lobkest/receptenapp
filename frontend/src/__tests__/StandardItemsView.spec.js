@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { routes } from '../router'
-import { fakeStandardServer, jsonResponse, mockFetch } from './helpers'
+import { fakeServer, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -222,6 +222,70 @@ describe('StandardItemsView', () => {
     expect(wrapper.find('.bottom-bar').exists()).toBe(false)
   })
 
+  describe('al op de boodschappenlijst', () => {
+    // melk staat open op de lijst (uit een recept), kaas is afgevinkt: telt niet.
+    beforeEach(() => {
+      server = fakeServer({
+        standard: ITEMS,
+        shopping: [
+          { id: 1, name: 'melk', quantity: 200, unit: 'ml', source_label: 'Pap', recipe_id: 7 },
+          { id: 2, name: 'kaas', source_label: 'standaard', checked: true },
+        ],
+      })
+      server.db = server.standardDb
+    })
+
+    it('toont "✓ op lijst" in plaats van [+], alleen bij een open regel', async () => {
+      ;({ wrapper } = await mountApp())
+
+      expect(rowOf(wrapper, 'melk').find('.add-one').text()).toBe('✓ op lijst')
+      expect(rowOf(wrapper, 'melk').find('.add-one').classes()).toContain('on-list')
+      expect(rowOf(wrapper, 'kaas').find('.add-one').text()).toBe('')
+      expect(rowOf(wrapper, 'kaas').find('.add-one').attributes('aria-label')).toBe(
+        'kaas op boodschappenlijst',
+      )
+    })
+
+    it('[+] wordt meteen "✓ op lijst"; nog een tik telt op, zonder nieuwe regel', async () => {
+      ;({ wrapper } = await mountApp())
+
+      await rowOf(wrapper, 'banaan').find('.add-one').trigger('click')
+      await flushPromises()
+      expect(rowOf(wrapper, 'banaan').find('.add-one').text()).toBe('✓ op lijst')
+      expect(wrapper.find('[role="status"]').text()).toContain(
+        'banaan staat op je boodschappenlijst.',
+      )
+
+      await rowOf(wrapper, 'banaan').find('.add-one').trigger('click')
+      await flushPromises()
+      const banaan = server.shoppingDb.filter((i) => i.name === 'banaan')
+      expect(banaan).toHaveLength(1)
+      expect(banaan[0].standard_count).toBe(2)
+      expect(wrapper.find('[role="status"]').text()).toContain(
+        'Nog een banaan op je boodschappenlijst.',
+      )
+    })
+
+    it('een tik op "✓ op lijst" bij een receptregel telt daar één bij op', async () => {
+      ;({ wrapper } = await mountApp())
+
+      await rowOf(wrapper, 'melk').find('.add-one').trigger('click')
+      await flushPromises()
+
+      expect(server.shoppingDb.filter((i) => i.name === 'melk')).toEqual([
+        expect.objectContaining({ id: 1, quantity: 200, standard_count: 1 }),
+      ])
+    })
+
+    it('toont in de selectiemodus ook wat er al op staat', async () => {
+      ;({ wrapper } = await mountApp())
+      await buttonWithText(wrapper, 'Selecteren').trigger('click')
+
+      expect(rowOf(wrapper, 'melk').find('.on-list-tag').text()).toBe('✓ op lijst')
+      expect(rowOf(wrapper, 'kaas').find('.on-list-tag').exists()).toBe(false)
+    })
+  })
+
   describe('selectiemodus', () => {
     async function startSelecting() {
       ;({ wrapper } = await mountApp())
@@ -263,7 +327,7 @@ describe('StandardItemsView', () => {
 
       // Eén request voor de hele selectie.
       const posts = server.fetch.mock.calls.filter(
-        ([url, o]) => url === '/api/shopping_list_items' && o.method === 'POST',
+        ([url, o]) => url === '/api/standard_items/add_to_shopping_list' && o.method === 'POST',
       )
       expect(posts).toHaveLength(1)
       expect(shoppingNames()).toEqual(['melk', 'wc-papier'])

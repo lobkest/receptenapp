@@ -6,7 +6,7 @@ import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
-import { formatQuantity } from '@/utils/quantity'
+import { shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
@@ -49,13 +49,6 @@ onMounted(async () => {
   await attempt(() => loadingList)
   loading.value = false
 })
-
-// Zonder hoeveelheid ("naar smaak" uit een recept, of wc-papier uit de
-// standaardlijst) is alleen de naam genoeg: je moet het gewoon kopen.
-function itemLine(item) {
-  if (item.quantity == null) return item.name
-  return `${formatQuantity(item.quantity)} ${item.unit} ${item.name}`
-}
 
 const confirmDialog = useTemplateRef('confirmDialog')
 
@@ -109,18 +102,33 @@ async function clearAll() {
             :checked="item.checked"
             @change="attempt(() => list.toggle(item.id))"
           />
-          <span class="line">{{ itemLine(item) }}</span>
+          <span class="line">{{ shoppingListLine(item) }}</span>
         </label>
-        <span v-if="item.source_label" class="sources">uit: {{ item.source_label }}</span>
-        <button
-          type="button"
-          class="remove"
-          :disabled="list.offline"
-          :aria-label="`${item.name} verwijderen`"
-          @click="attempt(() => list.remove(item.id))"
+        <span v-if="shoppingListSource(item)" class="sources"
+          >uit: {{ shoppingListSource(item) }}</span
         >
-          ✕
-        </button>
+        <div class="line-actions">
+          <!-- Alleen bij iets van de standaardlijst: één minder ("melk ×2" → "melk"). -->
+          <button
+            v-if="item.standard_count > 0"
+            type="button"
+            class="minus"
+            :disabled="list.offline"
+            :aria-label="`Eén ${item.name} minder`"
+            @click="attempt(() => list.removeStandard(item.id))"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            class="remove"
+            :disabled="list.offline"
+            :aria-label="`${item.name} verwijderen`"
+            @click="attempt(() => list.remove(item.id))"
+          >
+            ✕
+          </button>
+        </div>
       </li>
     </ul>
 
@@ -178,19 +186,34 @@ async function clearAll() {
 }
 
 .sources {
-  grid-column: 1;
+  /* Onder de knoppen door: een lange receptnaam past dan nog op één regel. */
+  grid-column: 1 / -1;
   /* Zelfde inspringing als de tekst naast het vinkje. */
   padding-left: calc(1.5rem + var(--space-3));
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-.remove {
-  grid-row: 1 / span 2;
+.line-actions {
+  display: flex;
+  grid-row: 1;
   grid-column: 2;
+}
+
+.remove,
+.minus {
   color: var(--color-text-muted);
   background: transparent;
   border-color: transparent;
+}
+
+/* − is een tikje groter en donkerder dan ✕: dit gebruik je vaker. */
+.minus {
+  width: var(--tap);
+  padding: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--color-accent-text);
 }
 
 .checked .line {

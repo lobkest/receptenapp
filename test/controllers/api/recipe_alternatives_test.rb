@@ -35,7 +35,7 @@ class Api::RecipeAlternativesTest < ActionDispatch::IntegrationTest
     assert_equal [
       { "name" => "tofu", "quantity" => nil, "unit" => nil, "effective_quantity" => 250, "effective_unit" => "g" },
       { "name" => "tempeh", "quantity" => 200, "unit" => "g", "effective_quantity" => 200, "effective_unit" => "g" }
-    ], kip["alternatives"].map { |alternative| alternative.except("id") }
+    ], kip["alternatives"].map { |alternative| alternative.except("id", "ingredient_id") }
     assert Ingredient.exists?(name: "tempeh")
   end
 
@@ -48,6 +48,16 @@ class Api::RecipeAlternativesTest < ActionDispatch::IntegrationTest
     assert_equal [ [ "havermelk", 0.5, "stuks", 0.5, "stuks" ], [ "water", nil, nil, 500, "ml" ] ],
       rows["melk"]["alternatives"].map { |a| a.values_at("name", "quantity", "unit", "effective_quantity", "effective_unit") }
     assert_equal [], rows["bloem"]["alternatives"]
+  end
+
+  test "show: rows and alternatives name their ingredient, for the shopping list status" do
+    add_alternatives(@melk, { ingredient_name: "havermelk" })
+
+    get api_recipe_url(@recipe), as: :json
+
+    melk = response.parsed_body["ingredients"].find { |row| row["name"] == "melk" }
+    assert_equal @melk.ingredient_id, melk["ingredient_id"]
+    assert_equal Ingredient.find_by!(name: "havermelk").id, melk["alternatives"].sole["ingredient_id"]
   end
 
   test "show: alternatives do not cost a query per row" do

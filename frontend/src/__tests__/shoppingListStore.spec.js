@@ -500,4 +500,257 @@ describe('boodschappenlijst-store', () => {
       expect(list.offline).toBe(false)
     })
   })
+
+  describe('status op de receptpagina (listStatus)', () => {
+    // Recept 1 (Pannenkoeken) heeft bloem (ingrediënt 10) en melk (ingrediënt 11).
+    const BLOEM_ROW = { ingredient_id: 10, name: 'bloem' }
+    const MELK_ROW = { ingredient_id: 11, name: 'melk' }
+    const line = (fields) => ({ checked: false, recipe_id: null, ingredient_id: null, ...fields })
+
+    async function storeWith(items) {
+      const server = fakeServer({ shopping: items })
+      const list = await loadedStore()
+      return { list, ...server }
+    }
+
+    it('niet op de lijst: onList false, geen eigen regels, geen herkomst', async () => {
+      const { list } = await storeWith([])
+
+      expect(list.listStatus(BLOEM_ROW, 1)).toEqual({ onList: false, own: [], via: null })
+    })
+
+    it('matcht op ingredient_id, ook als de naam op de lijst anders is', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'tarwebloem', ingredient_id: 10, recipe_id: 1 }),
+      ])
+
+      const status = list.listStatus(BLOEM_ROW, 1)
+      expect(status.onList).toBe(true)
+      expect(status.own.map((i) => i.id)).toEqual([1])
+      // Een ander ingrediënt met dezelfde regel telt niet mee.
+      expect(list.listStatus(MELK_ROW, 1).onList).toBe(false)
+    })
+
+    it('een ander ingredient_id telt niet, ook niet bij dezelfde naam', async () => {
+      const { list } = await storeWith([line({ id: 1, name: 'bloem', ingredient_id: 99 })])
+
+      expect(list.listStatus(BLOEM_ROW, 1).onList).toBe(false)
+    })
+
+    it('een regel zonder ingredient_id matcht op naam: trim en kleine letters, verder exact', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'melk', source_label: 'standaard' }),
+        line({ id: 2, name: 'bloe' }),
+      ])
+      list.items[0].name = '  Melk '
+
+      expect(list.listStatus(MELK_ROW, 1).onList).toBe(true)
+      expect(list.listStatus({ ingredient_id: 11, name: ' MELK' }, 1).onList).toBe(true)
+      // Geen fuzzy matching: "bloe" is geen "bloem".
+      expect(list.listStatus(BLOEM_ROW, 1).onList).toBe(false)
+    })
+
+    it('een rij zonder ingredient_id (toevoeging van een variatie) matcht ook op naam', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'kip', ingredient_id: 30, recipe_id: 1 }),
+      ])
+
+      expect(list.listStatus({ name: 'kip' }, 1).own.map((i) => i.id)).toEqual([1])
+    })
+
+    it('afgestreepte regels tellen niet', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'bloem', ingredient_id: 10, recipe_id: 1, checked: true }),
+        line({ id: 2, name: 'melk', ingredient_id: 11, source_label: 'standaard', checked: true }),
+      ])
+
+      expect(list.listStatus(BLOEM_ROW, 1)).toEqual({ onList: false, own: [], via: null })
+      expect(list.listStatus(MELK_ROW, 1).onList).toBe(false)
+    })
+
+    it('afvinken werkt meteen door in de status', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'bloem', ingredient_id: 10, recipe_id: 1 }),
+      ])
+
+      await list.toggle(1)
+
+      expect(list.listStatus(BLOEM_ROW, 1).onList).toBe(false)
+    })
+
+    it('herkomst: eigen regels gaan voor, anders de eerste andere herkomst', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'bloem', ingredient_id: 10, recipe_id: 2, source_label: 'Wafels' }),
+        line({
+          id: 2,
+          name: 'bloem',
+          ingredient_id: 10,
+          recipe_id: 1,
+          source_label: 'Pannenkoeken',
+        }),
+        line({ id: 3, name: 'melk', ingredient_id: 11, recipe_id: 2, source_label: 'Wafels' }),
+      ])
+
+      const bloem = list.listStatus(BLOEM_ROW, 1)
+      expect(bloem.own.map((i) => i.id)).toEqual([2])
+      expect(bloem.via).toBeNull()
+
+      expect(list.listStatus(MELK_ROW, 1)).toMatchObject({ onList: true, own: [], via: 'Wafels' })
+      // Vanaf recept 2 is melk juist een eigen regel.
+      expect(list.listStatus(MELK_ROW, 2).own.map((i) => i.id)).toEqual([3])
+    })
+
+    it('herkomst: de standaardlijst en een zelf getypte regel', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'melk', source_label: 'standaard' }),
+        line({ id: 2, name: 'bloem', source_label: null }),
+      ])
+
+      expect(list.listStatus(MELK_ROW, 1).via).toBe('standaardlijst')
+      expect(list.listStatus(BLOEM_ROW, 1).via).toBe('lijst')
+    })
+
+    it('een variatie van hetzelfde recept telt als eigen regel', async () => {
+      const { list } = await storeWith([
+        line({
+          id: 1,
+          name: 'bloem',
+          ingredient_id: 10,
+          recipe_id: 1,
+          source_label: 'Pannenkoeken (variatie: Spelt)',
+        }),
+      ])
+
+      expect(list.listStatus(BLOEM_ROW, 1).own.map((i) => i.id)).toEqual([1])
+    })
+
+    it('removeFromRecipe haalt alle open eigen regels weg, de rest blijft', async () => {
+      const { list, shoppingDb } = await storeWith([
+        line({ id: 1, name: 'bloem', ingredient_id: 10, recipe_id: 1 }),
+        line({ id: 2, name: 'bloem', ingredient_id: 10, recipe_id: 1 }),
+        line({ id: 3, name: 'bloem', ingredient_id: 10, recipe_id: 1, checked: true }),
+        line({ id: 4, name: 'bloem', ingredient_id: 10, recipe_id: 2, source_label: 'Wafels' }),
+        line({ id: 5, name: 'bloem', source_label: 'standaard' }),
+        line({ id: 6, name: 'melk', ingredient_id: 11, recipe_id: 1 }),
+      ])
+
+      await list.removeFromRecipe(BLOEM_ROW, 1)
+
+      expect(shoppingDb.map((i) => i.id)).toEqual([3, 4, 5, 6])
+      expect(list.items.map((i) => i.id)).toEqual([3, 4, 5, 6])
+      expect(list.listStatus(BLOEM_ROW, 1)).toMatchObject({ own: [], via: 'Wafels' })
+    })
+
+    it('een standaarditem (zonder ingredient_id) staat erop als de naam overeenkomt', async () => {
+      const { list } = await storeWith([
+        line({ id: 1, name: 'melk', ingredient_id: 11, recipe_id: 1 }),
+        line({ id: 2, name: 'kaas', source_label: 'standaard', checked: true }),
+      ])
+
+      expect(list.listStatus({ name: ' Melk ' }, null).onList).toBe(true)
+      expect(list.listStatus({ name: 'kaas' }, null).onList).toBe(false)
+    })
+
+    it('removeFromRecipe laat een regel met standaarddeel staan als standaardregel', async () => {
+      const { list, shoppingDb } = await storeWith([
+        line({
+          id: 1,
+          name: 'melk',
+          ingredient_id: 11,
+          recipe_id: 1,
+          quantity: 200,
+          unit: 'ml',
+          source_label: 'Pannenkoeken',
+          standard_count: 1,
+        }),
+        line({ id: 2, name: 'melk', ingredient_id: 11, recipe_id: 1, standard_count: 0 }),
+      ])
+
+      await list.removeFromRecipe(MELK_ROW, 1)
+
+      const expected = [
+        expect.objectContaining({
+          id: 1,
+          recipe_id: null,
+          quantity: null,
+          unit: null,
+          source_label: 'standaard',
+          standard_count: 1,
+        }),
+      ]
+      expect(shoppingDb).toEqual(expected)
+      expect(list.items).toEqual(expected)
+      expect(list.listStatus(MELK_ROW, 1)).toMatchObject({ own: [], via: 'standaardlijst' })
+    })
+  })
+
+  describe('standaardlijst-teller', () => {
+    const line = (fields) => ({ checked: false, recipe_id: null, ingredient_id: null, ...fields })
+
+    it('addStandardItems vervangt een bestaande regel en zet een nieuwe achteraan', async () => {
+      const { shoppingDb } = fakeServer({
+        standard: [
+          { id: 1, name: 'melk' },
+          { id: 2, name: 'kaas' },
+        ],
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', standard_count: 1 })],
+      })
+      const list = await loadedStore()
+
+      const lines = await list.addStandardItems([1, 2])
+
+      expect(lines.map((l) => [l.id, l.standard_count])).toEqual([
+        [6, 1],
+        [5, 2],
+      ])
+      expect(list.items.map((i) => [i.id, i.name, i.standard_count])).toEqual([
+        [5, 'melk', 2],
+        [6, 'kaas', 1],
+      ])
+      expect(shoppingDb).toHaveLength(2)
+      // De offline kopie heeft de teller ook.
+      expect(
+        JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:snapshot')).data,
+      ).toEqual(list.items)
+    })
+
+    it('removeStandard telt af en haalt een standaardregel op 0 weg', async () => {
+      fakeServer({
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', standard_count: 2 })],
+      })
+      const list = await loadedStore()
+
+      await list.removeStandard(5)
+      expect(list.items.map((i) => i.standard_count)).toEqual([1])
+
+      await list.removeStandard(5)
+      expect(list.items).toEqual([])
+    })
+
+    it('removeStandard laat bij een receptregel het receptdeel staan', async () => {
+      fakeServer({
+        shopping: [
+          line({ id: 5, name: 'melk', quantity: 200, unit: 'ml', recipe_id: 1, standard_count: 1 }),
+        ],
+      })
+      const list = await loadedStore()
+
+      await list.removeStandard(5)
+
+      expect(list.items).toEqual([
+        expect.objectContaining({ id: 5, quantity: 200, recipe_id: 1, standard_count: 0 }),
+      ])
+    })
+
+    it('removeStandard op een regel die al weg is: hier ook weg, en de fout door', async () => {
+      const { shoppingDb } = fakeServer({
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', standard_count: 2 })],
+      })
+      const list = await loadedStore()
+      shoppingDb.splice(0)
+
+      await expect(list.removeStandard(5)).rejects.toMatchObject({ kind: 'not_found' })
+      expect(list.items).toEqual([])
+    })
+  })
 })

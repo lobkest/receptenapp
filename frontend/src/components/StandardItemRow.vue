@@ -2,9 +2,12 @@
 // Eén item op de standaardlijst: de naam met drie icoonknoppen (op lijst, bewerken,
 // verwijderen), of in de selectiemodus een vinkje over de hele regel. Wat een knop doet,
 // regelt StandardItemsView via de events.
+// Staat het item al (open) op de boodschappenlijst (onList), dan is [+] "✓ op lijst"; die
+// blijft klikbaar en zet er dan één bij ("melk ×2").
 defineProps({
   item: { type: Object, required: true },
   selecting: { type: Boolean, default: false },
+  onList: { type: Boolean, default: false },
 })
 
 // De gekozen item-id's in de selectiemodus (v-model:selected).
@@ -17,12 +20,23 @@ const emit = defineEmits(['add', 'edit', 'remove'])
   <label v-if="selecting" class="row select">
     <input v-model="selected" type="checkbox" :value="item.id" />
     <span class="line">{{ item.name }}</span>
+    <span v-if="onList" class="on-list-tag">✓ op lijst</span>
   </label>
 
   <div v-else class="row">
     <span class="line">{{ item.name }}</span>
     <div class="item-actions">
       <button
+        v-if="onList"
+        type="button"
+        class="add-one on-list"
+        :aria-label="`${item.name} staat op je boodschappenlijst; tik voor nog één`"
+        @click="emit('add', item)"
+      >
+        ✓ op lijst
+      </button>
+      <button
+        v-else
         type="button"
         class="icon add-one"
         :aria-label="`${item.name} op boodschappenlijst`"
@@ -110,6 +124,26 @@ const emit = defineEmits(['add', 'edit', 'remove'])
 
 .add-one {
   color: var(--color-accent-text);
+}
+
+/* Gevuld groen, zoals "✓ op lijst" op de receptpagina: in één oogopslag anders dan [+]. */
+.on-list,
+.on-list:hover:not(:disabled) {
+  align-self: center;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/* In de selectiemodus: klein, zodat je ziet dat "Op lijst" er één bij zet. */
+.on-list-tag {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-success-text);
 }
 
 .remove {

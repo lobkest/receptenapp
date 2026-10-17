@@ -166,40 +166,46 @@ describe('standaardboodschappen-store', () => {
       expect(await standard.addToShoppingList([1, 3])).toBe(2)
 
       const posts = requestsOf(fetch, 'POST')
-      expect(posts.map(([url]) => url)).toEqual(['/api/shopping_list_items'])
-      expect(JSON.parse(posts[0][1].body).shopping_list_items).toEqual([
-        { name: 'melk', quantity: null, unit: null, source_label: 'standaard', recipe_id: null },
-        {
-          name: 'wc-papier',
-          quantity: null,
-          unit: null,
-          source_label: 'standaard',
-          recipe_id: null,
-        },
-      ])
-      expect(shoppingDb.map((i) => i.name)).toEqual(['melk', 'wc-papier'])
+      expect(posts.map(([url]) => url)).toEqual(['/api/standard_items/add_to_shopping_list'])
+      expect(JSON.parse(posts[0][1].body)).toEqual({ ids: [1, 3] })
+      expect(shoppingDb.map((i) => [i.name, i.quantity, i.source_label, i.standard_count])).toEqual(
+        [
+          ['melk', null, 'standaard', 1],
+          ['wc-papier', null, 'standaard', 1],
+        ],
+      )
       expect(useShoppingListStore().items).toHaveLength(2)
-      // Niets meer in localStorage: de lijst staat op de server.
-      expect(localStorage.getItem('shoppingList')).toBeNull()
     })
 
-    it('zet een item als eigen regel naast dezelfde naam uit een recept', async () => {
+    it('staat het er al op (uit een recept), dan komt er één bij op die regel', async () => {
       const { shoppingDb } = fakeServer({
         standard: ITEMS,
-        shopping: [{ id: 7, name: 'melk', source_label: 'Pap', recipe_id: 7 }],
+        shopping: [
+          { id: 7, name: 'melk', quantity: 200, unit: 'ml', source_label: 'Pap', recipe_id: 7 },
+        ],
       })
       const standard = await loadedStore()
       await useShoppingListStore().load()
 
       await standard.addToShoppingList([1])
 
-      expect(shoppingDb).toHaveLength(2)
+      expect(shoppingDb).toHaveLength(1)
       expect(
-        useShoppingListStore().items.map((i) => [i.name, i.source_label, i.recipe_id]),
-      ).toEqual([
-        ['melk', 'Pap', 7],
-        ['melk', 'standaard', null],
-      ])
+        useShoppingListStore().items.map((i) => [
+          i.id,
+          i.quantity,
+          i.source_label,
+          i.standard_count,
+        ]),
+      ).toEqual([[7, 200, 'Pap', 1]])
+    })
+
+    it('doet geen request zonder (bestaande) items', async () => {
+      const { fetch } = fakeStandardServer(ITEMS)
+      const standard = await loadedStore()
+
+      expect(await standard.addToShoppingList([99])).toBe(0)
+      expect(requestsOf(fetch, 'POST')).toHaveLength(0)
     })
 
     it('gooit een fout door als de server weigert', async () => {

@@ -2,12 +2,15 @@ import { defineStore } from 'pinia'
 import * as api from '@/api/shoppingList'
 import { ApiError } from '@/api/client'
 import { addRecipeToShoppingList } from '@/api/recipes'
+import { addStandardItemsToShoppingList } from '@/api/standardItems'
 import { addVariationToShoppingList } from '@/api/variations'
 import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapshot } from '@/offline'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Regels worden nooit samengevoegd: twee keer bloem (uit twee
-// recepten) zijn twee regels, elk met eigen herkomst.
+// recepten) zijn twee regels, elk met eigen herkomst. Behalve vanaf de standaardlijst:
+// staat melk er al op, dan telt de server één op bij standard_count van een bestaande
+// regel ("melk ×2", "melk 200 ml +1"; zie src/utils/shoppingListLine.js).
 //
 // Offline (in de winkel zonder bereik): de store bewaart na elk contact met de server een
 // kopie in localStorage (snapshot) en toont die bij openen meteen. Afvinken werkt dan nog;
@@ -33,12 +36,36 @@ function withQueuedActions(items) {
   )
 }
 
+// Namen vergelijken zoals de opdracht zegt: spaties eromheen weg, kleine letters, verder exact.
+export function normalizeName(name) {
+  return String(name ?? '')
+    .trim()
+    .toLowerCase()
+}
+
+// Hetzelfde ingrediënt? Op ingredient_id als beide er een hebben; anders (een vrije regel
+// van de standaardlijst, of een toevoeging van een variatie) op naam.
+function sameIngredient(item, ingredient) {
+  if (item.ingredient_id != null && ingredient.ingredient_id != null) {
+    return item.ingredient_id === ingredient.ingredient_id
+  }
+  return normalizeName(item.name) === normalizeName(ingredient.name)
+}
+
+// Waar een regel vandaan komt, voor "✓ via …": de standaardlijst, een (ander) recept, of
+// zelf getypt op de boodschappenlijst.
+function sourceOf(item) {
+  if (item.recipe_id == null && item.source_label === 'standaard') return 'standaardlijst'
+  return item.source_label ?? 'lijst'
+}
+
 // Een lopende load(), zodat App en de pagina die tegelijk aanroepen maar één request doen.
 let pendingLoad = null
 
 export const useShoppingListStore = defineStore('shoppingList', {
   state: () => ({
-    // Zoals de server ze stuurt: { id, name, quantity, unit, source_label, recipe_id, checked }.
+    // Zoals de server ze stuurt: { id, name, quantity, unit, source_label, recipe_id,
+    // ingredient_id, checked, standard_count }.
     items: [],
     loaded: false,
     // Telt elke lokale wijziging, en hoeveel daarvan nog onderweg zijn. Zie load().
@@ -59,6 +86,23 @@ export const useShoppingListStore = defineStore('shoppingList', {
   getters: {
     openCount: (state) => state.items.filter((item) => !item.checked).length,
     hasChecked: (state) => state.items.some((item) => item.checked),
+
+    // Staat dit ingrediënt ({ ingredient_id, name }) op de lijst, gezien vanaf het recept
+    // recipeId? Alleen open (niet afgestreepte) regels tellen, van welke herkomst ook.
+    //   onList: minstens één open regel
+    //   own:    de open regels met dit recept als herkomst (die haalt "✓ op lijst" weg)
+    //   via:    zonder eigen regels de herkomst van de eerste andere ("standaardlijst",
+    //           "Wok met kip"), anders null
+    // Afgeleid uit items, dus na toevoegen, verwijderen, afvinken of verversen klopt het meteen.
+    listStatus: (state) => (ingredient, recipeId) => {
+      const open = state.items.filter((item) => !item.checked && sameIngredient(item, ingredient))
+      const own = open.filter((item) => item.recipe_id === recipeId)
+      return {
+        onList: open.length > 0,
+        own,
+        via: own.length === 0 && open.length > 0 ? sourceOf(open[0]) : null,
+      }
+    },
   },
 
   actions: {
@@ -132,7 +176,45 @@ export const useShoppingListStore = defineStore('shoppingList', {
       saveSnapshot(OFFLINE_KEY, this.items, this.savedAt)
     },
 
-    // Voegt regels toe zoals ze zijn, zonder rekenwerk, in één request (de standaardlijst).
+    // Nieuwe of gewijzigde regels van de server: een bekende regel vervangen, een nieuwe
+    // achteraan. item null: regel id is weg.
+    putLine(id, item) {
+      if (item == null) {
+        this.items = this.items.filter((i) => i.id !== id)
+      } else if (this.items.some((i) => i.id === item.id)) {
+        this.items = this.items.map((i) => (i.id === item.id ? item : i))
+      } else {
+        this.items.push(item)
+      }
+    },
+
+    // De standaardlijst ([+] of "Op lijst (n)"): de server telt één op bij een regel die er
+    // al open op staat, of maakt een nieuwe (zie ShoppingListItem.add_standard!).
+    async addStandardItems(ids) {
+      this.changes++
+      const lines = await addStandardItemsToShoppingList(ids)
+      for (const line of lines) this.putLine(line.id, line)
+      this.persist()
+      return lines
+    },
+
+    // De −-knop op de boodschappenlijst: één minder van de standaardlijst. Een regel die
+    // alleen van de standaardlijst kwam, verdwijnt op 0; een receptregel houdt zijn deel.
+    // Is de regel al weg (404), dan hier ook, en gooien we de fout door voor de melding.
+    async removeStandard(id) {
+      this.changes++
+      try {
+        const { item } = await api.removeStandardFromShoppingListItem(id)
+        this.putLine(id, item)
+      } catch (e) {
+        if (e.kind === 'not_found') this.putLine(id, null)
+        throw e
+      } finally {
+        this.persist()
+      }
+    },
+
+    // Voegt regels toe zoals ze zijn, zonder rekenwerk, in één request.
     // Elk ingrediënt wordt een nieuwe regel achteraan, ook als dezelfde naam er al staat.
     // ingredients: [{ name, quantity, unit }], source: { label, recipeId }.
     // "Naar smaak" (quantity null) gaat zonder eenheid.
@@ -236,6 +318,28 @@ export const useShoppingListStore = defineStore('shoppingList', {
         if (e.kind !== 'not_found') throw e
       }
       this.items = this.items.filter((i) => i.id !== id)
+      this.persist()
+    },
+
+    // "✓ op lijst" op de receptpagina: haalt het receptdeel weg van alle open regels van dit
+    // ingrediënt met dit recept als herkomst. Regels uit een andere herkomst blijven staan.
+    // Was zo'n regel ook van de standaardlijst bijgeteld (standard_count > 0), dan blijft
+    // hij staan als standaardregel ("melk"); anders verdwijnt hij.
+    async removeFromRecipe(ingredient, recipeId) {
+      const ids = this.listStatus(ingredient, recipeId).own.map((item) => item.id)
+      this.changes++
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const { item } = await api.removeRecipeFromShoppingListItem(id)
+            this.putLine(id, item)
+          } catch (e) {
+            // Al door iemand anders verwijderd: weg is weg.
+            if (e.kind !== 'not_found') throw e
+            this.putLine(id, null)
+          }
+        }),
+      )
       this.persist()
     },
 

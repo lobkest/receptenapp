@@ -137,6 +137,39 @@ async function addVariationToList(variation) {
   }
 }
 
+// Eén toevoeging van een variatie ("+ 150 g kip") los op de lijst, met dezelfde herkomst
+// als "Variatie op lijst". De hoeveelheid is al geschaald naar de gekozen porties (VariationCard
+// rekent zoals de server); de server koppelt het ingrediënt op naam.
+async function addAdditionToList(variation, addition) {
+  busyVariationId.value = variation.id
+  resetVariationFeedback()
+  try {
+    await shoppingList.addIngredients(
+      [{ name: addition.name, quantity: addition.quantity, unit: addition.unit }],
+      { label: `${props.recipe.title} (variatie: ${variation.name})`, recipeId: props.recipe.id },
+    )
+    variationMessage.value = `${addition.name} staat op je boodschappenlijst.`
+  } catch (e) {
+    variationError.value = e.message
+  } finally {
+    busyVariationId.value = null
+  }
+}
+
+// "✓ op lijst" bij een toevoeging: zoals bij de ingrediënten van het recept.
+async function removeAdditionFromList(variation, addition) {
+  busyVariationId.value = variation.id
+  resetVariationFeedback()
+  try {
+    await shoppingList.removeFromRecipe(addition, props.recipe.id)
+    variationMessage.value = `${addition.name} is van je boodschappenlijst gehaald.`
+  } catch (e) {
+    variationError.value = e.message
+  } finally {
+    busyVariationId.value = null
+  }
+}
+
 async function askVariationDeletion(variation) {
   const reason = await askWithInput({
     title: `"${variation.name}" verwijderen?`,
@@ -195,7 +228,10 @@ async function askVariationDeletion(variation) {
           :variation="variation"
           :factor="factor"
           :busy="busyVariationId === variation.id"
+          :recipe-id="recipe.id"
           @add-to-list="addVariationToList"
+          @add-ingredient="addAdditionToList"
+          @remove-ingredient="removeAdditionFromList"
           @edit="startEditing"
           @delete="askVariationDeletion"
         />

@@ -1,12 +1,13 @@
 <script setup>
 import { computed, ref } from 'vue'
+import ShoppingListButton from '@/components/ShoppingListButton.vue'
 import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { applySwaps, swappedAlternativeIds, swapRow } from '@/utils/alternatives'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
 
 // De ingrediënten op de receptpagina, geschaald naar het gekozen aantal porties, met
-// "+ lijst" per ingrediënt en "Alles op lijst". Onder een ingrediënt met alternatieven
+// "+ lijst" (of "✓ op lijst", zie ShoppingListButton) per ingrediënt en "Alles op lijst". Onder een ingrediënt met alternatieven
 // staan chips: "⇄ tofu" wisselt, "↺ kip" zet het origineel terug.
 const props = defineProps({
   // Het recept zoals de API het stuurt: { id, servings, ingredients }.
@@ -43,6 +44,9 @@ function ingredientLine(ingredient) {
 const shoppingList = useShoppingListStore()
 const { message: addedMessage, show: confirmAdded, hide: hideAdded } = useTimedMessage()
 const addError = ref(null)
+// De regel (id) waarvoor toevoegen of weghalen loopt; alleen tegen dubbel tikken. Of iets
+// op de lijst staat, komt uit de store.
+const busyId = ref(null)
 
 // ingredientIds null: alles behalve de optionele ingrediënten. De gewisselde
 // ingrediënten gaan als hun alternatief mee; de herkomst blijft het recept.
@@ -62,8 +66,29 @@ async function addToShoppingList(ingredientIds, message) {
   }
 }
 
-function addToList(ingredient) {
-  addToShoppingList([ingredient.id], `${ingredient.name} staat op je boodschappenlijst.`)
+async function addToList(ingredient) {
+  busyId.value = ingredient.id
+  try {
+    await addToShoppingList([ingredient.id], `${ingredient.name} staat op je boodschappenlijst.`)
+  } finally {
+    busyId.value = null
+  }
+}
+
+// "✓ op lijst": weg met de regels die dit recept voor dit ingrediënt op de lijst zette.
+// Geen bevestiging: nog een tik zet het terug.
+async function removeFromList(ingredient) {
+  addError.value = null
+  busyId.value = ingredient.id
+  try {
+    await shoppingList.removeFromRecipe(ingredient, props.recipe.id)
+    confirmAdded(`${ingredient.name} is van je boodschappenlijst gehaald.`)
+  } catch (e) {
+    hideAdded()
+    addError.value = e.message
+  } finally {
+    busyId.value = null
+  }
 }
 
 // Optionele ingrediënten laat de server weg: die zet je los op de lijst met "+ lijst".
@@ -98,14 +123,13 @@ function swap(ingredient, alternativeId) {
             {{ ingredientLine(ingredient) }}
             <span v-if="ingredient.optional" class="optional muted">(optioneel)</span>
           </span>
-          <button
-            type="button"
-            class="add-one"
-            :aria-label="`${ingredient.name} op boodschappenlijst`"
-            @click="addToList(ingredient)"
-          >
-            + lijst
-          </button>
+          <ShoppingListButton
+            :ingredient="ingredient"
+            :recipe-id="recipe.id"
+            :busy="busyId === ingredient.id"
+            @add="addToList(ingredient)"
+            @remove="removeFromList(ingredient)"
+          />
         </div>
         <!-- Ook zonder kleur te begrijpen: ⇄ wisselt, ↺ zet het origineel terug. -->
         <ul
@@ -217,14 +241,6 @@ function swap(ingredient, alternativeId) {
 
 .optional {
   font-size: var(--text-sm);
-}
-
-.ingredients .add-one {
-  flex-shrink: 0;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-accent-text);
-  border-color: var(--color-border);
 }
 
 .added {

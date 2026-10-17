@@ -30,6 +30,18 @@ export function deleteShoppingListItem(id) {
   return request(itemPath(id), { method: 'DELETE' })
 }
 
+// De −-knop: één minder van de standaardlijst. Geeft { item } terug; item is null als de
+// regel daardoor weg is.
+export function removeStandardFromShoppingListItem(id) {
+  return request(`${itemPath(id)}/remove_standard`, { method: 'POST' })
+}
+
+// "✓ op lijst" op een recept: het receptdeel eraf; wat van de standaardlijst kwam, blijft.
+// Geeft { item } terug; item is null als de regel weg is.
+export function removeRecipeFromShoppingListItem(id) {
+  return request(`${itemPath(id)}/remove_recipe`, { method: 'POST' })
+}
+
 export function clearCheckedShoppingListItems() {
   return request(`${BASE}/clear_checked`, { method: 'DELETE' })
 }

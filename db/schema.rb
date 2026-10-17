@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_180005) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_190001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -165,10 +165,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_180005) do
     t.datetime "updated_at", null: false
     t.bigint "ingredient_id"
     t.boolean "pantry_changed", default: false, null: false
+    t.integer "standard_count", default: 0, null: false
     t.index ["ingredient_id"], name: "index_shopping_list_items_on_ingredient_id"
     t.index ["recipe_id"], name: "index_shopping_list_items_on_recipe_id"
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "shopping_list_items_quantity_has_unit"
     t.check_constraint "quantity > 0::numeric", name: "shopping_list_items_quantity_positive"
+    t.check_constraint "standard_count >= 0", name: "shopping_list_items_standard_count_not_negative"
     t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "shopping_list_items_unit_known"
   end
 

@@ -2,13 +2,13 @@
 # any device. Writes are rate limited (PublicWriteRateLimit).
 class Api::ShoppingListItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy clear_checked clear_all ]
+  limit_public_writes only: %i[ create update destroy remove_standard remove_recipe clear_checked clear_all ]
 
   # "Alles op lijst" for a big recipe is a few dozen; this only stops absurd requests.
   MAX_ITEMS_PER_REQUEST = 100
   ITEM_FIELDS = %i[ name quantity unit source_label recipe_id checked ].freeze
 
-  before_action :set_item, only: %i[ update destroy ]
+  before_action :set_item, only: %i[ update destroy remove_standard remove_recipe ]
 
   # GET /api/shopping_list_items
   def index
@@ -43,6 +43,20 @@ class Api::ShoppingListItemsController < ApplicationController
     @item.destroy!
 
     head :no_content
+  end
+
+  # POST /api/shopping_list_items/1/remove_standard
+  # The minus button: one less from the standard list. { "item": line } or, when the line
+  # is gone, { "item": null }.
+  def remove_standard
+    render json: { item: @item.remove_standard!&.then { |item| serialize(item) } }
+  end
+
+  # POST /api/shopping_list_items/1/remove_recipe
+  # "✓ op lijst" on a recipe: the recipe part goes, what came from the standard list stays.
+  # { "item": line } or, when the line is gone, { "item": null }.
+  def remove_recipe
+    render json: { item: @item.remove_recipe_part!&.then { |item| serialize(item) } }
   end
 
   # DELETE /api/shopping_list_items/clear_checked

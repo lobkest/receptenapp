@@ -4,8 +4,9 @@ module ShoppingListItemSerializer
   module_function
 
   # ingredient_id: the linked ingredient, or nil (ticking it off puts it in the house).
+  # standard_count: how many times it was added from the standard list (0: never).
   def item(item)
-    item.slice("id", "name", "unit", "source_label", "recipe_id", "ingredient_id", "checked")
+    item.slice("id", "name", "unit", "source_label", "recipe_id", "ingredient_id", "checked", "standard_count")
       .merge("quantity" => RecipeSerializer.number(item.quantity))
   end
 end

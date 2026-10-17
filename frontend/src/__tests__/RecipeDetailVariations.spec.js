@@ -86,10 +86,10 @@ describe('RecipeDetailView: tags en variaties', () => {
 
     const cards = wrapper.findAll('.variation-grid .variation-card')
     expect(cards.map((c) => c.find('h3').text())).toEqual(['Met kip', 'Met vis', 'Pittig'])
-    expect(cards[0].find('.change.added').text()).toBe('+ 150 g kip')
+    expect(cards[0].find('.change.added > span').text()).toBe('+ 150 g kip')
 
     await wrapper.find('[aria-label="Meer porties"]').trigger('click') // 2 → 3 porties
-    expect(cards[0].find('.change.added').text()).toBe('+ 225 g kip')
+    expect(cards[0].find('.change.added > span').text()).toBe('+ 225 g kip')
   })
 
   it('zonder variaties: een korte melding en de knop "Voeg variatie toe"', async () => {

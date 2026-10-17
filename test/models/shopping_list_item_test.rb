@@ -108,4 +108,97 @@ class ShoppingListItemTest < ActiveSupport::TestCase
 
     assert_nil shopping_list_items(:bloem).reload.quantity
   end
+
+  # standard_count
+
+  test "standard_count is standaard 0 en nooit negatief, ook niet in de database" do
+    item = ShoppingListItem.create!(name: "brood")
+    assert_equal 0, item.standard_count
+
+    item.standard_count = -1
+    assert item.invalid?
+    assert item.errors.key?(:standard_count)
+    item.standard_count = 1.5
+    assert item.invalid?
+
+    assert_raises(ActiveRecord::StatementInvalid) { item.update_column(:standard_count, -1) }
+  end
+
+  test "een nieuwe regel van de standaardlijst telt één keer, ook zonder standard_count" do
+    assert_equal 1, ShoppingListItem.create!(name: "kaas", source_label: "standaard").standard_count
+    assert_equal 0, ShoppingListItem.create!(name: "kaas", source_label: "Pizza").standard_count
+  end
+
+  test "add_standard! maakt een nieuwe standaardregel als het er nog niet (open) op staat" do
+    # melk (fixture) staat er al, maar is afgevinkt: telt niet.
+    assert_difference("ShoppingListItem.count", 1) do
+      line = ShoppingListItem.add_standard!(" Melk ")
+      assert_equal [ "melk", "standaard", nil, nil, 1 ],
+        [ line.name, line.source_label, line.recipe_id, line.quantity, line.standard_count ]
+    end
+  end
+
+  test "add_standard! telt op bij een open standaardregel, ook als er een oudere receptregel is" do
+    recipe_line = ShoppingListItem.create!(name: "melk", quantity: 200, unit: "ml",
+      source_label: "Pannenkoeken", recipe: recipes(:pannenkoeken))
+    standard_line = ShoppingListItem.create!(name: "melk", source_label: "standaard")
+
+    assert_no_difference("ShoppingListItem.count") do
+      assert_equal standard_line, ShoppingListItem.add_standard!("melk")
+    end
+    assert_equal 2, standard_line.reload.standard_count
+    assert_equal 0, recipe_line.reload.standard_count
+  end
+
+  test "add_standard! telt anders op bij de oudste open regel, en laat de hoeveelheid staan" do
+    oldest = ShoppingListItem.create!(name: "melk", quantity: 200, unit: "ml",
+      source_label: "Pannenkoeken", recipe: recipes(:pannenkoeken))
+    newer = ShoppingListItem.create!(name: "melk", quantity: 100, unit: "ml", source_label: "Wafels")
+
+    assert_no_difference("ShoppingListItem.count") { ShoppingListItem.add_standard!("melk") }
+
+    oldest.reload
+    assert_equal [ 1, BigDecimal("200"), "ml", "Pannenkoeken" ],
+      [ oldest.standard_count, oldest.quantity, oldest.unit, oldest.source_label ]
+    assert_equal 0, newer.reload.standard_count
+  end
+
+  test "remove_standard! telt af; een standaardregel op 0 verdwijnt" do
+    line = ShoppingListItem.create!(name: "kaas", source_label: "standaard", standard_count: 2)
+
+    assert_equal line, line.remove_standard!
+    assert_equal 1, line.reload.standard_count
+    assert_nil line.remove_standard!
+    assert_not ShoppingListItem.exists?(line.id)
+  end
+
+  test "remove_standard! laat bij een receptregel op 0 het receptdeel staan" do
+    line = shopping_list_items(:bloem)
+    line.update!(standard_count: 1)
+
+    assert_equal line, line.remove_standard!
+    line.reload
+    assert_equal [ 0, BigDecimal("250"), recipes(:pannenkoeken).id ], [ line.standard_count, line.quantity, line.recipe_id ]
+    # Nog een keer: er valt niets meer af te tellen.
+    assert_equal line, line.remove_standard!
+    assert_equal 0, line.reload.standard_count
+  end
+
+  test "remove_recipe_part! verwijdert een receptregel zonder standaarddeel" do
+    line = shopping_list_items(:bloem)
+
+    assert_nil line.remove_recipe_part!
+    assert_not ShoppingListItem.exists?(line.id)
+  end
+
+  test "remove_recipe_part! maakt van een receptregel met standaarddeel een standaardregel" do
+    line = shopping_list_items(:bloem)
+    line.update!(standard_count: 2)
+
+    assert_equal line, line.remove_recipe_part!
+    line.reload
+    assert_equal [ "bloem", nil, nil, nil, "standaard", 2, ingredients(:bloem).id ],
+      [ line.name, line.quantity, line.unit, line.recipe_id, line.source_label, line.standard_count, line.ingredient_id ]
+    assert line.standard_only?
+  end
 end

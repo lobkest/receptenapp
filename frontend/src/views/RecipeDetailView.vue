@@ -11,6 +11,7 @@ import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useRecipesStore } from '@/stores/recipes'
+import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatSwaps, parseSwaps } from '@/utils/alternatives'
 import { automaticTagLabels, needsDisclaimer } from '@/utils/automaticTags'
 
@@ -63,6 +64,12 @@ function setSwaps(next) {
   router.replace({ query: wissel ? { ...query, wissel } : query })
 }
 
+// De knoppen "+ lijst" / "✓ op lijst" lezen de boodschappenlijst uit de store. Die kan
+// intussen elders veranderd zijn (ander apparaat, afgevinkt in de winkel), dus bij het
+// openen van een recept halen we hem opnieuw op; terug naar de app ververst App.vue al.
+// Lukt dat niet, dan blijft de laatste stand staan.
+const shoppingList = useShoppingListStore()
+
 // keepServings: na herladen (bijv. na een conflict) blijft de gekozen porties staan.
 async function load(id, { keepServings = false } = {}) {
   const chosen = servings.value
@@ -94,6 +101,11 @@ function reload() {
 // Van /recepten/1 naar /recepten/2 hergebruikt Vue hetzelfde component,
 // dus onMounted draait niet opnieuw. Daarom kijken we naar het id zelf.
 watch(() => props.id, load, { immediate: true })
+watch(
+  () => props.id,
+  () => shoppingList.load().catch(() => {}),
+  { immediate: true },
+)
 </script>
 
 <template>

@@ -4,7 +4,17 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
 import { useShoppingListStore } from '../stores/shoppingList'
-import { jsonResponse, mockFetch } from './helpers'
+import { jsonResponse, mockFetch as mockServer } from './helpers'
+
+// De receptpagina haalt bij openen ook de boodschappenlijst op (voor "✓ op lijst"). Die is
+// hier leeg, tenzij een test hem zelf beantwoordt.
+function mockFetch(handler) {
+  return mockServer((method, url, options) =>
+    method === 'GET' && url === '/api/shopping_list_items'
+      ? jsonResponse([])
+      : handler(method, url, options),
+  )
+}
 
 const SOUP = { id: 5, title: 'Tomatensoep', description: 'Lekker.', servings: 4 }
 

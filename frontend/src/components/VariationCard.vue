@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import ShoppingListButton from '@/components/ShoppingListButton.vue'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
 
 // Eén variatie op de receptpagina. Wat eraf gaat staat in rood met "−" en doorgestreept,
@@ -11,9 +12,13 @@ const props = defineProps({
   // Gekozen porties gedeeld door die van het recept: de extra hoeveelheden schalen mee.
   factor: { type: Number, default: 1 },
   busy: { type: Boolean, default: false },
+  // Het recept van de pagina: dan staat bij elke toevoeging "+ lijst" of "✓ op lijst",
+  // zoals bij de ingrediënten van het recept. Zonder (null) alleen de tekst.
+  recipeId: { type: Number, default: null },
 })
 
-const emit = defineEmits(['add-to-list', 'edit', 'delete'])
+// add-ingredient en remove-ingredient: (variatie, toevoeging met geschaalde hoeveelheid).
+const emit = defineEmits(['add-to-list', 'edit', 'delete', 'add-ingredient', 'remove-ingredient'])
 
 const removals = computed(() => props.variation.changes.filter((c) => c.kind === 'remove'))
 
@@ -39,7 +44,15 @@ function additionText(addition) {
         − <s>{{ removal.name }}</s>
       </li>
       <li v-for="addition in additions" :key="addition.id" class="change added">
-        + {{ additionText(addition) }}
+        <span>+ {{ additionText(addition) }}</span>
+        <ShoppingListButton
+          v-if="recipeId != null"
+          :ingredient="addition"
+          :recipe-id="recipeId"
+          :busy="busy"
+          @add="emit('add-ingredient', variation, addition)"
+          @remove="emit('remove-ingredient', variation, addition)"
+        />
       </li>
     </ul>
 
@@ -111,6 +124,15 @@ h3 {
 
 .added {
   color: var(--color-success-text);
+}
+
+/* Met een lijstknop: de knop onder de tekst, in de smalle kaart steeds op dezelfde plek. */
+.change.added:has(.list-button) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+  margin-bottom: var(--space-2);
 }
 
 .removed {

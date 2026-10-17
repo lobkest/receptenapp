@@ -18,7 +18,7 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({
       "id" => @bloem.id, "name" => "bloem", "quantity" => 250, "unit" => "g",
       "source_label" => "Pannenkoeken", "recipe_id" => recipes(:pannenkoeken).id,
-      "ingredient_id" => ingredients(:bloem).id, "checked" => false
+      "ingredient_id" => ingredients(:bloem).id, "checked" => false, "standard_count" => 0
     }, response.parsed_body.find { |item| item["id"] == @bloem.id })
   end
 
@@ -224,6 +224,8 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     "create" => -> { [ :post, api_shopping_list_items_url, { shopping_list_item: { name: "brood" } } ] },
     "update" => -> { [ :patch, api_shopping_list_item_url(@bloem), { shopping_list_item: { checked: true } } ] },
     "destroy" => -> { [ :delete, api_shopping_list_item_url(id: 0), {} ] },
+    "remove_standard" => -> { [ :post, remove_standard_api_shopping_list_item_url(id: 0), {} ] },
+    "remove_recipe" => -> { [ :post, remove_recipe_api_shopping_list_item_url(id: 0), {} ] },
     "clear_checked" => -> { [ :delete, clear_checked_api_shopping_list_items_url, {} ] },
     "clear_all" => -> { [ :delete, clear_all_api_shopping_list_items_url, {} ] }
   }

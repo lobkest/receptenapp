@@ -2,7 +2,7 @@
 # link can see and change it. Writes are rate limited (PublicWriteRateLimit).
 class Api::StandardItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy bulk_destroy ]
+  limit_public_writes only: %i[ create update destroy bulk_destroy add_to_shopping_list ]
 
   before_action :set_standard_item, only: %i[ update destroy ]
 
@@ -42,6 +42,20 @@ class Api::StandardItemsController < ApplicationController
     render json: { deleted_ids: deleted.map(&:id) }
   rescue ActiveRecord::RecordNotDestroyed
     render_error :unprocessable_content, I18n.t("api.bulk_destroy_failed")
+  end
+
+  # POST /api/standard_items/add_to_shopping_list  { "ids": [1, 2, 3] }
+  # Each item once on the shopping list: a new line, or one more on a line that is already
+  # there (ShoppingListItem.add_standard!). Ids that do not exist are skipped. Returns the
+  # lines that were added or changed, in the order of the item names.
+  def add_to_shopping_list
+    ids = params.expect(ids: [])
+
+    lines = ShoppingListItem.transaction do
+      StandardItem.where(id: ids).order(:name).map { |item| ShoppingListItem.add_standard!(item.name) }
+    end
+
+    render json: lines.map { |line| ShoppingListItemSerializer.item(line) }
   end
 
   private

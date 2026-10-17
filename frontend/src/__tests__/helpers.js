@@ -95,9 +95,28 @@ function shoppingRoutes(initial) {
     source_label: null,
     recipe_id: null,
     checked: false,
+    standard_count: 0,
     ...item,
   }))
   let nextId = nextIdAfter(db)
+
+  const standardOnly = (item) => item.recipe_id == null && item.source_label === 'standaard'
+
+  // Zoals ShoppingListItem.add_standard!: één erbij op een open regel met dezelfde naam
+  // (liefst een standaardregel, anders de oudste), of een nieuwe standaardregel.
+  function addStandard(name) {
+    const matching = db.filter((item) => !item.checked && item.name === name)
+    const line = matching.find(standardOnly) ?? matching[0]
+    if (line) {
+      line.standard_count++
+      return line
+    }
+    return add({ name, source_label: 'standaard', standard_count: 1 })
+  }
+
+  function result(item) {
+    return jsonResponse({ item: item ? structuredClone(item) : null })
+  }
 
   function add(fields) {
     const quantity = fields.quantity ?? null
@@ -109,6 +128,9 @@ function shoppingRoutes(initial) {
       source_label: fields.source_label ?? null,
       recipe_id: fields.recipe_id ?? null,
       checked: fields.checked ?? false,
+      standard_count:
+        fields.standard_count ??
+        (fields.recipe_id == null && fields.source_label === 'standaard' ? 1 : 0),
     }
     db.push(item)
     return item
@@ -134,6 +156,30 @@ function shoppingRoutes(initial) {
       return new Response(null, { status: 204 })
     }
 
+    const member = db.find((i) => url.startsWith(`${SHOPPING_BASE}/${i.id}/`))
+    if (member && url.endsWith('/remove_standard') && method === 'POST') {
+      if (!member.standard_count) return result(member)
+      if (standardOnly(member) && member.standard_count === 1) {
+        db.splice(db.indexOf(member), 1)
+        return result(null)
+      }
+      member.standard_count--
+      return result(member)
+    }
+    if (member && url.endsWith('/remove_recipe') && method === 'POST') {
+      if (!member.standard_count) {
+        db.splice(db.indexOf(member), 1)
+        return result(null)
+      }
+      Object.assign(member, {
+        recipe_id: null,
+        quantity: null,
+        unit: null,
+        source_label: 'standaard',
+      })
+      return result(member)
+    }
+
     const item = db.find((i) => url === `${SHOPPING_BASE}/${i.id}`)
     if (!item) return jsonResponse({ error: 'Shopping list item not found' }, 404)
     if (method === 'PATCH') {
@@ -149,7 +195,7 @@ function shoppingRoutes(initial) {
     return null
   }
 
-  return { db, handle }
+  return { db, handle, addStandard }
 }
 
 // Een nep-server voor beide lijsten. standardDb en shoppingDb zijn de "database":
@@ -160,6 +206,13 @@ export function fakeServer({ standard = [], shopping = [] } = {}) {
 
   const fetch = mockFetch((method, url, options) => {
     const body = options.body ? JSON.parse(options.body) : {}
+    if (url === `${STANDARD_BASE}/add_to_shopping_list` && method === 'POST') {
+      const names = standardServer.db
+        .filter((item) => body.ids.includes(item.id))
+        .map((item) => item.name)
+        .sort()
+      return jsonResponse(structuredClone(names.map(shoppingServer.addStandard)))
+    }
     const response =
       standardServer.handle(method, url, body) ?? shoppingServer.handle(method, url, body)
     if (!response) throw new Error(`Onverwachte request: ${method} ${url}`)

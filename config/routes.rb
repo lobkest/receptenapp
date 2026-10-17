@@ -42,6 +42,10 @@ Rails.application.routes.draw do
 
     # Public, no code needed: anyone with the link shares these two lists.
     resources :shopping_list_items, only: %i[ index create update destroy ] do
+      member do
+        post :remove_standard
+        post :remove_recipe
+      end
       collection do
         delete :clear_checked
         delete :clear_all
@@ -51,6 +55,7 @@ Rails.application.routes.draw do
     resources :standard_items, only: %i[ index create update destroy ] do
       # POST, not DELETE: a DELETE request with a body is not reliably passed on.
       post :bulk_destroy, on: :collection
+      post :add_to_shopping_list, on: :collection
     end
 
     # Only with the admin code: deletion requests and versions.

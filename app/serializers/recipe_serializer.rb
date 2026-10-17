@@ -134,8 +134,9 @@ module RecipeSerializer
     }
   end
 
+  # ingredient_id: so the recipe page can see whether the ingredient is on the shopping list.
   def ingredient(row)
-    { "id" => row.id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "optional" => row.optional,
+    { "id" => row.id, "ingredient_id" => row.ingredient_id, "name" => row.ingredient_name, "quantity" => number(row.quantity), "unit" => row.unit, "optional" => row.optional,
       "alternatives" => row.alternatives.map { |alternative| alternative(alternative) } }
   end
 
@@ -143,7 +144,7 @@ module RecipeSerializer
   # shows). effective_quantity and effective_unit: what to use, the row's own when null.
   def alternative(alternative)
     {
-      "id" => alternative.id, "name" => alternative.ingredient_name,
+      "id" => alternative.id, "ingredient_id" => alternative.ingredient_id, "name" => alternative.ingredient_name,
       "quantity" => number(alternative.quantity), "unit" => alternative.unit,
       "effective_quantity" => number(alternative.effective_quantity), "effective_unit" => alternative.effective_unit
     }

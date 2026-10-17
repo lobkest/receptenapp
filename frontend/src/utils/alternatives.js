@@ -45,8 +45,8 @@ export function swapRow(swaps, rowId, alternativeId) {
   return next
 }
 
-// De regels zoals ze nu gelden: een gewisselde regel krijgt de naam en de (effectieve)
-// hoeveelheid van het alternatief. id en optional blijven die van de regel. original:
+// De regels zoals ze nu gelden: een gewisselde regel krijgt het ingrediënt (ingredient_id,
+// naam) en de (effectieve) hoeveelheid van het alternatief. id en optional blijven die van de regel. original:
 // de regel zelf, voor "↺ kip"; null als hij niet gewisseld is. others: de alternatieven
 // die je nu nog kunt kiezen.
 export function applySwaps(ingredients, swaps) {
@@ -58,6 +58,7 @@ export function applySwaps(ingredients, swaps) {
 
     return {
       ...row,
+      ingredient_id: chosen.ingredient_id,
       name: chosen.name,
       quantity: chosen.effective_quantity,
       unit: chosen.effective_unit,

@@ -3,9 +3,6 @@ import * as api from '@/api/standardItems'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { byName, groupByCategory } from '@/utils/grouping'
 
-// Herkomst op de boodschappenlijst ("uit: standaard"), zonder recept.
-const STANDARD_SOURCE = { label: 'standaard', recipeId: null }
-
 // De vaste boodschappen, via de openbare API: iedereen met de link ziet en wijzigt
 // dezelfde lijst. Fouten (ApiError) gooien we door, zodat de pagina de melding kan tonen.
 export const useStandardItemsStore = defineStore('standardItems', {
@@ -57,14 +54,12 @@ export const useStandardItemsStore = defineStore('standardItems', {
     },
 
     // Op de gedeelde boodschappenlijst, in één request, zonder hoeveelheid: je moet het
-    // gewoon kopen. Elk item wordt een eigen regel met herkomst "standaard", ook als
-    // dezelfde naam er al staat. Geeft het aantal toegevoegde items terug.
+    // gewoon kopen. Staat het er al (open) op, dan komt er één bij op die regel ("melk ×2");
+    // anders een nieuwe regel met herkomst "standaard". Geeft het aantal items terug.
     async addToShoppingList(ids) {
       const chosen = this.items.filter((i) => ids.includes(i.id))
-      await useShoppingListStore().addIngredients(
-        chosen.map(({ name }) => ({ name, quantity: null, unit: null })),
-        STANDARD_SOURCE,
-      )
+      if (chosen.length === 0) return 0
+      await useShoppingListStore().addStandardItems(chosen.map((i) => i.id))
       return chosen.length
     },
   },

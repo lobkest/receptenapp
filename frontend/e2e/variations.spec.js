@@ -115,12 +115,12 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await checkLayout(page, errors, 'variatie-formulier')
   await form.getByRole('button', { name: 'Variatie toevoegen' }).click()
 
-  // ---- De kaart: rood doorgestreept eraf, groen erbij, tag met teken.
+  // ---- De kaart: rood doorgestreept eraf, groen erbij (met "+ lijst"), tag met teken.
   const chicken = card(page, 'Met kip')
   await expect(page.locator('section.variations [role="status"]')).toHaveText(
     '"Met kip" is toegevoegd.',
   )
-  await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
+  await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip + lijst'])
   await expect(chicken.locator('.notes')).toHaveText('Kip in blokjes, eerst aanbakken.')
   // vega haalde iemand er zelf af; vegetarisch en veganistisch gaan eraf door de kip.
   await expect(chicken.locator('.tag-change')).toHaveText([
@@ -144,12 +144,12 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await page.getByLabel('Hoeveelheid ingrediënt 2').fill('200')
   await page.getByRole('button', { name: 'Opslaan' }).click()
   await expect(page.getByRole('status').first()).toHaveText('"Tofucurry" is opgeslagen.')
-  await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
+  await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip + lijst'])
 
   // ---- Variatie op lijst, voor 4 porties: alles × 2, zonder tofu en koriander (optioneel).
   await page.getByRole('button', { name: 'Meer porties' }).click()
   await page.getByRole('button', { name: 'Meer porties' }).click()
-  await expect(chicken.locator('.change.added')).toHaveText('+ 300 g kip')
+  await expect(chicken.locator('.change.added')).toHaveText('+ 300 g kip + lijst')
   await chicken.getByRole('button', { name: 'Variatie op lijst' }).click()
   await expect(page.locator('section.variations [role="status"]')).toHaveText(
     '"Met kip" staat op je boodschappenlijst.',
@@ -188,7 +188,10 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   )
 
   await page.goto(`/recepten/${recipeId}`)
-  await expect(card(page, 'Met kip').locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
+  await expect(card(page, 'Met kip').locator('.change')).toHaveText([
+    '− tofu',
+    '+ 150 g kip ✓ op lijst', // de kip staat er nog op via "Variatie op lijst"
+  ])
 })
 
 // Het basisrecept op de lijst, voor 3 porties (× 1,5), na de eerste test (rijst 200 g). Deze uitkomsten zijn vastgelegd

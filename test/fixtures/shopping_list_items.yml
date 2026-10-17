@@ -16,3 +16,4 @@ melk:
   name: melk
   source_label: standaard
   checked: true
+  standard_count: 1

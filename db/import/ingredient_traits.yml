@@ -166,3 +166,7 @@ sojasaus: [ gluten ]
 spek: [ vlees, dierlijk ]
 yoghurt: [ dierlijk, lactose ]
 zalm: [ vis, dierlijk ]
+
+# Alleen in productie.
+flammkuchen deeg: [ gluten ]
+havermout fijn: { traits: [ gluten ], twijfel: "haver is meestal besmet met tarwe; alleen glutenvrij als het op de verpakking staat" }

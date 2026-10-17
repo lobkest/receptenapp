@@ -1,15 +1,18 @@
 <script setup>
-import { computed, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import {
   fetchIngredient,
   fetchIngredients,
+  fetchTraits,
   searchNevoFoods,
   updateIngredient,
 } from '@/api/ingredients'
+import { useTraitSaver } from '@/composables/useTraitSaver'
 import { useAdminStore } from '@/stores/admin'
 import { NUTRIENTS } from '@/utils/nutrition'
+import { toggleTrait, traitConsequence } from '@/utils/traits'
 
 // Eén ingrediënt koppelen aan een NEVO-product, met de omrekening naar gram en eventueel
 // eigen etiketwaarden. Iedereen mag dit, zoals recepten bewerken. De koppeling wordt pas
@@ -42,6 +45,7 @@ function asText(value) {
 
 function fill(loaded) {
   ingredient.value = loaded
+  traitNames.value = [...(loaded.traits ?? [])]
   form.nevoFood = loaded.nevo_food
   form.gramsPerPiece = asText(loaded.grams_per_piece)
   form.gramsPerMl = asText(loaded.grams_per_ml)
@@ -66,6 +70,49 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// ---------- Kenmerken (voor de automatische tags) ----------
+
+// Los van het NEVO-formulier: elk vinkje wordt meteen opgeslagen (PATCH .../traits),
+// zonder lock_version, dus een open NEVO-formulier krijgt daar geen conflict door.
+const traits = ref([])
+const traitNames = ref([])
+const traitError = ref(null)
+const traitMessage = ref(null)
+const traitSaver = useTraitSaver()
+
+onMounted(async () => {
+  try {
+    traits.value = await fetchTraits()
+  } catch (e) {
+    traitError.value = e.message
+  }
+})
+
+const consequence = computed(() => traitConsequence(traitNames.value, traits.value))
+
+async function saveTraits(fields, done) {
+  traitError.value = null
+  traitMessage.value = null
+  try {
+    const { result, latest } = await traitSaver.save(ingredient.value.id, fields)
+    if (!latest) return
+    traitNames.value = [...result.traits]
+    ingredient.value = { ...ingredient.value, traits: result.traits, traits_checked: result.traits_checked }
+    traitMessage.value = done
+  } catch (e) {
+    traitError.value = e.message
+  }
+}
+
+function onTraitToggle(name) {
+  traitNames.value = toggleTrait(traitNames.value, name, traits.value)
+  saveTraits({ trait_names: traitNames.value }, 'Kenmerken opgeslagen.')
+}
+
+function markTraitsChecked() {
+  saveTraits({ traits_checked: true }, 'Kenmerken gecontroleerd.')
 }
 
 // ---------- NEVO zoeken: suggesties op de naam, daarna zelf zoeken ----------
@@ -312,6 +359,39 @@ watch(() => props.id, load, { immediate: true })
       </button>
     </div>
 
+    <section class="card section traits" aria-labelledby="traits-title">
+      <div class="traits-head">
+        <h2 id="traits-title">Kenmerken</h2>
+        <span v-if="ingredient.traits_checked" class="trait-badge">gecontroleerd</span>
+        <span v-else class="trait-badge unchecked">nog te controleren</span>
+      </div>
+      <p class="muted small">
+        Hieruit volgen de automatische tags van recepten: vegetarisch, veganistisch, glutenvrij en
+        lactosevrij. Een vinkje wordt meteen opgeslagen.
+      </p>
+      <div class="trait-options" role="group" aria-label="Kenmerken">
+        <label v-for="trait in traits" :key="trait.name" class="trait-option">
+          <input
+            type="checkbox"
+            :checked="traitNames.includes(trait.name)"
+            @change="onTraitToggle(trait.name)"
+          />
+          <span>{{ trait.name }}</span>
+        </label>
+      </div>
+      <p v-if="traits.length" class="consequence">→ {{ consequence }}</p>
+      <p v-if="traitError" class="error" role="alert">{{ traitError }}</p>
+      <p v-else-if="traitMessage" class="muted small" role="status">{{ traitMessage }}</p>
+      <button
+        v-if="!ingredient.traits_checked"
+        type="button"
+        class="btn-primary mark-checked"
+        @click="markTraitsChecked"
+      >
+        Gecontroleerd
+      </button>
+    </section>
+
     <form novalidate @submit.prevent="save">
       <section class="card section negligible">
         <label class="check">
@@ -494,6 +574,63 @@ watch(() => props.id, load, { immediate: true })
 </template>
 
 <style scoped>
+.traits-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.traits .traits-head h2 {
+  margin: 0;
+}
+
+.trait-badge {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--color-accent-text);
+  white-space: nowrap;
+  background: var(--color-brand-soft);
+  border-radius: var(--radius-full);
+}
+
+.trait-badge.unchecked {
+  color: var(--color-error-text);
+  background: var(--color-error-soft);
+}
+
+/* Vijf vinkjes; op een telefoon in twee of drie kolommen, elk minstens --tap hoog. */
+.trait-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0 var(--space-3);
+  margin: var(--space-2) 0;
+}
+
+.trait-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.trait-option input {
+  flex-shrink: 0;
+}
+
+.consequence {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+}
+
+.mark-checked {
+  margin-top: var(--space-2);
+}
+
 .negligible .check {
   display: flex;
   align-items: flex-start;

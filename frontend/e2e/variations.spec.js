@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { ADMIN_TOKEN, RAILS_URL, useOwnIp } from './env.js'
+import { giveTraits } from './traits.js'
 
 // Variaties op een recept, op een iPhone-scherm: toevoegen op de receptpagina, de kaart,
 // het recept bewerken (de variatie blijft kloppen), "Variatie op lijst", een
@@ -24,6 +25,11 @@ const CURRY = {
 
 test.beforeAll(async ({ playwright }) => {
   api = await playwright.request.newContext({ baseURL: RAILS_URL })
+  // Kip en garnalen komen er in variaties bij; met hun kenmerken verliezen die variaties
+  // de automatische tags vegetarisch en veganistisch. De curry zelf (tofu, rijst, ui,
+  // koriander) heeft geen kenmerken en is dus alle vier.
+  await giveTraits(api, 'kip', ['vlees', 'dierlijk'])
+  await giveTraits(api, 'garnalen', ['vis', 'dierlijk'])
   const created = await api.post('/api/recipes', { data: { recipe: CURRY } })
   expect(created.status(), await created.text()).toBe(201)
   recipeId = (await created.json()).id
@@ -73,9 +79,20 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
 }) => {
   const errors = collectErrors(page)
 
-  // ---- De receptpagina: tags onder de titel, nog geen variaties.
+  // ---- De receptpagina: tags onder de titel (eerst de automatische), nog geen variaties.
   await page.goto(`/recepten/${recipeId}`)
-  await expect(page.locator('.recipe-tags .tag')).toHaveText(['snel', 'vega'])
+  await expect(page.locator('.recipe-tags .tag')).toHaveText([
+    'glutenvrij',
+    'lactosevrij',
+    'veganistisch',
+    'vegetarisch',
+    'snel',
+    'vega',
+  ])
+  // Glutenvrij en lactosevrij komen uit onze eigen gegevens: een kanttekening.
+  await expect(page.locator('.tag-disclaimer')).toHaveText(
+    'Op basis van eigen ingrediëntgegevens; controleer etiketten.',
+  )
   await expect(page.locator('section.variations')).toContainText('Nog geen variaties.')
 
   // ---- Toevoegen: − tofu, + 150 g kip, tag vega eraf, een notitie.
@@ -105,7 +122,8 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   )
   await expect(chicken.locator('.change')).toHaveText(['− tofu', '+ 150 g kip'])
   await expect(chicken.locator('.notes')).toHaveText('Kip in blokjes, eerst aanbakken.')
-  await expect(chicken.locator('.tag-change')).toHaveText(['− vega'])
+  // vega haalde iemand er zelf af; vegetarisch en veganistisch gaan eraf door de kip.
+  await expect(chicken.locator('.tag-change')).toHaveText(['− vega', '− veganistisch', '− vegetarisch'])
   const removed = chicken.locator('.change.removed')
   expect(await removed.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(140, 29, 23)')
   expect(await removed.locator('s').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe(
@@ -238,7 +256,13 @@ test('receptpagina met drie variaties: twee kolommen, de derde op een nieuwe rij
   )
   expect(second).toBe(first)
   expect(third).toBeGreaterThan(first)
-  await expect(card(page, 'Met garnalen').locator('.tag-change')).toHaveText(['+ vis', '− vega'])
+  // + vis en − vega zijn zelf gekozen; de garnalen (vis, dierlijk) halen de automatische eraf.
+  await expect(card(page, 'Met garnalen').locator('.tag-change')).toHaveText([
+    '+ vis',
+    '− vega',
+    '− veganistisch',
+    '− vegetarisch',
+  ])
 
   await page.locator('section.variations').scrollIntoViewIfNeeded()
   await checkLayout(page, errors, 'recept-variaties')

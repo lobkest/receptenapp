@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { fetchIngredients } from '@/api/ingredients'
 
-// Alle ingrediënten, om ze aan NEVO te koppelen voor de voedingswaarde. Zoeken en filteren
+// Alle ingrediënten, om ze aan NEVO te koppelen voor de voedingswaarde en hun kenmerken
+// (vlees, gluten, ...) te zien voor de automatische tags. Zoeken en filteren
 // gebeurt hier in de browser (het zijn er hooguit een paar honderd). Zoekterm en filter
 // staan in de URL (?zoek=&filter=), zodat "terug" vanaf een ingrediënt ze bewaart.
 const route = useRoute()
@@ -12,6 +13,13 @@ const router = useRouter()
 const ingredients = ref([])
 const loading = ref(false)
 const error = ref(null)
+
+// Een filter uit de URL kan rechts buiten de scrollende rij vallen: schuif het in beeld.
+const chipRow = useTemplateRef('chipRow')
+onMounted(async () => {
+  await nextTick()
+  chipRow.value?.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+})
 
 onMounted(async () => {
   loading.value = true
@@ -33,6 +41,8 @@ const FILTERS = [
     test: (i) => !i.nevo_food && !i.label_values && !i.negligible,
   },
   { key: 'controleren', label: 'Te controleren', test: (i) => i.needs_review },
+  // De kenmerken voor de automatische tags (vegetarisch, ...), los van NEVO.
+  { key: 'kenmerken', label: 'Kenmerken te controleren', test: (i) => !i.traits_checked },
 ]
 
 const query = ref(String(route.query.zoek ?? ''))
@@ -63,7 +73,7 @@ const shown = computed(() => {
   <h1>Ingrediënten</h1>
   <p class="muted intro">
     Koppel een ingrediënt aan een product uit NEVO-online (RIVM), dan telt het mee in de
-    voedingswaarde van recepten.
+    voedingswaarde van recepten. De kenmerken bepalen de automatische tags, zoals vegetarisch.
   </p>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
@@ -73,7 +83,7 @@ const shown = computed(() => {
     <input id="ingredient-search" v-model="query" type="search" autocomplete="off" />
   </div>
 
-  <div class="chip-row" role="group" aria-label="Filter">
+  <div ref="chipRow" class="chip-row" role="group" aria-label="Filter">
     <button
       v-for="option in FILTERS"
       :key="option.key"
@@ -100,6 +110,16 @@ const shown = computed(() => {
           <span v-if="ingredient.needs_review" class="badge review">te controleren</span>
           <span v-if="ingredient.label_values" class="badge">etiket</span>
           <span v-if="ingredient.negligible" class="badge">verwaarloosbaar</span>
+        </span>
+        <span
+          v-if="ingredient.traits?.length || !ingredient.traits_checked"
+          class="traits"
+          :aria-label="`Kenmerken van ${ingredient.name}`"
+        >
+          <span v-for="trait in ingredient.traits" :key="trait" class="trait">{{ trait }}</span>
+          <span v-if="!ingredient.traits_checked" class="trait unchecked">
+            kenmerken controleren
+          </span>
         </span>
       </RouterLink>
     </li>
@@ -221,5 +241,31 @@ const shown = computed(() => {
 .badge.review {
   color: var(--color-error-text);
   background: var(--color-error-soft);
+}
+
+/* Kenmerken onder de naam, over de hele breedte: klein en met een rand, zodat ze niet op
+   de badges rechts lijken. */
+.traits {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.trait {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+.trait.unchecked {
+  color: var(--color-error-text);
+  border-style: dashed;
+  border-color: currentColor;
 }
 </style>

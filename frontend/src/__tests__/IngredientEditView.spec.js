@@ -27,6 +27,13 @@ const BOILED = {
   kcal: 128,
 }
 const NO_LABEL = { kcal: null, protein: null, carbohydrates: null, fat: null, fiber: null }
+const TRAITS = [
+  { name: 'vlees', excluded_by: ['vegetarisch'] },
+  { name: 'vis', excluded_by: ['vegetarisch'] },
+  { name: 'dierlijk', excluded_by: ['veganistisch'] },
+  { name: 'gluten', excluded_by: ['glutenvrij'] },
+  { name: 'lactose', excluded_by: ['lactosevrij'] },
+]
 
 function egg(overrides = {}) {
   return {
@@ -40,6 +47,8 @@ function egg(overrides = {}) {
     grams_per_ml: null,
     label: NO_LABEL,
     units: ['stuks', 'tl'],
+    traits: ['dierlijk'],
+    traits_checked: false,
     ...overrides,
   }
 }
@@ -47,8 +56,16 @@ function egg(overrides = {}) {
 function fakeApi(
   ingredient = egg(),
   patch = (body) => jsonResponse(egg({ ...body, needs_review: false })),
+  patchTraits = (body) =>
+    jsonResponse({
+      traits: body.trait_names ?? ingredient.traits,
+      traits_checked: body.traits_checked ?? false,
+    }),
 ) {
   return mockFetch((method, url, options) => {
+    if (url === '/api/traits') return jsonResponse(TRAITS)
+    if (url === '/api/ingredients/2/traits' && method === 'PATCH')
+      return patchTraits(JSON.parse(options.body).ingredient)
     if (url === '/api/ingredients/2' && method === 'GET') return jsonResponse(ingredient)
     if (url === '/api/ingredients/2' && method === 'PATCH')
       return patch(JSON.parse(options.body).ingredient)
@@ -359,5 +376,67 @@ describe('IngredientEditView: samenvoegen', () => {
     expect(router.currentRoute.value.path).toBe('/ingredienten/5')
     expect(sessionStorage.getItem('adminCode')).toBeNull()
     wrapper.unmount()
+  })
+
+  describe('kenmerken', () => {
+    const traitBoxes = (wrapper) => wrapper.findAll('.trait-option')
+    const checked = (wrapper) =>
+      traitBoxes(wrapper)
+        .filter((label) => label.find('input').element.checked)
+        .map((label) => label.text())
+
+    it('toont de vinkjes, het gevolg en "nog te controleren"', async () => {
+      fakeApi()
+      const wrapper = await mountAt('/ingredienten/2')
+
+      expect(traitBoxes(wrapper).map((label) => label.text())).toEqual([
+        'vlees',
+        'vis',
+        'dierlijk',
+        'gluten',
+        'lactose',
+      ])
+      expect(checked(wrapper)).toEqual(['dierlijk'])
+      expect(wrapper.find('.consequence').text()).toBe('→ niet veganistisch')
+      expect(wrapper.find('.trait-badge').text()).toBe('nog te controleren')
+    })
+
+    it('een vinkje slaat meteen op via .../traits, zonder lock_version, en past het gevolg aan', async () => {
+      const fetch = fakeApi()
+      const wrapper = await mountAt('/ingredienten/2')
+
+      await traitBoxes(wrapper)[0].find('input').setValue(true)
+      expect(wrapper.find('.consequence').text()).toBe('→ niet vegetarisch, niet veganistisch')
+      await flushPromises()
+
+      const call = fetch.mock.calls.find((c) => c[0] === '/api/ingredients/2/traits')
+      expect(call[1].method).toBe('PATCH')
+      expect(JSON.parse(call[1].body)).toEqual({ ingredient: { trait_names: ['vlees', 'dierlijk'] } })
+      expect(fetch.mock.calls.some((c) => c[0] === '/api/ingredients/2' && c[1]?.method === 'PATCH')).toBe(false)
+      expect(wrapper.find('[role="status"]').text()).toBe('Kenmerken opgeslagen.')
+      expect(checked(wrapper)).toEqual(['vlees', 'dierlijk'])
+    })
+
+    it('Gecontroleerd zet traits_checked; de knop verdwijnt dan', async () => {
+      const fetch = fakeApi()
+      const wrapper = await mountAt('/ingredienten/2')
+
+      await wrapper.find('.mark-checked').trigger('click')
+      await flushPromises()
+
+      const call = fetch.mock.calls.find((c) => c[0] === '/api/ingredients/2/traits')
+      expect(JSON.parse(call[1].body)).toEqual({ ingredient: { traits_checked: true } })
+      expect(wrapper.find('.mark-checked').exists()).toBe(false)
+      expect(wrapper.find('.trait-badge').text()).toBe('gecontroleerd')
+    })
+
+    it('een fout bij opslaan toont een melding', async () => {
+      fakeApi(egg(), undefined, () => jsonResponse({ error: 'Er ging iets mis.', errors: {} }, 500))
+      const wrapper = await mountAt('/ingredienten/2')
+
+      await traitBoxes(wrapper)[3].find('input').setValue(true)
+      await flushPromises()
+      expect(wrapper.find('.traits [role="alert"]').exists()).toBe(true)
+    })
   })
 })

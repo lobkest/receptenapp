@@ -117,10 +117,12 @@ class Api::AutomaticTagsTest < ActionDispatch::IntegrationTest
 
   # ---------- Traits of an ingredient ----------
 
-  test "GET /api/traits lists the traits in order" do
+  test "GET /api/traits lists the traits in order, with the tags each one rules out" do
     get api_traits_url, as: :json
 
     assert_equal %w[ vlees vis dierlijk gluten lactose ], response.parsed_body.pluck("name")
+    assert_equal [ "vegetarisch" ], response.parsed_body.first["excluded_by"]
+    assert_equal [ "veganistisch" ], response.parsed_body.find { |trait| trait["name"] == "dierlijk" }["excluded_by"]
   end
 
   test "changing a trait changes the label on the recipe, without touching lock_version or needs_review" do

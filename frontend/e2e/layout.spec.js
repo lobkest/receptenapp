@@ -1,5 +1,6 @@
 import { test, expect, devices } from '@playwright/test'
 import { ADMIN_TOKEN, APP_URL, RAILS_URL, useOwnIp } from './env.js'
+import { giveTraits } from './traits.js'
 
 // Controleert per hoofdpagina op een iPhone-scherm: geen console-errors, niets
 // breder dan het scherm, en een screenshot in e2e/screenshots/ om zelf te bekijken.
@@ -241,13 +242,16 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
     'oven',
     'winter',
   ])
+  // Mozzarella is dierlijk en bevat lactose: de Caprese wordt automatisch vegetarisch en
+  // glutenvrij, maar niet veganistisch of lactosevrij.
+  await giveTraits(api, 'mozzarella', ['dierlijk', 'lactose'])
   const errors = collectErrors(page)
 
   // ---- Toevoegen: "vega" uit de lijst, "Zomer" als nieuwe tag (met Enter).
   await page.goto('/recepten/nieuw')
-  await page.getByLabel('Titel').fill('Tomatensalade')
-  await page.getByLabel('Naam ingrediënt 1').fill('tomaat')
-  await page.getByLabel('Hoeveelheid ingrediënt 1').fill('500')
+  await page.getByLabel('Titel').fill('Caprese')
+  await page.getByLabel('Naam ingrediënt 1').fill('mozzarella')
+  await page.getByLabel('Hoeveelheid ingrediënt 1').fill('250')
   await page.getByLabel('Stap 1', { exact: true }).fill('Snijden en aanmaken.')
 
   const tagSelect = page.getByLabel('Tag toevoegen')
@@ -282,8 +286,9 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
 
   // ---- Overzicht: tags op de kaart, filterrij scrolt binnen zichzelf.
   await page.goto('/')
-  const card = page.locator('.recipe-card', { hasText: 'Tomatensalade' })
-  await expect(card.locator('.tag')).toHaveText(['vega', 'zomer'])
+  const card = page.locator('.recipe-card', { hasText: 'Caprese' })
+  // Eerst de automatische tags, dan de zelfgekozen; de kaart toont er drie, plus "+1".
+  await expect(card.locator('.tag')).toHaveText(['glutenvrij', 'vegetarisch', 'vega', '+1'])
 
   const row = page.locator('.tag-chips')
   const { rowScrolls } = await row.evaluate((el) => ({
@@ -296,22 +301,22 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   await filterChip('zomer').click()
   await expect(page).toHaveURL(/tags=zomer/)
   await expect(filterChip('zomer')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.recipe-grid .title')).toHaveText(['Tomatensalade'])
+  await expect(page.locator('.recipe-grid .title')).toHaveText(['Caprese'])
 
   await filterChip('vega').click()
   await expect.poll(() => tagsInUrl(page)).toBe('zomer,vega')
-  await expect(page.locator('.recipe-grid .title')).toHaveText(['Tomatensalade'])
+  await expect(page.locator('.recipe-grid .title')).toHaveText(['Caprese'])
   await expect(page.getByRole('button', { name: 'Wis filters' })).toBeVisible()
   await page.evaluate(() => window.scrollTo(0, 0))
   await checkLayout(page, errors, 'recepten-filter')
 
   // ---- Naar het recept en terug: het filter staat er nog.
   await card.click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Tomatensalade' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Caprese' })).toBeVisible()
   await page.goBack()
   await expect.poll(() => tagsInUrl(page)).toBe('zomer,vega')
   await expect(filterChip('vega')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.recipe-grid .title')).toHaveText(['Tomatensalade'])
+  await expect(page.locator('.recipe-grid .title')).toHaveText(['Caprese'])
 
   // ---- Lege uitkomst: zomer + vega + pittig bestaat niet.
   await filterChip('pittig').click()

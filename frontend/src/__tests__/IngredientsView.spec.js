@@ -59,6 +59,7 @@ describe('IngredientsView', () => {
       'Alle 4',
       'Nog niet gekoppeld 1',
       'Te controleren 1',
+      'Kenmerken te controleren 4',
     ])
 
     await chips[1].trigger('click')
@@ -91,6 +92,33 @@ describe('IngredientsView', () => {
       .findAll('.ingredient-list li')
       .find((li) => li.text().includes('bakpoeder'))
     expect(bakpoeder.find('.badge').text()).toBe('verwaarloosbaar')
+  })
+
+  it('toont de kenmerken per rij en filtert op kenmerken te controleren', async () => {
+    const list = INGREDIENTS.map((ingredient) => ({
+      ...ingredient,
+      traits: ingredient.name === 'ei' ? ['dierlijk'] : ingredient.name === 'bloem' ? ['gluten'] : [],
+      traits_checked: ingredient.name !== 'ei' && ingredient.name !== 'pokesaus',
+    }))
+    mockFetch(() => jsonResponse(list))
+    const { wrapper, router } = await mountAt('/ingredienten')
+
+    const row = (name) =>
+      wrapper.findAll('.ingredient-list li').find((li) => li.find('.name').text() === name)
+    expect(row('bloem').findAll('.trait').map((t) => t.text())).toEqual(['gluten'])
+    expect(row('ei').findAll('.trait').map((t) => t.text())).toEqual([
+      'dierlijk',
+      'kenmerken controleren',
+    ])
+    // Gecontroleerd en zonder kenmerken: geen lege regel.
+    expect(row('boter').find('.traits').exists()).toBe(false)
+
+    const chip = wrapper.findAll('.filter-chip').find((c) => c.text().startsWith('Kenmerken'))
+    expect(chip.text()).toBe('Kenmerken te controleren 2')
+    await chip.trigger('click')
+    await flushPromises()
+    expect(names(wrapper)).toEqual(['ei', 'pokesaus'])
+    expect(router.currentRoute.value.query).toEqual({ filter: 'kenmerken' })
   })
 
   it('zoekt op de naam van het ingrediënt en van het NEVO-product', async () => {

@@ -26,8 +26,8 @@ const to = computed(() => {
 
 // ---------- Ontbrekende op lijst ----------
 
-// Hetzelfde als op "In huis": de ontbrekende regels (het origineel, niet de gekozen
-// ingrediënten: die tellen als in huis) met de porties van het recept zelf.
+// Hetzelfde als op "In huis" (shoppingList.addMissing). De gekozen ingrediënten tellen als
+// in huis, dus die staan er niet bij.
 const adding = ref(false)
 const added = ref(false)
 const error = ref(null)
@@ -37,11 +37,7 @@ async function addMissing() {
   adding.value = true
   error.value = null
   try {
-    await useShoppingListStore().addRecipe(
-      props.recipe.id,
-      props.recipe.servings,
-      match.value.missing.map((row) => row.id),
-    )
+    await useShoppingListStore().addMissing(props.recipe, match.value.missing)
     added.value = true
   } catch (e) {
     error.value = e.message

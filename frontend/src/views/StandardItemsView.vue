@@ -1,13 +1,15 @@
 <script setup>
-import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { onMounted, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
+import StandardItemRow from '@/components/StandardItemRow.vue'
+import StandardItemsBottomBar from '@/components/StandardItemsBottomBar.vue'
+import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useStandardItemsStore } from '@/stores/standardItems'
 
 // De items staan op de server (via de store), openbaar: iedereen met de link ziet en
 // wijzigt dezelfde lijst. Wat je selecteert en welk item je bewerkt, is alleen state
-// van deze pagina.
+// van deze pagina. Eén regel is StandardItemRow, de balk onderaan StandardItemsBottomBar.
 const standard = useStandardItemsStore()
 const confirmDialog = useTemplateRef('confirmDialog')
 
@@ -49,17 +51,11 @@ async function attempt(action, setErrors = () => {}) {
 
 // Korte bevestiging onderaan, zoals op de receptpagina. toList: het ging om de
 // boodschappenlijst, dus een link "Bekijk lijst" erachter; na verwijderen niet.
-const MESSAGE_MS = 3000
-const message = ref(null)
-let messageTimer = null
+const { message, show: showMessage, hide: hideMessage } = useTimedMessage()
 
 function confirm(text, { toList = false } = {}) {
-  message.value = { text, toList }
-  clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => (message.value = null), MESSAGE_MS)
+  showMessage({ text, toList })
 }
-
-onUnmounted(() => clearTimeout(messageTimer))
 
 function countText(count) {
   return count === 1 ? '1 item' : `${count} items`
@@ -121,8 +117,7 @@ const selected = ref([])
 function startSelecting() {
   editingId.value = null
   // Een oude bevestiging hoort niet in de selectiebalk.
-  clearTimeout(messageTimer)
-  message.value = null
+  hideMessage()
   selecting.value = true
 }
 
@@ -206,77 +201,29 @@ watch(
           @cancel="editingId = null"
         />
 
-        <label v-else-if="selecting" class="row select">
-          <input v-model="selected" type="checkbox" :value="item.id" />
-          <span class="line">{{ item.name }}</span>
-        </label>
-
-        <div v-else class="row">
-          <span class="line">{{ item.name }}</span>
-          <div class="item-actions">
-            <button
-              type="button"
-              class="icon add-one"
-              :aria-label="`${item.name} op boodschappenlijst`"
-              @click="addOne(item)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon edit"
-              :aria-label="`${item.name} bewerken`"
-              @click="startEdit(item)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
-                <path d="m13.5 6.5 4 4" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon remove"
-              :aria-label="`${item.name} verwijderen`"
-              @click="removeOne(item)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <StandardItemRow
+          v-else
+          v-model:selected="selected"
+          :item="item"
+          :selecting="selecting"
+          @add="addOne"
+          @edit="startEdit"
+          @remove="removeOne"
+        />
       </li>
     </ul>
   </section>
 
   <!-- Blijft onderaan in beeld (boven de menubalk), ook als de lijst lang is. -->
-  <div v-if="selecting || message" class="bottom-bar card">
-    <p v-if="message" class="added notice notice-success" role="status">
-      {{ message.text }}
-      <RouterLink v-if="message.toList" to="/boodschappen">Bekijk lijst</RouterLink>
-    </p>
-    <div v-if="selecting" class="selection-actions">
-      <button
-        type="button"
-        class="add-selected btn-primary"
-        :disabled="selected.length === 0"
-        @click="addSelected"
-      >
-        Op lijst ({{ selected.length }})
-      </button>
-      <button
-        type="button"
-        class="remove-selected btn-danger"
-        :disabled="selected.length === 0"
-        @click="removeSelected"
-      >
-        Verwijderen ({{ selected.length }})
-      </button>
-      <button type="button" class="stop-selecting" @click="stopSelecting">Annuleren</button>
-    </div>
-  </div>
+  <StandardItemsBottomBar
+    v-if="selecting || message"
+    :message="message"
+    :selecting="selecting"
+    :selected-count="selected.length"
+    @add-selected="addSelected"
+    @remove-selected="removeSelected"
+    @stop-selecting="stopSelecting"
+  />
 
   <ConfirmDialog ref="confirmDialog" />
 </template>
@@ -344,102 +291,5 @@ watch(
 
 .items li:last-child {
   border-bottom: 0;
-}
-
-/* Compact: naam links, knoppen rechts op dezelfde regel. */
-.row {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: var(--tap);
-}
-
-.line {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--text-lg);
-  overflow-wrap: anywhere;
-}
-
-/* In de selectiemodus is de hele regel het tikvlak. */
-.select {
-  gap: var(--space-3);
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.select input {
-  flex-shrink: 0;
-}
-
-.item-actions {
-  display: flex;
-  flex-shrink: 0;
-}
-
-/* Icoonknoppen: --tap×--tap (40×40), zonder rand, zodat de regel rustig blijft. */
-.icon {
-  width: var(--tap);
-  padding: 0;
-  color: var(--color-text-muted);
-  background: transparent;
-  border-color: transparent;
-}
-
-.icon svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.add-one {
-  color: var(--color-accent-text);
-}
-
-.remove {
-  color: var(--color-danger);
-}
-
-.bottom-bar {
-  position: sticky;
-  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + var(--space-2));
-  z-index: 5;
-  margin-top: var(--space-4);
-  padding: var(--space-3);
-  box-shadow: var(--shadow);
-}
-
-@media (min-width: 40rem) {
-  .bottom-bar {
-    bottom: var(--space-3);
-  }
-}
-
-.added {
-  margin-bottom: 0;
-}
-
-.added + .selection-actions {
-  margin-top: var(--space-3);
-}
-
-.added a {
-  color: inherit;
-  font-weight: 600;
-}
-
-.selection-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.selection-actions button {
-  flex: 1 1 auto;
-  font-size: var(--text-sm);
 }
 </style>

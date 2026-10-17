@@ -96,7 +96,7 @@ class Api::RecipesController < ApplicationController
         steps_attributes: [ [ :body ] ],
         recipe_ingredients_attributes: [ [ :ingredient_name, :quantity, :unit, :optional,
           alternatives_attributes: [ [ :ingredient_name, :quantity, :unit ] ] ] ],
-        variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
+        variations_attributes: [ RecipeVariation::PERMITTED_ATTRIBUTES ] ])
     end
 
     # Editing may change existing rows (id) and remove them (_destroy). Rails checks that
@@ -107,6 +107,6 @@ class Api::RecipesController < ApplicationController
         steps_attributes: [ [ :id, :body, :_destroy ] ],
         recipe_ingredients_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :optional, :_destroy,
           alternatives_attributes: [ [ :id, :ingredient_name, :quantity, :unit, :_destroy ] ] ] ],
-        variations_attributes: [ Api::RecipeVariationsController::FIELDS ] ])
+        variations_attributes: [ RecipeVariation::PERMITTED_ATTRIBUTES ] ])
     end
 end

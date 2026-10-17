@@ -1,12 +1,18 @@
 <script setup>
 import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
 import CategoryPicker from '@/components/CategoryPicker.vue'
-import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
+import RecipeFormIngredientRow from '@/components/RecipeFormIngredientRow.vue'
+import RecipeFormStepRow from '@/components/RecipeFormStepRow.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { useIngredientNames } from '@/composables/useIngredientNames'
 import { errorsUnder, useServerErrors } from '@/composables/useServerErrors'
-import { DEFAULT_UNIT, numberText, UNITS } from '@/utils/quantity'
+import { vAutogrow } from '@/directives/autogrow'
+import { DEFAULT_UNIT, numberText } from '@/utils/quantity'
+
+// Het receptformulier, voor toevoegen (RecipeNewView) en bewerken (RecipeEditView). Eén
+// ingrediëntregel is RecipeFormIngredientRow, één stap RecipeFormStepRow; dit component
+// houdt de lijsten bij, bouwt de request en verdeelt de fouten van de server.
 
 // Props: data die de ouder (RecipeNewView of RecipeEditView) naar dit component stuurt.
 const props = defineProps({
@@ -305,7 +311,7 @@ function labelOf(field) {
 
 // De overige serverfouten: per regel (op key) en algemeen (bovenaan het formulier). Een
 // fout van een alternatief hoort bij zijn ingrediëntregel.
-const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
+const { sortedErrors } = useServerErrors(() => props.errors, {
   skip: (attribute) => FORM_FIELDS.includes(attribute) || attribute.startsWith(VARIATION_PREFIX),
   rowPattern:
     /^(?<list>recipe_ingredients|steps)\[(?<index>\d+)\]\.(?<field>(?:alternatives\[\d+\]\.)?\w+)$/,
@@ -313,26 +319,12 @@ const { sortedErrors, isInvalid } = useServerErrors(() => props.errors, {
   labels: labelOf,
 })
 
-// Het veld van een alternatief rood maken: zijn plek in de laatst verstuurde request.
-function isAlternativeInvalid(row, alternative, field) {
-  const index = sentKeys.value.alternatives[row.key]?.indexOf(alternative.key) ?? -1
-  return index >= 0 && isInvalid(row, `alternatives[${index}].${field}`)
+// Welke velden van een regel de server fout vond, voor de rode rand (aria-invalid). De
+// velden van een alternatief heten "alternatives[1].quantity" (zijn plek in de laatst
+// verstuurde request); RecipeFormIngredientRow zoekt het goede alternatief daarbij.
+function invalidOf(row) {
+  return sortedErrors.value.invalid[row.key] ?? {}
 }
-
-// Stappen groeien mee met de tekst. CSS doet dat met field-sizing: content; browsers
-// die dat (nog) niet kennen, krijgen de hoogte hier: eerst 'auto' zodat hij ook kan
-// krimpen, dan de hoogte van de inhoud plus de rand. Vanaf 2 regels (rows="2").
-const fieldSizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')
-
-function grow(textarea) {
-  textarea.style.height = 'auto'
-  const border = textarea.offsetHeight - textarea.clientHeight
-  if (textarea.scrollHeight) textarea.style.height = `${textarea.scrollHeight + border}px`
-}
-
-// Een eigen directive (v-autogrow): Vue roept hem aan als de textarea op het scherm komt
-// en na elke wijziging, ook van v-model.
-const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
 </script>
 
 <template>
@@ -406,120 +398,20 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       <legend>Ingrediënten</legend>
 
       <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
-      <div
+      <RecipeFormIngredientRow
         v-for="(row, index) in ingredients"
         :key="row.key"
-        class="row ingredient-row"
-        :data-key="row.key"
-      >
-        <div class="inputs">
-          <input
-            v-model="row.ingredient_name"
-            type="text"
-            class="name"
-            placeholder="bijv. bloem"
-            :aria-label="`Naam ingrediënt ${index + 1}`"
-            :aria-invalid="isInvalid(row, 'ingredient_name')"
-          />
-          <input
-            v-model="row.quantity"
-            type="text"
-            inputmode="decimal"
-            class="quantity"
-            :aria-label="`Hoeveelheid ingrediënt ${index + 1}`"
-            :aria-invalid="isInvalid(row, 'quantity')"
-          />
-          <select
-            v-model="row.unit"
-            class="unit"
-            :aria-label="`Eenheid ingrediënt ${index + 1}`"
-            :aria-invalid="isInvalid(row, 'unit')"
-          >
-            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
-          </select>
-          <!-- Het hele label is het tikvlak (min. --tap×--tap), niet alleen het vakje. -->
-          <label class="optional">
-            <input v-model="row.optional" type="checkbox" />
-            optioneel
-          </label>
-          <button
-            type="button"
-            class="remove btn-danger"
-            :disabled="ingredients.length === 1"
-            :aria-label="`Ingrediënt ${index + 1} verwijderen`"
-            @click="remove('recipe_ingredients', index)"
-          >
-            ×
-          </button>
-        </div>
-        <IngredientSuggestion
-          :name="row.ingredient_name"
-          :names="ingredientNames"
-          @use="row.ingredient_name = $event"
-        />
-        <!-- Alternatieven ("of: tofu"): ingeklapt achter "+ alternatief". -->
-        <div
-          v-for="(alternative, altIndex) in row.alternatives"
-          :key="alternative.key"
-          class="alternative"
-          :data-key="alternative.key"
-        >
-          <span class="of" aria-hidden="true">of</span>
-          <input
-            v-model="alternative.ingredient_name"
-            type="text"
-            class="alt-name"
-            placeholder="bijv. tofu"
-            :aria-label="`Alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
-            :aria-invalid="isAlternativeInvalid(row, alternative, 'ingredient_name')"
-          />
-          <input
-            v-model="alternative.quantity"
-            type="text"
-            inputmode="decimal"
-            class="alt-quantity"
-            placeholder="zelfde als origineel"
-            :aria-label="`Hoeveelheid alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
-            :aria-invalid="isAlternativeInvalid(row, alternative, 'quantity')"
-          />
-          <!-- Zonder hoeveelheid geldt die van het origineel, en telt de eenheid niet. -->
-          <select
-            v-model="alternative.unit"
-            class="alt-unit"
-            :disabled="!alternative.quantity.trim()"
-            :aria-label="`Eenheid alternatief ${altIndex + 1} voor ingrediënt ${index + 1}`"
-            :aria-invalid="isAlternativeInvalid(row, alternative, 'unit')"
-          >
-            <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
-          </select>
-          <button
-            type="button"
-            class="alt-remove"
-            :aria-label="`Alternatief ${altIndex + 1} voor ingrediënt ${index + 1} verwijderen`"
-            @click="removeAlternative(row, altIndex)"
-          >
-            ×
-          </button>
-          <!-- Dezelfde "Bedoel je: …?" als bij de naam van het ingrediënt. -->
-          <IngredientSuggestion
-            class="alt-suggestion"
-            :name="alternative.ingredient_name"
-            :names="ingredientNames"
-            @use="alternative.ingredient_name = $event"
-          />
-        </div>
-        <button
-          type="button"
-          class="add-alternative"
-          :aria-label="`Alternatief voor ingrediënt ${index + 1} toevoegen`"
-          @click="addAlternative(row)"
-        >
-          + alternatief
-        </button>
-        <p v-for="message in sortedErrors.byRow[row.key]" :key="message" class="error">
-          {{ message }}
-        </p>
-      </div>
+        v-model:row="ingredients[index]"
+        :index="index"
+        :removable="ingredients.length > 1"
+        :names="ingredientNames"
+        :invalid="invalidOf(row)"
+        :sent-alternative-keys="sentKeys.alternatives[row.key] ?? []"
+        :messages="sortedErrors.byRow[row.key] ?? []"
+        @remove="remove('recipe_ingredients', index)"
+        @add-alternative="addAlternative(row)"
+        @remove-alternative="(altIndex) => removeAlternative(row, altIndex)"
+      />
 
       <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
     </fieldset>
@@ -528,52 +420,20 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
       <legend>Bereiding</legend>
 
       <ol>
-        <li
+        <RecipeFormStepRow
           v-for="(step, index) in steps"
           :key="step.key"
-          class="row step-row"
-          :data-key="step.key"
-        >
-          <label :for="`step-${step.key}`">Stap {{ index + 1 }}</label>
-          <textarea
-            :id="`step-${step.key}`"
-            v-model="step.body"
-            v-autogrow
-            rows="2"
-            :aria-invalid="isInvalid(step, 'body')"
-          ></textarea>
-          <div class="step-actions">
-            <button
-              type="button"
-              class="up"
-              :disabled="index === 0"
-              :aria-label="`Stap ${index + 1} omhoog`"
-              @click="move(steps, index, -1)"
-            >
-              ↑ omhoog
-            </button>
-            <button
-              type="button"
-              class="down"
-              :disabled="index === steps.length - 1"
-              :aria-label="`Stap ${index + 1} omlaag`"
-              @click="move(steps, index, 1)"
-            >
-              ↓ omlaag
-            </button>
-            <button
-              type="button"
-              class="remove btn-danger"
-              :disabled="steps.length === 1"
-              @click="remove('steps', index)"
-            >
-              verwijderen
-            </button>
-          </div>
-          <p v-for="message in sortedErrors.byRow[step.key]" :key="message" class="error">
-            {{ message }}
-          </p>
-        </li>
+          v-model:step="steps[index]"
+          :index="index"
+          :first="index === 0"
+          :last="index === steps.length - 1"
+          :removable="steps.length > 1"
+          :invalid="invalidOf(step)"
+          :messages="sortedErrors.byRow[step.key] ?? []"
+          @up="move(steps, index, -1)"
+          @down="move(steps, index, 1)"
+          @remove="remove('steps', index)"
+        />
       </ol>
 
       <button type="button" class="add" @click="addStep">+ stap</button>
@@ -619,8 +479,7 @@ const vAutogrow = fieldSizing ? {} : { mounted: grow, updated: grow }
   margin-top: var(--space-1);
 }
 
-.field .error,
-.row .error {
+.field .error {
   margin-top: var(--space-1);
 }
 
@@ -636,17 +495,6 @@ legend {
   padding: 0;
   font-family: var(--font-heading);
   font-size: var(--text-xl);
-}
-
-/* clear: onder de legend, die float: left heeft (anders botst de eerste regel ermee). */
-.row {
-  clear: both;
-  padding: var(--space-2) 0;
-  border-bottom: 1px dashed var(--color-border);
-}
-
-.row:last-child {
-  border-bottom: 0;
 }
 
 /* Beschrijving: één regel hoog, groeit mee (zie ook vAutogrow voor oudere browsers). */
@@ -709,174 +557,11 @@ legend {
   font-size: var(--text-base);
 }
 
-/* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */
-.inputs {
-  display: grid;
-  /* De eenheid minstens zo breed dat "stuks" helemaal zichtbaar is. */
-  grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 1fr) auto auto;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.inputs .name {
-  grid-column: 1 / -1;
-}
-
-/* Mogen smaller worden dan hun standaardbreedte, anders past de rij niet op 390 px. */
-.inputs .quantity,
-.inputs .unit {
-  min-width: 0;
-}
-
-.inputs .unit {
-  padding-right: var(--space-1);
-}
-
-.optional {
-  display: inline-flex;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: var(--tap);
-  min-width: var(--tap);
-  padding: 0 var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.inputs .remove {
-  width: var(--tap);
-  padding: 0;
-  font-size: var(--text-xl);
-  line-height: 1;
-}
-
-/* Breed: alles op één regel. */
-@media (min-width: 40rem) {
-  .inputs {
-    grid-template-columns: 1fr 6rem 6rem auto auto;
-  }
-
-  .inputs .name {
-    grid-column: auto;
-  }
-}
-
-/* Een alternatief: ingesprongen onder zijn ingrediënt, met "of" ervoor. Mobiel de naam
-   (en ×) op de eerste regel, hoeveelheid en eenheid eronder. */
-.alternative {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 5.5rem var(--tap);
-  gap: var(--space-1) var(--space-2);
-  align-items: center;
-  margin-top: var(--space-2);
-  padding-left: var(--space-2);
-  border-left: 3px solid var(--color-brand-soft);
-}
-
-.alternative .of {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.alternative .alt-name {
-  grid-column: 2 / 4;
-}
-
-.alternative .alt-quantity {
-  grid-column: 2;
-}
-
-.alternative .alt-quantity,
-.alternative .alt-unit {
-  min-width: 0;
-}
-
-.alternative .alt-quantity::placeholder {
-  font-size: var(--text-sm);
-}
-
-.alternative .alt-unit {
-  padding-right: var(--space-1);
-}
-
-.alternative .alt-unit:disabled {
-  opacity: 0.5;
-}
-
-.alternative .alt-suggestion {
-  grid-column: 2 / -1;
-  margin: 0;
-}
-
-.alternative .alt-remove {
-  grid-row: 1;
-  grid-column: 4;
-  width: var(--tap);
-  padding: 0;
-  font-size: var(--text-xl);
-  line-height: 1;
-  color: var(--color-text-muted);
-}
-
-/* Klein en licht: de meeste ingrediënten hebben geen alternatief. Wel een volledig
-   tikvlak (--tap hoog), zoals elke knop. */
-.add-alternative {
-  padding: 0 var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-accent-text);
-  background: transparent;
-  border: 0;
-}
-
-@media (min-width: 40rem) {
-  .alternative {
-    grid-template-columns: auto minmax(0, 1fr) 10rem 6rem var(--tap);
-  }
-
-  .alternative .alt-name,
-  .alternative .alt-quantity {
-    grid-column: auto;
-  }
-
-  .alternative .alt-remove {
-    grid-row: auto;
-    grid-column: auto;
-  }
-}
-
 .steps ol {
   clear: both;
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.step-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* Groeit mee met de tekst, vanaf 2 regels (zie ook vAutogrow voor oudere browsers). */
-.step-row textarea {
-  field-sizing: content;
-  min-height: calc(2lh + 2 * var(--control-pad-y) + 2px);
-  resize: none;
-}
-
-.step-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.step-actions .remove {
-  margin-left: auto;
-}
-
-.step-actions button {
-  font-size: var(--text-sm);
 }
 
 .variations {

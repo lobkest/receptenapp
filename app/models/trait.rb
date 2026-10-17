@@ -3,7 +3,6 @@
 # excludes vlees and vis. RecipeTagEvaluator works out the automatic tags from these.
 class Trait < ApplicationRecord
   has_many :ingredient_traits, dependent: :delete_all
-  has_many :ingredients, through: :ingredient_traits
   has_many :tag_exclusions, dependent: :delete_all
 
   normalizes :name, with: ->(name) { name.squish.downcase }

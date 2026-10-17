@@ -9,7 +9,6 @@ class Tag < ApplicationRecord
   has_many :recipe_tags, dependent: :destroy
   has_many :recipes, through: :recipe_tags
   has_many :tag_exclusions, dependent: :delete_all
-  has_many :excluded_traits, through: :tag_exclusions, source: :trait
 
   scope :automatic, -> { where(id: TagExclusion.select(:tag_id)) }
   scope :manual, -> { where.not(id: TagExclusion.select(:tag_id)) }

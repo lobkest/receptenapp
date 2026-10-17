@@ -1,9 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
-import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
-import { useIngredientList, useIngredientNames } from '@/composables/useIngredientNames'
+import { computed } from 'vue'
+import IngredientSearchField from '@/components/IngredientSearchField.vue'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
-import { findIngredients, MIN_QUERY_LENGTH } from '@/utils/ingredientSearch'
 
 // "Met ingrediënt…" op het receptenoverzicht: zoek een ingrediënt en kies het; dan zie je
 // de recepten waar het in zit (als origineel, als alternatief of optioneel). Meerdere
@@ -15,52 +13,17 @@ defineProps({
 })
 
 const { selectedIngredientIds, addIngredient, removeIngredient } = useRecipeFilter()
-const ingredientList = useIngredientList()
-const ingredientNames = useIngredientNames()
-const query = ref('')
-
-const matches = computed(() =>
-  findIngredients(ingredientList.value, query.value, {
-    exclude: new Set(selectedIngredientIds.value),
-  }),
-)
-
-function choose(ingredient) {
-  query.value = ''
-  addIngredient(ingredient.id)
-}
-
-function chooseFirstMatch() {
-  if (matches.value.length) choose(matches.value[0])
-}
+const exclude = computed(() => new Set(selectedIngredientIds.value))
 </script>
 
 <template>
   <div class="ingredient-filter">
-    <input
-      v-model="query"
-      type="search"
-      autocomplete="off"
-      placeholder="Met ingrediënt…"
+    <IngredientSearchField
+      :exclude="exclude"
       aria-label="Met ingrediënt"
-      @keydown.enter.prevent="chooseFirstMatch"
+      placeholder="Met ingrediënt…"
+      @choose="(ingredient) => addIngredient(ingredient.id)"
     />
-    <IngredientSuggestion
-      v-if="!matches.length"
-      :name="query"
-      :names="ingredientNames"
-      @use="(name) => (query = name)"
-    />
-    <ul v-if="matches.length" class="chips" aria-label="Gevonden ingrediënten">
-      <li v-for="ingredient in matches" :key="ingredient.id">
-        <button type="button" class="chip add-chip" @click="choose(ingredient)">
-          + {{ ingredient.name }}
-        </button>
-      </li>
-    </ul>
-    <p v-else-if="query.trim().length >= MIN_QUERY_LENGTH" class="muted small">
-      Geen ingrediënt gevonden.
-    </p>
 
     <ul v-if="chosen.length" class="chips chosen" aria-label="Gekozen ingrediënten">
       <li v-for="ingredient in chosen" :key="ingredient.id">
@@ -85,12 +48,7 @@ function chooseFirstMatch() {
   margin-bottom: var(--space-3);
 }
 
-.small {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-}
-
-/* Chips die over meerdere regels doorlopen, zoals op "In huis". */
+/* De gekozen ingrediënten, net als de gevonden in IngredientSearchField. */
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -111,11 +69,6 @@ function chooseFirstMatch() {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-full);
   overflow-wrap: anywhere;
-}
-
-.add-chip {
-  color: var(--color-accent-text);
-  background: var(--color-surface);
 }
 
 /* Gekozen: gevuld zoals een aangezette filterchip, met een × om weg te halen. */

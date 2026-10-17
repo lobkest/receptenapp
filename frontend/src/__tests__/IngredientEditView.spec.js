@@ -305,6 +305,29 @@ describe('IngredientEditView: samenvoegen', () => {
     return { wrapper, router }
   }
 
+  it('kandidaten: wat precies zo heet bovenaan, daarna op naam (zoals op "In huis")', async () => {
+    const aardbei = {
+      id: 7,
+      name: 'aardbei',
+      nevo_food: null,
+      label_values: false,
+      needs_review: false,
+    }
+    const eieren = egg({ id: 5, name: 'eieren', nevo_food: null, needs_review: false })
+    mockFetch((method, url) => {
+      if (url === '/api/ingredients/5' && method === 'GET') return jsonResponse(eieren)
+      if (url === '/api/ingredients') return jsonResponse([aardbei, ...LIST])
+      if (url.startsWith('/api/nevo_foods')) return jsonResponse([])
+      throw new Error(`Onverwacht: ${method} ${url}`)
+    })
+    const { wrapper } = await mountRouted('/ingredienten/5')
+
+    await chooseTarget(wrapper, 'ei')
+    const names = wrapper.findAll('.merge .results li .food-name').map((c) => c.text())
+    // Niet "eieren" zelf; "ei" bovenaan, ook al komt "aardbei" op naam eerder.
+    expect(names).toEqual(['ei', 'aardbei', 'eiwit'])
+  })
+
   it('zonder beheercode: het venster vraagt de code; daarna naar het doel met een melding', async () => {
     const fetch = fakeMergeApi(() => merged())
     const { wrapper, router } = await mountRouted('/ingredienten/5')

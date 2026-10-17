@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { applySwaps, swappedAlternativeIds, swapRow } from '@/utils/alternatives'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
@@ -40,18 +41,8 @@ function ingredientLine(ingredient) {
 // test/fixtures/files/quantity_cases.json). De lijst staat op de server, dus dit kan mislukken.
 // De store is gedeeld: de teller in het menu telt mee.
 const shoppingList = useShoppingListStore()
-const MESSAGE_MS = 3000
-const addedMessage = ref(null)
+const { message: addedMessage, show: confirmAdded, hide: hideAdded } = useTimedMessage()
 const addError = ref(null)
-let messageTimer = null
-
-function confirmAdded(message) {
-  addedMessage.value = message
-  clearTimeout(messageTimer)
-  messageTimer = setTimeout(() => (addedMessage.value = null), MESSAGE_MS)
-}
-
-onUnmounted(() => clearTimeout(messageTimer))
 
 // ingredientIds null: alles behalve de optionele ingrediënten. De gewisselde
 // ingrediënten gaan als hun alternatief mee; de herkomst blijft het recept.
@@ -66,7 +57,7 @@ async function addToShoppingList(ingredientIds, message) {
     )
     confirmAdded(message)
   } catch (e) {
-    addedMessage.value = null
+    hideAdded()
     addError.value = e.message
   }
 }

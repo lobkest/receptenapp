@@ -34,12 +34,22 @@ export async function giveTraits(api, name, traitNames) {
   return ingredient.id
 }
 
+// Elke opruimactie een eigen adres, want beheer telt 10 verzoeken per minuut per adres:
+// met één vast adres liep een snelle run (warme Vite-cache) daarop stuk met een 429.
+// 198.51.100.x is TEST-NET-2, dus nooit een echt adres, en niet het bereik van useOwnIp.
+let cleanupRequests = 0
+
+function cleanupIp() {
+  cleanupRequests += 1
+  return `198.51.100.${(cleanupRequests % 254) + 1}`
+}
+
 // Een testrecept helemaal weg: verwijderen aanvragen, dan definitief door de beheerder.
 // De ingrediënten blijven bestaan.
 export async function deleteRecipe(api, id) {
   expect((await api.post(`/api/recipes/${id}/request_deletion`, { data: {} })).status()).toBe(204)
   const deleted = await api.delete(`/api/admin/recipes/${id}`, {
-    headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, 'CF-Connecting-IP': '203.0.113.200' },
+    headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, 'CF-Connecting-IP': cleanupIp() },
   })
   expect(deleted.status(), await deleted.text()).toBe(204)
 }

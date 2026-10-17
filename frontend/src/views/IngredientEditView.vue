@@ -1,27 +1,29 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, useTemplateRef, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import {
-  fetchIngredient,
-  fetchIngredients,
-  fetchTraits,
-  searchNevoFoods,
-  updateIngredient,
-  updateIngredientStaple,
-} from '@/api/ingredients'
-import { useTraitSaver } from '@/composables/useTraitSaver'
+import IngredientMergeSection from '@/components/IngredientMergeSection.vue'
+import IngredientNevoPicker from '@/components/IngredientNevoPicker.vue'
+import IngredientStaple from '@/components/IngredientStaple.vue'
+import IngredientTraits from '@/components/IngredientTraits.vue'
+import { fetchIngredient, fetchTraits, updateIngredient } from '@/api/ingredients'
+import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useAdminStore } from '@/stores/admin'
-import { searchWords } from '@/utils/ingredientSearch'
+import { formatDecimal } from '@/utils/format'
 import { NUTRIENTS } from '@/utils/nutrition'
-import { toggleTrait, traitConsequence } from '@/utils/traits'
 
 // Eén ingrediënt koppelen aan een NEVO-product, met de omrekening naar gram en eventueel
 // eigen etiketwaarden. Iedereen mag dit, zoals recepten bewerken. De koppeling wordt pas
 // bewaard bij "Opslaan"; "Klopt" bevestigt een automatische koppeling zonder iets te wijzigen.
+// Kenmerken, basis en samenvoegen slaan meteen zelf op: IngredientTraits, IngredientStaple
+// en IngredientMergeSection. Het NEVO-product kiezen: IngredientNevoPicker.
 const props = defineProps({
   id: { type: String, required: true },
 })
+
+const admin = useAdminStore()
+// Eén bevestigingsvenster voor de pagina; IngredientMergeSection gebruikt het.
+provideConfirmDialog(useTemplateRef('confirmDialog'))
 
 const ingredient = ref(null)
 const loading = ref(false)
@@ -47,7 +49,6 @@ function asText(value) {
 
 function fill(loaded) {
   ingredient.value = loaded
-  traitNames.value = [...(loaded.traits ?? [])]
   form.nevoFood = loaded.nevo_food
   form.gramsPerPiece = asText(loaded.grams_per_piece)
   form.gramsPerMl = asText(loaded.grams_per_ml)
@@ -64,8 +65,6 @@ async function load() {
   conflict.value = false
   try {
     fill(await fetchIngredient(props.id))
-    search.value = ingredient.value.name
-    runSearch()
   } catch (e) {
     if (e.kind === 'not_found') notFound.value = true
     else error.value = e.message
@@ -74,132 +73,26 @@ async function load() {
   }
 }
 
-// ---------- Kenmerken (voor de automatische tags) ----------
+// ---------- Kenmerken en basis: meteen opgeslagen ----------
 
-// Los van het NEVO-formulier: elk vinkje wordt meteen opgeslagen (PATCH .../traits),
-// zonder lock_version, dus een open NEVO-formulier krijgt daar geen conflict door.
+// Eén keer per bezoek aan de pagina, ook als het ingrediënt opnieuw laadt.
 const traits = ref([])
-const traitNames = ref([])
-const traitError = ref(null)
-const traitMessage = ref(null)
-const traitSaver = useTraitSaver()
+const traitsLoadError = ref(null)
 
 onMounted(async () => {
   try {
     traits.value = await fetchTraits()
   } catch (e) {
-    traitError.value = e.message
+    traitsLoadError.value = e.message
   }
 })
 
-const consequence = computed(() => traitConsequence(traitNames.value, traits.value))
-
-async function saveTraits(fields, done) {
-  traitError.value = null
-  traitMessage.value = null
-  try {
-    const { result, latest } = await traitSaver.save(ingredient.value.id, fields)
-    if (!latest) return
-    traitNames.value = [...result.traits]
-    ingredient.value = {
-      ...ingredient.value,
-      traits: result.traits,
-      traits_checked: result.traits_checked,
-    }
-    traitMessage.value = done
-  } catch (e) {
-    traitError.value = e.message
-  }
+function onTraitsSaved(fields) {
+  ingredient.value = { ...ingredient.value, ...fields }
 }
 
-function onTraitToggle(name) {
-  traitNames.value = toggleTrait(traitNames.value, name, traits.value)
-  saveTraits({ trait_names: traitNames.value }, 'Kenmerken opgeslagen.')
-}
-
-function markTraitsChecked() {
-  saveTraits({ traits_checked: true }, 'Kenmerken gecontroleerd.')
-}
-
-// ---------- Basis (voor "In huis") ----------
-
-// Ook los van het NEVO-formulier: meteen opgeslagen, zonder lock_version (de laatste wint).
-const stapleError = ref(null)
-const stapleMessage = ref(null)
-const stapleSaving = ref(false)
-
-async function onStapleToggle(event) {
-  const staple = event.target.checked
-  stapleError.value = null
-  stapleMessage.value = null
-  stapleSaving.value = true
-  try {
-    const result = await updateIngredientStaple(ingredient.value.id, staple)
-    ingredient.value = { ...ingredient.value, staple: result.staple }
-    stapleMessage.value = result.staple ? 'Staat nu in de basis.' : 'Niet meer in de basis.'
-  } catch (e) {
-    event.target.checked = ingredient.value.staple
-    stapleError.value = e.message
-  } finally {
-    stapleSaving.value = false
-  }
-}
-
-// ---------- NEVO zoeken: suggesties op de naam, daarna zelf zoeken ----------
-
-const search = ref('')
-const results = ref([])
-const searching = ref(false)
-const searchError = ref(null)
-let searchTimer = null
-// Pas zoeken vanaf zoveel tekens, en als je zo lang (ms) niet meer typt.
-const MIN_SEARCH_LENGTH = 2
-const SEARCH_DELAY_MS = 300
-// Alleen het antwoord op de laatste zoekopdracht telt (een trage eerdere komt soms later).
-let searchNumber = 0
-
-async function runSearch() {
-  clearTimeout(searchTimer)
-  const query = search.value.trim()
-  const number = ++searchNumber
-  if (query.length < MIN_SEARCH_LENGTH) {
-    results.value = []
-    return
-  }
-  searching.value = true
-  searchError.value = null
-  try {
-    const found = await searchNevoFoods(query)
-    if (number === searchNumber) results.value = found
-  } catch (e) {
-    if (number === searchNumber) searchError.value = e.message
-  } finally {
-    if (number === searchNumber) searching.value = false
-  }
-}
-
-function onSearchInput() {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(runSearch, SEARCH_DELAY_MS)
-}
-
-onUnmounted(() => clearTimeout(searchTimer))
-
-function choose(food) {
-  form.nevoFood = food
-  message.value = null
-}
-
-const linkChanged = computed(
-  () => (form.nevoFood?.id ?? null) !== (ingredient.value?.nevo_food?.id ?? null),
-)
-
-const numberFormat = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 })
-
-// "per 100 g: 132 kcal · 12,3 g eiwit"
-function per100(food) {
-  const value = (v, unit) => (v == null ? `? ${unit}` : `${numberFormat.format(v)} ${unit}`)
-  return `per 100 ${food.unit}: ${value(food.kcal, 'kcal')} · ${value(food.protein, 'g')} eiwit`
+function onStapleSaved(staple) {
+  ingredient.value = { ...ingredient.value, staple }
 }
 
 // ---------- Omrekening en etiket ----------
@@ -217,7 +110,7 @@ function sourceOf(key) {
 
 function nevoPlaceholder(key) {
   const value = form.nevoFood?.[key]
-  return value == null ? '' : `NEVO: ${numberFormat.format(value)}`
+  return value == null ? '' : `NEVO: ${formatDecimal(value)}`
 }
 
 // ---------- Opslaan en Klopt ----------
@@ -270,93 +163,10 @@ function errorOf(field) {
 
 // ---------- Samenvoegen ----------
 
-// Met de beheercode, zoals verwijderen: het bronningrediënt verdwijnt. Zonder code vraagt
-// het bevestigingsvenster er meteen om.
-const router = useRouter()
-const admin = useAdminStore()
-const confirmDialog = useTemplateRef('confirmDialog')
-const merging = ref(false)
-const mergeQuery = ref('')
-const allIngredients = ref([])
-const mergeError = ref(null)
-const mergeBusy = ref(false)
-
-async function startMerge() {
-  merging.value = true
-  mergeError.value = null
-  try {
-    allIngredients.value = await fetchIngredients()
-  } catch (e) {
-    mergeError.value = e.message
-  }
-}
-
-function stopMerge() {
-  merging.value = false
-  mergeQuery.value = ''
-}
-
-const MAX_CANDIDATES = 8
-const mergeCandidates = computed(() => {
-  const words = searchWords(mergeQuery.value)
-  if (!words.length) return []
-  return allIngredients.value
-    .filter((other) => other.id !== ingredient.value.id)
-    .filter((other) => words.every((word) => other.name.includes(word)))
-    .slice(0, MAX_CANDIDATES)
-})
-
-function mergeNotice(source, result) {
-  const parts = [`"${source}" is samengevoegd met "${result.target.name}".`]
-  if (result.copied.length) parts.push(`Wat "${result.target.name}" nog miste, is overgenomen.`)
-  if (result.skipped_recipes.length) {
-    parts.push(
-      `Overgeslagen, want het recept bevat ze allebei: ${result.skipped_recipes.join(', ')}. ` +
-        `Pas die recepten zelf aan; "${source}" blijft zolang bestaan.`,
-    )
-  }
-  return parts.join(' ')
-}
-
-async function mergeInto(target) {
-  const source = ingredient.value.name
-  const question = {
-    title: `"${source}" samenvoegen met "${target.name}"?`,
-    text:
-      `Recepten, variaties en lijsten met "${source}" gaan naar "${target.name}", en "${source}" ` +
-      'wordt verwijderd. Een recept met allebei wordt overgeslagen.',
-    confirmLabel: 'Samenvoegen',
-  }
-  let code = null
-  if (admin.isLoggedIn) {
-    if (!(await confirmDialog.value.ask(question))) return
-  } else {
-    code = await confirmDialog.value.askWithInput({
-      ...question,
-      inputLabel: 'Beheercode',
-      secret: true,
-    })
-    if (code === null) return
-  }
-
-  mergeBusy.value = true
-  mergeError.value = null
-  try {
-    const result = await admin.mergeIngredient(ingredient.value.id, target.id, code || null)
-    const notice = mergeNotice(source, result)
-    stopMerge()
-    if (result.source_deleted) {
-      admin.setFlash(notice)
-      router.push({ name: 'ingredient', params: { id: String(result.target.id) } })
-    } else {
-      await load()
-      message.value = notice
-    }
-  } catch (e) {
-    mergeError.value = e.kind === 'unauthorized' ? 'De beheercode is onjuist.' : e.message
-  } finally {
-    mergeBusy.value = false
-  }
+// De bron bestaat nog (een recept bevat ze allebei): opnieuw laden, met de melding.
+async function onMerged(notice) {
+  await load()
+  message.value = notice
 }
 
 // Van /ingredienten/1 naar /ingredienten/2 hergebruikt Vue dit component; daarom op het id.
@@ -392,59 +202,14 @@ watch(() => props.id, load, { immediate: true })
       </button>
     </div>
 
-    <section class="card section traits" aria-labelledby="traits-title">
-      <div class="traits-head">
-        <h2 id="traits-title">Kenmerken</h2>
-        <span v-if="ingredient.traits_checked" class="trait-badge">gecontroleerd</span>
-        <span v-else class="trait-badge unchecked">nog te controleren</span>
-      </div>
-      <p class="muted small">
-        Hieruit volgen de automatische tags van recepten: vegetarisch, veganistisch, glutenvrij en
-        lactosevrij. Een vinkje wordt meteen opgeslagen.
-      </p>
-      <div class="trait-options" role="group" aria-label="Kenmerken">
-        <label v-for="trait in traits" :key="trait.name" class="trait-option">
-          <input
-            type="checkbox"
-            :checked="traitNames.includes(trait.name)"
-            @change="onTraitToggle(trait.name)"
-          />
-          <span>{{ trait.name }}</span>
-        </label>
-      </div>
-      <p v-if="traits.length" class="consequence">→ {{ consequence }}</p>
-      <p v-if="traitError" class="error" role="alert">{{ traitError }}</p>
-      <p v-else-if="traitMessage" class="muted small" role="status">{{ traitMessage }}</p>
-      <button
-        v-if="!ingredient.traits_checked"
-        type="button"
-        class="btn-primary mark-checked"
-        @click="markTraitsChecked"
-      >
-        Gecontroleerd
-      </button>
-    </section>
+    <IngredientTraits
+      :ingredient="ingredient"
+      :traits="traits"
+      :load-error="traitsLoadError"
+      @saved="onTraitsSaved"
+    />
 
-    <section class="card section staple">
-      <label class="check">
-        <input
-          id="staple"
-          type="checkbox"
-          :checked="ingredient.staple"
-          :disabled="stapleSaving"
-          @change="onStapleToggle"
-        />
-        <span>
-          <strong>Basis</strong><br />
-          <span class="muted small">
-            Heb je meestal in huis, zoals zout of olijfolie. Telt op "In huis" mee, tenzij je zegt
-            dat het op is. Wordt meteen opgeslagen.
-          </span>
-        </span>
-      </label>
-      <p v-if="stapleError" class="error" role="alert">{{ stapleError }}</p>
-      <p v-else-if="stapleMessage" class="muted small" role="status">{{ stapleMessage }}</p>
-    </section>
+    <IngredientStaple :ingredient="ingredient" @saved="onStapleSaved" />
 
     <form novalidate @submit.prevent="save">
       <section class="card section negligible">
@@ -460,58 +225,13 @@ watch(() => props.id, load, { immediate: true })
         </label>
       </section>
 
-      <section class="card section">
-        <h2>NEVO-product</h2>
-        <div v-if="form.nevoFood" class="chosen">
-          <p class="food-name">{{ form.nevoFood.name }}</p>
-          <p v-if="form.nevoFood.official_name !== form.nevoFood.name" class="muted small">
-            NEVO: {{ form.nevoFood.official_name }} ({{ form.nevoFood.code }})
-          </p>
-          <p class="muted small">{{ per100(form.nevoFood) }}</p>
-          <p v-if="linkChanged" class="small changed">Nog niet opgeslagen</p>
-          <button type="button" class="unlink" @click="choose(null)">Ontkoppelen</button>
-        </div>
-        <p v-else class="muted">
-          Niet gekoppeld<span v-if="linkChanged"> (nog niet opgeslagen)</span>.
-        </p>
-        <p v-if="errorOf('nevo_food')" class="error">{{ errorOf('nevo_food') }}</p>
-
-        <div class="field search-field">
-          <label for="nevo-search">Zoek in NEVO</label>
-          <input
-            id="nevo-search"
-            v-model="search"
-            type="search"
-            autocomplete="off"
-            @input="onSearchInput"
-            @keydown.enter.prevent="runSearch"
-          />
-        </div>
-        <p v-if="searchError" class="error">{{ searchError }}</p>
-        <p v-else-if="searching" class="muted small">Zoeken…</p>
-        <p
-          v-else-if="search.trim().length >= MIN_SEARCH_LENGTH && !results.length"
-          class="muted small"
-        >
-          Niets gevonden. Probeer een ander woord, bijv. zonder meervoud.
-        </p>
-        <ul v-if="results.length" class="results" aria-label="Suggesties uit NEVO">
-          <li v-for="food in results" :key="food.id">
-            <div>
-              <p class="food-name">{{ food.name }}</p>
-              <p class="muted small">{{ per100(food) }}</p>
-            </div>
-            <button
-              type="button"
-              :disabled="form.nevoFood?.id === food.id"
-              :aria-label="`Kies ${food.name}`"
-              @click="choose(food)"
-            >
-              {{ form.nevoFood?.id === food.id ? 'Gekozen' : 'Kies' }}
-            </button>
-          </li>
-        </ul>
-      </section>
+      <IngredientNevoPicker
+        v-model:food="form.nevoFood"
+        :name="ingredient.name"
+        :saved="ingredient.nevo_food"
+        :error="errorOf('nevo_food')"
+        @chosen="message = null"
+      />
 
       <section class="card section">
         <h2>Omrekening</h2>
@@ -582,47 +302,7 @@ watch(() => props.id, load, { immediate: true })
       <button type="submit" class="btn-primary btn-block" :disabled="saving">Opslaan</button>
     </form>
 
-    <section class="card section merge">
-      <h2>Samenvoegen</h2>
-      <p class="muted small">
-        Staat dit ingrediënt er dubbel in (bijv. "trostomaten" en "trostomaat")? Voeg het samen met
-        het goede; dit ingrediënt verdwijnt daarna. Hiervoor is de beheercode nodig.
-      </p>
-      <button v-if="!merging" type="button" class="start-merge" @click="startMerge">
-        Samenvoegen met…
-      </button>
-      <template v-else>
-        <div class="field">
-          <label for="merge-search">Samenvoegen met</label>
-          <input
-            id="merge-search"
-            v-model="mergeQuery"
-            type="search"
-            autocomplete="off"
-            placeholder="zoek een ingrediënt"
-          />
-        </div>
-        <ul v-if="mergeCandidates.length" class="results" aria-label="Samenvoegen met">
-          <li v-for="other in mergeCandidates" :key="other.id">
-            <div>
-              <p class="food-name">{{ other.name }}</p>
-              <p class="muted small">{{ other.nevo_food?.name ?? 'niet gekoppeld' }}</p>
-            </div>
-            <button
-              type="button"
-              :disabled="mergeBusy"
-              :aria-label="`Samenvoegen met ${other.name}`"
-              @click="mergeInto(other)"
-            >
-              Kies
-            </button>
-          </li>
-        </ul>
-        <p v-else-if="mergeQuery.trim()" class="muted small">Geen ingrediënt gevonden.</p>
-        <button type="button" class="cancel-merge" @click="stopMerge">Annuleren</button>
-      </template>
-      <p v-if="mergeError" class="error" role="alert">{{ mergeError }}</p>
-    </section>
+    <IngredientMergeSection :ingredient="ingredient" @merged="onMerged" />
   </template>
 
   <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
@@ -631,65 +311,7 @@ watch(() => props.id, load, { immediate: true })
 </template>
 
 <style scoped>
-.traits-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.traits .traits-head h2 {
-  margin: 0;
-}
-
-.trait-badge {
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: 1.6;
-  color: var(--color-accent-text);
-  white-space: nowrap;
-  background: var(--color-brand-soft);
-  border-radius: var(--radius-full);
-}
-
-.trait-badge.unchecked {
-  color: var(--color-error-text);
-  background: var(--color-error-soft);
-}
-
-/* Vijf vinkjes; op een telefoon in twee of drie kolommen, elk minstens --tap hoog. */
-.trait-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-  gap: 0 var(--space-3);
-  margin: var(--space-2) 0;
-}
-
-.trait-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--tap);
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.trait-option input {
-  flex-shrink: 0;
-}
-
-.consequence {
-  margin: 0 0 var(--space-2);
-  font-weight: 600;
-}
-
-.mark-checked {
-  margin-top: var(--space-2);
-}
-
-.negligible .check,
-.staple .check {
+.negligible .check {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -698,18 +320,9 @@ watch(() => props.id, load, { immediate: true })
   cursor: pointer;
 }
 
-.negligible input,
-.staple input {
+.negligible input {
   flex-shrink: 0;
   margin-top: 0.15rem;
-}
-
-.merge {
-  margin-top: var(--space-6);
-}
-
-.cancel-merge {
-  margin-top: var(--space-2);
 }
 
 .back-link.top {
@@ -750,64 +363,6 @@ watch(() => props.id, load, { immediate: true })
 
 .reload {
   margin-left: var(--space-2);
-}
-
-.chosen {
-  margin-bottom: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-brand-soft);
-  border-radius: var(--radius);
-}
-
-.chosen p {
-  margin: 0 0 var(--space-1);
-}
-
-.food-name {
-  margin: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.changed {
-  font-weight: 600;
-  color: var(--color-accent-text);
-}
-
-.unlink {
-  margin-top: var(--space-1);
-  font-size: var(--text-sm);
-}
-
-.search-field {
-  margin-bottom: var(--space-2);
-}
-
-.results {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.results li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.results li > div {
-  min-width: 0;
-}
-
-.results p {
-  margin: 0;
-}
-
-.results button {
-  flex-shrink: 0;
 }
 
 /* Twee velden naast elkaar, ook op een telefoon: ze zijn kort. */

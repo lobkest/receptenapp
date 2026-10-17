@@ -6,19 +6,12 @@ class Api::RecipeVariationsController < ApplicationController
   include AddsToShoppingList
   limit_public_writes only: %i[ create update request_deletion add_to_shopping_list ]
 
-  # Also used by Api::RecipesController for a variation added with the recipe form.
-  # [ [ ... ] ] means "an array of hashes with these keys".
-  FIELDS = [ :name, :notes, {
-    removed_ingredient_ids: [], added_tag_names: [], removed_tag_names: [],
-    added_ingredients: [ [ :name, :quantity, :unit ] ]
-  } ].freeze
-
   before_action :set_recipe
   before_action :set_variation, except: :create
 
   # POST /api/recipes/1/variations
   def create
-    @variation = @recipe.variations.build(params.expect(variation: FIELDS))
+    @variation = @recipe.variations.build(params.expect(variation: RecipeVariation::PERMITTED_ATTRIBUTES))
 
     if @variation.save
       render json: serialize(@variation), status: :created
@@ -32,7 +25,7 @@ class Api::RecipeVariationsController < ApplicationController
   def update
     params.require(:variation).require(:lock_version)
 
-    if @variation.update(params.expect(variation: [ :lock_version, *FIELDS ]))
+    if @variation.update(params.expect(variation: [ :lock_version, *RecipeVariation::PERMITTED_ATTRIBUTES ]))
       render json: serialize(@variation)
     else
       render_invalid(@variation)

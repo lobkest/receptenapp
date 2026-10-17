@@ -161,6 +161,17 @@ export const useShoppingListStore = defineStore('shoppingList', {
       this.persist()
     },
 
+    // "Ontbrekende op lijst" (op "In huis" en bij "Met ingrediënt…"): de regels die nog
+    // ontbreken (missing: [{ id: regel-id, name }]), het origineel en geen alternatief, met
+    // de porties van het recept zelf.
+    addMissing(recipe, missing) {
+      return this.addRecipe(
+        recipe.id,
+        recipe.servings,
+        missing.map((row) => row.id),
+      )
+    },
+
     // "Variatie op lijst": de server stelt de regels samen en geeft ze terug.
     async addVariation(recipeId, variationId, servings, alternativeIds = []) {
       this.changes++

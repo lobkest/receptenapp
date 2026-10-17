@@ -9,3 +9,10 @@ export function formatDate(iso) {
     minute: '2-digit',
   })
 }
+
+const decimalFormat = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 })
+
+// 12.34 → "12,3": een voedingswaarde op het bewerkscherm van een ingrediënt.
+export function formatDecimal(value) {
+  return decimalFormat.format(value)
+}

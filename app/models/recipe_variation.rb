@@ -17,6 +17,14 @@ class RecipeVariation < ApplicationRecord
   MAX_ADDITIONS = 30
   MAX_ADDED_TAGS = 10
 
+  # What a request may set (strong parameters), for Api::RecipeVariationsController and for a
+  # variation added with the recipe form (Api::RecipesController). [ [ ... ] ] means "an
+  # array of hashes with these keys".
+  PERMITTED_ATTRIBUTES = [ :name, :notes, {
+    removed_ingredient_ids: [], added_tag_names: [], removed_tag_names: [],
+    added_ingredients: [ [ :name, :quantity, :unit ] ]
+  } ].freeze
+
   # What the API and the snapshots need, in one go (see the with_details scope).
   DETAILS = [ { removals: { recipe_ingredient: :ingredient } }, :additions, { tag_changes: :tag } ].freeze
 

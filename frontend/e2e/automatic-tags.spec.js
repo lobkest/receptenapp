@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
-import { giveTraits } from './traits.js'
+import { deleteRecipe, giveTraits } from './traits.js'
 
 // Automatische tags op een iPhone-scherm: uitgerekend uit de kenmerken van de ingrediënten.
 // Kip (vlees, dierlijk) met tofu als alternatief: vegetarisch "met tofu i.p.v. kip"; na de
@@ -75,12 +75,14 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
     'glutenvrij',
     'lactosevrij',
     'veganistischmet tofu i.p.v. kip',
-    '+1',
+    'vegetarischmet tofu i.p.v. kip',
   ])
-  // De kaart blijft compact: de hint breekt niet buiten de kaart.
+  // De kaart blijft compact: geen hint breekt buiten de kaart.
   const box = await card.boundingBox()
-  const hint = await card.locator('.tag-hint').boundingBox()
-  expect(hint.x + hint.width).toBeLessThanOrEqual(box.x + box.width)
+  for (const hint of await card.locator('.tag-hint').all()) {
+    const hintBox = await hint.boundingBox()
+    expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(box.x + box.width)
+  }
   await checkLayout(page, errors, 'automatische-tags-kaart', { fullPage: false })
 
   // ---- De receptpagina: hint bij vegetarisch en veganistisch, disclaimer bij glutenvrij.
@@ -100,9 +102,19 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   // ---- Wisselen voor tofu: de hint verdwijnt, ook na herladen (de wissel staat in de URL).
   await page.getByRole('button', { name: 'Wissel voor tofu' }).click()
   await expect(page).toHaveURL(/wissel=/)
-  await expect(recipeTags(page)).toHaveText(['glutenvrij', 'lactosevrij', 'veganistisch', 'vegetarisch'])
+  await expect(recipeTags(page)).toHaveText([
+    'glutenvrij',
+    'lactosevrij',
+    'veganistisch',
+    'vegetarisch',
+  ])
   await page.reload()
-  await expect(recipeTags(page)).toHaveText(['glutenvrij', 'lactosevrij', 'veganistisch', 'vegetarisch'])
+  await expect(recipeTags(page)).toHaveText([
+    'glutenvrij',
+    'lactosevrij',
+    'veganistisch',
+    'vegetarisch',
+  ])
   await checkLayout(page, errors, 'automatische-tags-recept-gewisseld')
 
   // ---- Het filter laat met_wissel door, maar niet wat echt niet past.
@@ -118,8 +130,24 @@ test('vlees uitvinken bij kip op het bewerkscherm verandert het label op het rec
 
   // ---- De ingrediëntenpagina: kenmerken per rij, filter op nog te controleren.
   await page.goto('/ingredienten?filter=kenmerken')
-  const row = page.locator('.ingredient-list li', { has: page.locator('.name', { hasText: /^kip$/ }) })
+  const rowOf = (name) =>
+    page.locator('.ingredient-list li', {
+      has: page.locator('.name', { hasText: new RegExp(`^${name}$`) }),
+    })
+  const row = rowOf('kip')
   await expect(row.locator('.trait')).toHaveText(['vlees', 'dierlijk', 'kenmerken controleren'])
+
+  // ✓ bij rijst: gecontroleerd, en meteen weg uit dit filter, zonder herladen.
+  const check = page.getByRole('button', { name: 'rijst gecontroleerd', exact: true })
+  const size = await check.boundingBox()
+  expect(size.width).toBeGreaterThanOrEqual(40)
+  expect(size.height).toBeGreaterThanOrEqual(40)
+  await check.click()
+  await expect(rowOf('rijst')).toHaveCount(0)
+  await page.getByRole('button', { name: /^Alle/ }).click()
+  await expect(rowOf('rijst').locator('.mark-checked')).toHaveCount(0)
+  await expect(rowOf('rijst').locator('.trait')).toHaveCount(0)
+  await page.getByRole('button', { name: /^Kenmerken te controleren/ }).click()
   await expect(page.getByRole('button', { name: /^Kenmerken te controleren/ })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -155,9 +183,87 @@ test('vlees uitvinken bij kip op het bewerkscherm verandert het label op het rec
 
   // ---- En weer aan: vegetarisch krijgt de hint terug.
   await page.goto(`/ingredienten/${kipId}`)
-  await page.getByRole('group', { name: 'Kenmerken' }).getByRole('checkbox', { name: 'vlees' }).check()
+  await page
+    .getByRole('group', { name: 'Kenmerken' })
+    .getByRole('checkbox', { name: 'vlees' })
+    .check()
   await expect(page.locator('section.traits [role="status"]')).toHaveText('Kenmerken opgeslagen.')
   await page.goto(`/recepten/${recipeId}`)
   await expect(recipeTags(page).last()).toHaveText('vegetarisch · met tofu i.p.v. kip')
   expect(errors).toEqual([])
+})
+
+test('kaarten: een met vijf tags (één met hint) naast een zonder tags', async ({ page }) => {
+  // Ei is dierlijk: alleen veganistisch vraagt om de tofu. Schnitzel met kaas past bij geen
+  // enkele automatische tag (vlees, gluten, lactose).
+  await giveTraits(api, 'ei', ['dierlijk'])
+  await giveTraits(api, 'kipschnitzel', ['vlees', 'dierlijk', 'gluten'])
+  await giveTraits(api, 'kaas', ['dierlijk', 'lactose'])
+  const recipe = (title, tags, rows) => ({
+    title,
+    servings: 2,
+    category_name: 'Snacks',
+    tag_names: tags,
+    steps_attributes: [{ body: 'Bakken.' }],
+    recipe_ingredients_attributes: rows,
+  })
+  // In Snacks (een standaardcategorie, verder leeg in de e2e-tests), zodat de twee kaarten
+  // samen in één sectie staan. Na afloop weer weg, zodat latere specs er niets van merken.
+  let categoryId
+  const ids = []
+  for (const data of [
+    recipe(
+      'Roerei met rijst',
+      ['snel'],
+      [
+        {
+          ingredient_name: 'ei',
+          quantity: 4,
+          unit: 'stuks',
+          alternatives_attributes: [{ ingredient_name: 'tofu' }],
+        },
+        { ingredient_name: 'rijst', quantity: 150, unit: 'g' },
+      ],
+    ),
+    recipe(
+      'Schnitzel met kaas',
+      [],
+      [
+        { ingredient_name: 'kipschnitzel', quantity: 2, unit: 'stuks' },
+        { ingredient_name: 'kaas', quantity: 50, unit: 'g' },
+      ],
+    ),
+  ]) {
+    const created = await api.post('/api/recipes', { data: { recipe: data } })
+    expect(created.status(), await created.text()).toBe(201)
+    const body = await created.json()
+    categoryId = body.category.id
+    ids.push(body.id)
+  }
+  const errors = collectErrors(page)
+
+  await page.goto(`/?category=${categoryId}`)
+  const roerei = page.locator('.recipe-card', { hasText: 'Roerei met rijst' })
+  const schnitzel = page.locator('.recipe-card', { hasText: 'Schnitzel met kaas' })
+  await expect(roerei.locator('.tag')).toHaveText([
+    'glutenvrij',
+    'lactosevrij',
+    'veganistischmet tofu i.p.v. ei',
+    'vegetarisch',
+    'snel',
+  ])
+  await expect(schnitzel.locator('.tag')).toHaveCount(0)
+
+  // Naast elkaar, niets steekt uit, en de kaart met tags is niet absurd hoog.
+  const a = await roerei.boundingBox()
+  const b = await schnitzel.boundingBox()
+  expect(b.y).toBe(a.y)
+  expect(a.height).toBeLessThan(320)
+  for (const tag of await roerei.locator('.tag').all()) {
+    const box = await tag.boundingBox()
+    expect(box.x + box.width).toBeLessThanOrEqual(a.x + a.width)
+  }
+  await checkLayout(page, errors, 'automatische-tags-kaarten', { fullPage: false })
+
+  for (const id of ids) await deleteRecipe(api, id)
 })

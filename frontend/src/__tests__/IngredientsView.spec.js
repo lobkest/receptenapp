@@ -97,7 +97,8 @@ describe('IngredientsView', () => {
   it('toont de kenmerken per rij en filtert op kenmerken te controleren', async () => {
     const list = INGREDIENTS.map((ingredient) => ({
       ...ingredient,
-      traits: ingredient.name === 'ei' ? ['dierlijk'] : ingredient.name === 'bloem' ? ['gluten'] : [],
+      traits:
+        ingredient.name === 'ei' ? ['dierlijk'] : ingredient.name === 'bloem' ? ['gluten'] : [],
       traits_checked: ingredient.name !== 'ei' && ingredient.name !== 'pokesaus',
     }))
     mockFetch(() => jsonResponse(list))
@@ -105,11 +106,16 @@ describe('IngredientsView', () => {
 
     const row = (name) =>
       wrapper.findAll('.ingredient-list li').find((li) => li.find('.name').text() === name)
-    expect(row('bloem').findAll('.trait').map((t) => t.text())).toEqual(['gluten'])
-    expect(row('ei').findAll('.trait').map((t) => t.text())).toEqual([
-      'dierlijk',
-      'kenmerken controleren',
-    ])
+    expect(
+      row('bloem')
+        .findAll('.trait')
+        .map((t) => t.text()),
+    ).toEqual(['gluten'])
+    expect(
+      row('ei')
+        .findAll('.trait')
+        .map((t) => t.text()),
+    ).toEqual(['dierlijk', 'kenmerken controleren'])
     // Gecontroleerd en zonder kenmerken: geen lege regel.
     expect(row('boter').find('.traits').exists()).toBe(false)
 
@@ -119,6 +125,60 @@ describe('IngredientsView', () => {
     await flushPromises()
     expect(names(wrapper)).toEqual(['ei', 'pokesaus'])
     expect(router.currentRoute.value.query).toEqual({ filter: 'kenmerken' })
+  })
+
+  it('✓ zet traits_checked; de rij verdwijnt uit "Kenmerken te controleren" zonder herladen', async () => {
+    const list = INGREDIENTS.map((ingredient) => ({
+      ...ingredient,
+      traits: [],
+      traits_checked: ingredient.name === 'boter',
+    }))
+    const fetch = mockFetch((method, url) => {
+      if (url === '/api/ingredients' && method === 'GET') return jsonResponse(list)
+      if (url === '/api/ingredients/2/traits' && method === 'PATCH')
+        return jsonResponse({ ...list[1], traits_checked: true })
+      throw new Error(`Onverwacht: ${method} ${url}`)
+    })
+    const { wrapper } = await mountAt('/ingredienten?filter=kenmerken')
+
+    expect(names(wrapper)).toEqual(['bloem', 'ei', 'pokesaus'])
+    // Alleen bij wat nog te controleren is, met een duidelijke naam voor schermlezers.
+    const buttons = wrapper.findAll('button.mark-checked')
+    expect(buttons.map((b) => b.attributes('aria-label'))).toEqual([
+      'bloem gecontroleerd',
+      'ei gecontroleerd',
+      'pokesaus gecontroleerd',
+    ])
+
+    await buttons[1].trigger('click')
+    await flushPromises()
+
+    const call = fetch.mock.calls.find((c) => c[1]?.method === 'PATCH')
+    expect(call[0]).toBe('/api/ingredients/2/traits')
+    expect(JSON.parse(call[1].body)).toEqual({ ingredient: { traits_checked: true } })
+    expect(names(wrapper)).toEqual(['bloem', 'pokesaus'])
+    expect(fetch.mock.calls.filter((c) => c[0] === '/api/ingredients')).toHaveLength(1)
+    const chip = wrapper.findAll('.filter-chip').find((c) => c.text().startsWith('Kenmerken'))
+    expect(chip.text()).toBe('Kenmerken te controleren 2')
+  })
+
+  it('✓ bij een fout: melding, en de rij blijft staan', async () => {
+    const list = INGREDIENTS.map((ingredient) => ({
+      ...ingredient,
+      traits: [],
+      traits_checked: false,
+    }))
+    mockFetch((method) => {
+      if (method === 'GET') return jsonResponse(list)
+      return jsonResponse({ error: 'Te veel verzoeken.', errors: {} }, 429)
+    })
+    const { wrapper } = await mountAt('/ingredienten?filter=kenmerken')
+
+    await wrapper.find('button.mark-checked').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    expect(names(wrapper)).toEqual(['bloem', 'ei', 'pokesaus', 'boter'])
   })
 
   it('zoekt op de naam van het ingrediënt en van het NEVO-product', async () => {

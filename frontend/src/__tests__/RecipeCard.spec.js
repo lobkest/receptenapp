@@ -47,13 +47,43 @@ describe('RecipeCard', () => {
     expect(mountCard({ tags: [] }).find('.tags').exists()).toBe(false)
   })
 
-  it('toont maximaal drie tags plus "+n" voor de rest', () => {
+  it('toont maximaal vijf tags plus "+n" voor de rest', () => {
     const wrapper = mountCard({
-      tags: ['vegetarisch', { name: 'snel' }, 'zoet', { name: 'ontbijt' }, 'hartig'],
+      tags: ['snel', { name: 'zoet' }, 'ontbijt', { name: 'hartig' }, 'oven', 'winter', 'feest'],
     })
 
     const tags = wrapper.findAll('.tag').map((tag) => tag.text())
-    expect(tags).toEqual(['vegetarisch', 'snel', 'zoet', '+2'])
+    expect(tags).toEqual(['snel', 'zoet', 'ontbijt', 'hartig', 'oven', '+2'])
+  })
+
+  it('vijf tags met de automatische eerst, waarvan één met hint, passen zonder "+n"', () => {
+    const plain = (name) => ({ name, status: 'ja', disclaimer: false, swaps: [], without: [] })
+    const wrapper = mountCard({
+      tags: ['snel'],
+      automatic_tags: [
+        plain('glutenvrij'),
+        plain('lactosevrij'),
+        {
+          ...plain('veganistisch'),
+          status: 'met_wissel',
+          swaps: [
+            { recipe_ingredient_id: 1, ingredient: 'ei', alternatives: [{ id: 2, name: 'tofu' }] },
+          ],
+        },
+        plain('vegetarisch'),
+      ],
+    })
+
+    const tags = wrapper.findAll('.tag')
+    expect(tags.map((tag) => tag.text())).toEqual([
+      'glutenvrij',
+      'lactosevrij',
+      'veganistischmet tofu i.p.v. ei',
+      'vegetarisch',
+      'snel',
+    ])
+    expect(wrapper.findAll('.tag-hint')).toHaveLength(1)
+    expect(wrapper.find('.tag-more').exists()).toBe(false)
   })
 
   it('toont eerst de automatische tags, met een korte hint als er een wissel nodig is', () => {
@@ -65,7 +95,9 @@ describe('RecipeCard', () => {
           name: 'vegetarisch',
           status: 'met_wissel',
           disclaimer: false,
-          swaps: [{ recipe_ingredient_id: 1, ingredient: 'kip', alternatives: [{ id: 2, name: 'tofu' }] }],
+          swaps: [
+            { recipe_ingredient_id: 1, ingredient: 'kip', alternatives: [{ id: 2, name: 'tofu' }] },
+          ],
           without: [],
         },
       ],
@@ -73,7 +105,11 @@ describe('RecipeCard', () => {
 
     const tags = wrapper.findAll('.tag')
     // De hint staat in een eigen regel (display: flex, kolom), dus zonder spatie ertussen.
-    expect(tags.map((tag) => tag.text())).toEqual(['glutenvrij', 'vegetarischmet tofu i.p.v. kip', 'snel'])
+    expect(tags.map((tag) => tag.text())).toEqual([
+      'glutenvrij',
+      'vegetarischmet tofu i.p.v. kip',
+      'snel',
+    ])
     expect(tags[1].classes()).toContain('tag-hint')
     expect(tags[1].find('.hint').text()).toBe('met tofu i.p.v. kip')
     expect(tags[0].find('.hint').exists()).toBe(false)

@@ -23,12 +23,7 @@ export async function giveTraits(api, name, traitNames) {
       },
     })
     expect(created.status(), await created.text()).toBe(201)
-    const { id } = await created.json()
-    expect((await api.post(`/api/recipes/${id}/request_deletion`, { data: {} })).status()).toBe(204)
-    const deleted = await api.delete(`/api/admin/recipes/${id}`, {
-      headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, 'CF-Connecting-IP': '203.0.113.200' },
-    })
-    expect(deleted.status(), await deleted.text()).toBe(204)
+    await deleteRecipe(api, (await created.json()).id)
     ingredient = await findIngredient(api, name)
   }
 
@@ -37,6 +32,16 @@ export async function giveTraits(api, name, traitNames) {
   })
   expect(response.status(), await response.text()).toBe(200)
   return ingredient.id
+}
+
+// Een testrecept helemaal weg: verwijderen aanvragen, dan definitief door de beheerder.
+// De ingrediënten blijven bestaan.
+export async function deleteRecipe(api, id) {
+  expect((await api.post(`/api/recipes/${id}/request_deletion`, { data: {} })).status()).toBe(204)
+  const deleted = await api.delete(`/api/admin/recipes/${id}`, {
+    headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, 'CF-Connecting-IP': '203.0.113.200' },
+  })
+  expect(deleted.status(), await deleted.text()).toBe(204)
 }
 
 async function findIngredient(api, name) {

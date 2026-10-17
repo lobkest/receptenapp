@@ -287,8 +287,8 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   // ---- Overzicht: tags op de kaart, filterrij scrolt binnen zichzelf.
   await page.goto('/')
   const card = page.locator('.recipe-card', { hasText: 'Caprese' })
-  // Eerst de automatische tags, dan de zelfgekozen; de kaart toont er drie, plus "+1".
-  await expect(card.locator('.tag')).toHaveText(['glutenvrij', 'vegetarisch', 'vega', '+1'])
+  // Eerst de automatische tags, dan de zelfgekozen (de kaart toont er maximaal vijf).
+  await expect(card.locator('.tag')).toHaveText(['glutenvrij', 'vegetarisch', 'vega', 'zomer'])
 
   const row = page.locator('.tag-chips')
   const { rowScrolls } = await row.evaluate((el) => ({

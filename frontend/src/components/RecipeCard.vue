@@ -7,7 +7,7 @@ const props = defineProps({
   recipe: { type: Object, required: true },
 })
 
-const MAX_TAGS = 3
+const MAX_TAGS = 5
 
 // Een tag kan een kale string zijn ("snel") of een object ({ name: "snel" }).
 function tagName(tag) {

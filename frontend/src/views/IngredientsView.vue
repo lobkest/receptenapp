@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { fetchIngredients } from '@/api/ingredients'
+import { fetchIngredients, updateIngredientTraits } from '@/api/ingredients'
 
 // Alle ingrediënten, om ze aan NEVO te koppelen voor de voedingswaarde en hun kenmerken
 // (vlees, gluten, ...) te zien voor de automatische tags. Zoeken en filteren
@@ -18,7 +18,9 @@ const error = ref(null)
 const chipRow = useTemplateRef('chipRow')
 onMounted(async () => {
   await nextTick()
-  chipRow.value?.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  chipRow.value
+    ?.querySelector('[aria-pressed="true"]')
+    ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
 })
 
 onMounted(async () => {
@@ -56,6 +58,27 @@ watch([query, filter], ([zoek, chosen]) => {
 
 function countFor(key) {
   return ingredients.value.filter(FILTERS.find((f) => f.key === key).test).length
+}
+
+// "✓": de kenmerken kloppen. Alleen traits_checked gaat naar de server; daarna past de rij
+// hier meteen aan, en valt hij uit het filter "Kenmerken te controleren".
+const checking = ref(new Set())
+
+async function markChecked(ingredient) {
+  checking.value = new Set(checking.value).add(ingredient.id)
+  error.value = null
+  try {
+    const updated = await updateIngredientTraits(ingredient.id, { traits_checked: true })
+    ingredients.value = ingredients.value.map((other) =>
+      other.id === ingredient.id ? { ...other, traits_checked: updated.traits_checked } : other,
+    )
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    const next = new Set(checking.value)
+    next.delete(ingredient.id)
+    checking.value = next
+  }
 }
 
 // Op de naam van het ingrediënt én van het gekoppelde NEVO-product.
@@ -122,6 +145,18 @@ const shown = computed(() => {
           </span>
         </span>
       </RouterLink>
+      <!-- Naast de link, niet erin: een knop in een link werkt niet goed. -->
+      <button
+        v-if="!ingredient.traits_checked"
+        type="button"
+        class="mark-checked"
+        :aria-label="`${ingredient.name} gecontroleerd`"
+        title="Kenmerken kloppen"
+        :disabled="checking.has(ingredient.id)"
+        @click="markChecked(ingredient)"
+      >
+        ✓
+      </button>
     </li>
   </ul>
 </template>
@@ -187,7 +222,16 @@ const shown = computed(() => {
   border-top: 1px solid var(--color-border);
 }
 
+/* De link vult de rij; de ✓-knop (alleen als de kenmerken nog te controleren zijn) staat
+   er rechts naast, verticaal in het midden. */
+.ingredient-list li {
+  display: flex;
+  align-items: center;
+}
+
 .ingredient-list a {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   column-gap: var(--space-2);
@@ -241,6 +285,19 @@ const shown = computed(() => {
 .badge.review {
   color: var(--color-error-text);
   background: var(--color-error-soft);
+}
+
+.mark-checked {
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  margin-right: var(--space-2);
+  padding: 0;
+  font-size: var(--text-lg);
+  color: var(--color-accent-text);
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-full);
 }
 
 /* Kenmerken onder de naam, over de hele breedte: klein en met een rand, zodat ze niet op

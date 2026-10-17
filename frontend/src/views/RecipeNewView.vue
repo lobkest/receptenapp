@@ -1,17 +1,27 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import RecipeForm from '@/components/RecipeForm.vue'
 import { createRecipe } from '@/api/recipes'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
 
 const router = useRouter()
 // De bestaande tags en categorieën voor het formulier, en de melding op de receptpagina.
 const recipes = useRecipesStore()
-onMounted(() => {
+function loadChoices() {
   recipes.loadTags()
   recipes.loadCategories()
-})
+}
+onMounted(loadChoices)
+// Deze pagina blijft bestaan terwijl de server wakker wordt (meta.keepMounted in de router);
+// mislukte het ophalen toen, dan nu nog een keer.
+watch(
+  () => useServerStatusStore().online,
+  (online) => {
+    if (online) loadChoices()
+  },
+)
 
 const errors = ref({})
 const message = ref(null)

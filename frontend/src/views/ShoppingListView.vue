@@ -1,8 +1,10 @@
 <script setup>
-import { onMounted, ref, useTemplateRef } from 'vue'
+import { onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
+import ServerWaiting from '@/components/ServerWaiting.vue'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatQuantity } from '@/utils/quantity'
 
@@ -10,7 +12,10 @@ import { formatQuantity } from '@/utils/quantity'
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
 // of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
 // opgeslagen kopie; dan kun je alleen afvinken.
+// Bij openen staat de offline kopie er meteen, met "Offline kopie van 14:05, bijwerken…"
+// erboven; zodra de verse lijst binnen is (list.fresh), verdwijnt die melding.
 const list = useShoppingListStore()
+const server = useServerStatusStore()
 
 const loading = ref(false)
 // Melding bij een mislukte actie (netwerk, server, te veel verzoeken).
@@ -26,6 +31,15 @@ async function attempt(action) {
     return false
   }
 }
+
+// Een fout van tijdens het wakker worden (bijv. een 502) geldt niet meer zodra de verse
+// lijst er is.
+watch(
+  () => list.fresh,
+  (fresh) => {
+    if (fresh) error.value = null
+  },
+)
 
 onMounted(async () => {
   // "Laden…" alleen als er nog niets te tonen is. load() zet een opgeslagen kopie er
@@ -57,14 +71,24 @@ async function clearAll() {
 <template>
   <h1>Boodschappen</h1>
 
-  <OfflineNotice v-if="list.offline" :saved-at="list.savedAt">
-    Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen
-    en wissen kan pas weer online.
+  <OfflineNotice
+    v-if="list.loaded && (!list.fresh || list.offline || list.pending > 0)"
+    :saved-at="list.savedAt"
+    :offline="server.browserOffline"
+    :pending="list.pending"
+  >
+    <template v-if="list.offline" #default>
+      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen
+      en wissen kan pas weer online.
+    </template>
   </OfflineNotice>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
-  <p v-if="loading" class="muted">Boodschappenlijst laden…</p>
+  <!-- Nog geen kopie om te tonen: dezelfde melding als op de receptenpagina. -->
+  <ServerWaiting v-if="loading && !server.online" />
+
+  <p v-else-if="loading" class="muted">Boodschappenlijst laden…</p>
 
   <p v-else-if="list.loaded && list.items.length === 0" class="empty card">
     Je boodschappenlijst is leeg. Voeg ingrediënten toe vanaf een

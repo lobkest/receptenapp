@@ -54,6 +54,12 @@ export const useShoppingListStore = defineStore('shoppingList', {
     offline: false,
     // Wanneer de getoonde lijst voor het laatst van de server kwam (ms), of null.
     savedAt: null,
+    // true zodra de lijst in deze sessie vers van de server kwam; tot dan (en weer na
+    // verbindingsverlies) is wat je ziet de offline kopie van savedAt.
+    fresh: false,
+    // Hoeveel offline wijzigingen nog in de wachtrij staan (een kopie van queue.size:
+    // localStorage zelf is niet reactief).
+    pending: queue.size,
   }),
 
   getters: {
@@ -75,6 +81,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
       if (!this.loaded) this.restoreSnapshot()
       if (isOffline()) {
         this.offline = true
+        this.fresh = false
         if (this.loaded) return Promise.resolve()
         return Promise.reject(new ApiError('network', 'Geen internetverbinding.'))
       }
@@ -83,6 +90,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
         .then(() => api.fetchShoppingList())
         .then((items) => {
           this.offline = false
+          this.fresh = true
           if (this.changes === changesBefore && this.inFlight === 0) {
             this.items = withQueuedActions(items)
           }
@@ -92,6 +100,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
         .catch((e) => {
           if (!isNetworkError(e)) throw e
           this.offline = true
+          this.fresh = false
           if (!this.loaded) throw e
         })
         .finally(() => (pendingLoad = null))
@@ -106,12 +115,15 @@ export const useShoppingListStore = defineStore('shoppingList', {
         await queue.flush(sendAction)
       } catch (e) {
         if (isNetworkError(e)) throw e
+      } finally {
+        this.pending = queue.size
       }
     },
 
     // De browser meldt dat de verbinding weg is ('offline'-event).
     markOffline() {
       this.offline = true
+      this.fresh = false
     },
 
     restoreSnapshot() {
@@ -181,11 +193,14 @@ export const useShoppingListStore = defineStore('shoppingList', {
       const action = { item_id: id, checked, at: new Date().toISOString() }
       if (isOffline()) {
         this.offline = true
+        this.fresh = false
         queue.enqueue(action)
+        this.pending = queue.size
         return
       }
       // Een oudere offline actie voor deze regel mag deze waarde later niet overschrijven.
       queue.discard(id)
+      this.pending = queue.size
       this.inFlight++
       try {
         await api.updateShoppingListItem(id, { checked })
@@ -195,7 +210,9 @@ export const useShoppingListStore = defineStore('shoppingList', {
       } catch (e) {
         if (isNetworkError(e)) {
           this.offline = true
+          this.fresh = false
           queue.enqueue(action)
+          this.pending = queue.size
           return
         }
         if (e.kind === 'not_found') {

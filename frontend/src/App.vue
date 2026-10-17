@@ -1,10 +1,19 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
+import ServerWaiting from '@/components/ServerWaiting.vue'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { watchConnectivity } from '@/offline'
 
 const shoppingList = useShoppingListStore()
+const server = useServerStatusStore()
+const route = useRoute()
+
+// Pagina's met meta.needsServer (router/index.js) wachten tot de server online is; tot dan
+// staat er een laadmelding. Met keepMounted blijft de pagina bestaan, alleen verborgen.
+const waitingForServer = computed(() => Boolean(route.meta.needsServer) && !server.online)
+const keepPage = computed(() => !waitingForServer.value || Boolean(route.meta.keepMounted))
 
 // De lijst is gedeeld: iemand anders kan hem intussen hebben aangepast. Daarom halen we
 // hem op bij het starten en elke keer dat je terugschakelt naar de app (tabblad of app
@@ -16,24 +25,44 @@ function refreshShoppingList() {
   shoppingList.load().catch(() => {})
 }
 
+// Bij het starten en terug naar het tabblad ook pingen of de server wakker is
+// (src/stores/serverStatus.js).
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible') refreshShoppingList()
+  if (document.visibilityState !== 'visible') return
+  server.start()
+  refreshShoppingList()
 }
+
+// Is de server (weer) online en is de lijst nog niet vers, haal hem dan nu op.
+watch(
+  () => server.online,
+  (online) => {
+    if (online && !shoppingList.fresh) refreshShoppingList()
+  },
+)
 
 let stopWatchingConnectivity = null
 
 onMounted(() => {
+  server.start()
   refreshShoppingList()
   document.addEventListener('visibilitychange', onVisibilityChange)
   stopWatchingConnectivity = watchConnectivity({
-    onOnline: refreshShoppingList,
-    onOffline: () => shoppingList.markOffline(),
+    onOnline: () => {
+      server.start()
+      refreshShoppingList()
+    },
+    onOffline: () => {
+      server.markOffline()
+      shoppingList.markOffline()
+    },
   })
 })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopWatchingConnectivity?.()
+  server.stopRetrying()
 })
 </script>
 
@@ -97,7 +126,14 @@ onUnmounted(() => {
     </RouterLink>
   </nav>
   <main>
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <ServerWaiting v-if="waitingForServer" />
+      <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
+           root-elementen. display: contents, zodat hij de opmaak niet verandert. -->
+      <div v-if="keepPage" v-show="!waitingForServer" class="route-page">
+        <component :is="Component" />
+      </div>
+    </RouterView>
   </main>
   <!-- Beheer bewust niet in het hoofdmenu: bezoekers hebben er niets te zoeken. -->
   <footer>
@@ -114,6 +150,10 @@ footer {
   margin: 0 auto;
   padding-left: max(var(--space-4), env(safe-area-inset-left));
   padding-right: max(var(--space-4), env(safe-area-inset-right));
+}
+
+.route-page {
+  display: contents;
 }
 
 main {

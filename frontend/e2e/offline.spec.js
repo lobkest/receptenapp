@@ -104,7 +104,10 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   // Geen verbinding, en de pagina herladen: de app en de lijst komen uit de opslag.
   await context.setOffline(true)
   await page.reload()
-  await expect(page.locator('.offline-notice')).toContainText(/Offline – opgeslagen om \d\d:\d\d/)
+  // Echt offline: "Offline" in plaats van "bijwerken…".
+  await expect(page.locator('.offline-notice')).toContainText(
+    /^Offline kopie van \d\d:\d\d, Offline/,
+  )
   await expect(page.locator('.items .line')).toHaveText(['250 g bloem', '500 ml melk', 'wc-papier'])
 
   // Afvinken werkt; verwijderen en wissen niet.
@@ -114,6 +117,9 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   await expect(page.locator('.items li').nth(1)).toHaveClass(/checked/)
   await expect(page.locator('.items li').nth(0)).not.toHaveClass(/checked/)
   await expect(page.locator('.shopping-link')).toContainText('Boodschappen (2)')
+  await expect(page.locator('.offline-notice')).toContainText(
+    '2 wijzigingen nog niet gesynchroniseerd',
+  )
   await expect(page.locator('.items .remove').first()).toBeDisabled()
   await expect(page.locator('.clear-checked')).toBeDisabled()
   await expect(page.locator('.clear-all')).toBeDisabled()

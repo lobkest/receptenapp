@@ -270,7 +270,8 @@ describe('ShoppingListView', () => {
       // Opnieuw openen zonder verbinding (een nieuwe Pinia is een herladen pagina).
       ;({ wrapper } = await mountApp())
 
-      expect(wrapper.find('.offline-notice').text()).toContain('Offline – opgeslagen om 09:41')
+      // Echt offline (navigator.onLine false): "Offline" in plaats van "bijwerken…".
+      expect(wrapper.find('.offline-notice').text()).toMatch(/^Offline kopie van 09:41, Offline/)
       expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
       for (const button of wrapper.findAll('.items .remove')) {
@@ -303,6 +304,28 @@ describe('ShoppingListView', () => {
       expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeUndefined()
     })
 
+    it('telt de wijzigingen die nog niet gesynchroniseerd zijn', async () => {
+      ;({ wrapper } = await mountApp())
+      setOnline(false)
+      await flushPromises()
+
+      const checkboxes = wrapper.findAll('.items input[type="checkbox"]')
+      await checkboxes[0].setValue(true)
+      await flushPromises()
+      expect(wrapper.find('.offline-notice .pending').text()).toBe(
+        '1 wijziging nog niet gesynchroniseerd',
+      )
+      await checkboxes[1].setValue(true)
+      await flushPromises()
+      expect(wrapper.find('.offline-notice .pending').text()).toBe(
+        '2 wijzigingen nog niet gesynchroniseerd',
+      )
+
+      setOnline(true)
+      await flushPromises()
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
+    })
+
     it('verstuurt de wachtrij ook bij terugkeren naar de app', async () => {
       ;({ wrapper } = await mountApp())
       vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
@@ -325,7 +348,10 @@ describe('ShoppingListView', () => {
       setVisibility('visible')
       await flushPromises()
 
-      expect(wrapper.find('.offline-notice').text()).toMatch(/^Offline – opgeslagen om \d\d:\d\d/)
+      // Wel netwerk, maar geen server: we blijven proberen.
+      expect(wrapper.find('.offline-notice').text()).toMatch(
+        /^Offline kopie van \d\d:\d\d, bijwerken…/,
+      )
       expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     })
 

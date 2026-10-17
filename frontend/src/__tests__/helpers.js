@@ -9,9 +9,12 @@ export function jsonResponse(body, status = 200) {
 
 // Vervangt fetch door een nep-server: handler(method, url, options) geeft per
 // request een Response terug. Elke aanroep krijgt een nieuwe Response, want een
-// body kan maar één keer gelezen worden.
+// body kan maar één keer gelezen worden. De health check (/up, src/stores/serverStatus.js)
+// is altijd meteen online.
 export function mockFetch(handler) {
-  const fake = vi.fn(async (url, options = {}) => handler(options.method ?? 'GET', url, options))
+  const fake = vi.fn(async (url, options = {}) =>
+    url === '/up' ? new Response('', { status: 200 }) : handler(options.method ?? 'GET', url, options),
+  )
   vi.stubGlobal('fetch', fake)
   return fake
 }

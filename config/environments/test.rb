@@ -55,4 +55,7 @@ Rails.application.configure do
 
   # Use a fixed index.html, so tests don't depend on a frontend build.
   config.x.frontend_index = Rails.root.join("test/fixtures/files/frontend_index.html")
+  # No version header: a frontend built for the e2e tests must never reload itself because
+  # of it. test/lib/app_version_test.rb points this at a file of its own.
+  config.x.frontend_version_file = nil
 end

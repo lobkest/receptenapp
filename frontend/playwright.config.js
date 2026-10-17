@@ -28,6 +28,12 @@ export default defineConfig({
       // colorScheme dark: ook als je telefoon op donker staat, moet de app licht blijven.
       use: { ...devices['iPhone 13'], browserName: 'chromium', colorScheme: 'dark' },
     },
+    {
+      // Een laptop: alleen de specs die ook op desktopformaat moeten draaien.
+      name: 'desktop',
+      testMatch: /server-status\.spec\.js/,
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   // Net als in development: Rails voor /api, Vite voor de frontend. Vite stuurt /api
   // door naar deze Rails (API_TARGET in vite.config.js). Plus de gebouwde app (PWA).

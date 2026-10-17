@@ -2,6 +2,7 @@
 // standardItems.js).
 // URL's zijn relatief (/api/...): in development vangt de Vite-proxy ze op,
 // in productie serveert Rails de frontend zelf op hetzelfde domein.
+import { handleServerVersion, VERSION_HEADER } from '@/version'
 
 export class ApiError extends Error {
   // kind: 'network' | 'unauthorized' | 'not_found' | 'conflict' | 'validation' | 'rate_limited' | 'server'
@@ -18,6 +19,10 @@ export async function request(path, options = {}) {
   let response
   try {
     response = await fetch(path, {
+      // Altijd vers van de server, nooit uit de HTTP-cache van de browser. De service
+      // worker cachet /api ook niet (vite.config.js); alleen de boodschappenlijst bewaart
+      // zelf een kopie (src/offline/).
+      cache: 'no-store',
       ...options,
       headers: {
         Accept: 'application/json',
@@ -30,6 +35,9 @@ export async function request(path, options = {}) {
     // niet bij HTTP-fouten zoals 404 of 500.
     throw new ApiError('network', 'Kan de server niet bereiken.')
   }
+
+  // Een nieuwere deploy op de server? Dan herlaadt de pagina met de nieuwe bundel.
+  handleServerVersion(response.headers.get(VERSION_HEADER))
 
   // Bij een fout of een 204 kan de body leeg of geen JSON zijn; dan gebruiken we een leeg object.
   const body = await response.json().catch(() => ({}))

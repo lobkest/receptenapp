@@ -37,6 +37,8 @@ Rails.application.routes.draw do
       patch "ingredients/:ingredient_id", action: :update_ingredient, as: :ingredient
     end
     resources :nevo_foods, only: :index
+    # Which frontend build belongs to this server; see lib/app_version.rb.
+    resource :version, only: :show
 
     # Public, no code needed: anyone with the link shares these two lists.
     resources :shopping_list_items, only: %i[ index create update destroy ] do

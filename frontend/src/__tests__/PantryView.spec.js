@@ -179,6 +179,31 @@ describe('PantryView', () => {
     expect(wrapper.find('.reset').exists()).toBe(false)
   })
 
+  it('toont tijdens het laden alleen een laadregel: geen chips en geen voorraad-invoer', async () => {
+    let answer
+    mockFetch(() => new Promise((resolve) => (answer = resolve)))
+    const { wrapper } = await mountAt()
+
+    expect(wrapper.find('.muted').text()).toBe('In huis laden…')
+    expect(wrapper.find('.filter-chip').exists()).toBe(false)
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.find('.intro').exists()).toBe(false)
+    answer(jsonResponse({}, 404))
+    await flushPromises()
+  })
+
+  it('een serverfout bij het laden: geen eigen foutblok of knop, wel een melding', async () => {
+    const fetch = mockFetch(() => jsonResponse({}, 500))
+    const { wrapper } = await mountAt()
+
+    expect(wrapper.find('.muted').text()).toBe('Er ging iets mis op de server.')
+    expect(wrapper.find('.notice-error').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Opnieuw proberen')
+    expect(wrapper.find('.filter-chip').exists()).toBe(false)
+    // De serverstatus kijkt opnieuw (/up), zodat de gedeelde melding het kan overnemen.
+    expect(fetch.mock.calls.some(([url]) => url === '/up')).toBe(true)
+  })
+
   it('in huis zetten via de snelkeuze verschuift recepten naar "Alles in huis"', async () => {
     fakeServer()
     const { wrapper } = await mountAt()

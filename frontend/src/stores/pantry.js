@@ -15,8 +15,6 @@ export const usePantryStore = defineStore('pantry', {
     groups: [],
     // Het tagfilter van de laatste loadRecipes().
     tags: [],
-    loading: false,
-    error: null,
     // Een ingrediënt dat nu wordt opgeslagen (id), zodat je niet twee keer tikt.
     busy: new Set(),
   }),
@@ -35,17 +33,10 @@ export const usePantryStore = defineStore('pantry', {
   },
 
   actions: {
-    // Voorraad en recepten tegelijk. Een fout komt in error; de oude stand blijft staan.
+    // Voorraad en recepten tegelijk. Een fout gooien we door (de pagina laat de serverstatus
+    // opnieuw kijken); de oude stand blijft staan.
     async load(tags = this.tags) {
-      this.loading = true
-      this.error = null
-      try {
-        await Promise.all([this.loadPantry(), this.loadRecipes(tags)])
-      } catch (e) {
-        this.error = e.message
-      } finally {
-        this.loading = false
-      }
+      await Promise.all([this.loadPantry(), this.loadRecipes(tags)])
     },
 
     async loadPantry() {

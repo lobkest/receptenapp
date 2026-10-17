@@ -3,7 +3,7 @@ import { isOffline } from '@/offline'
 
 // Is de server er? De gratis Render-server slaapt na een kwartier zonder bezoek; het eerste
 // verzoek daarna wacht tot hij wakker is (soms een minuut). Zolang hij niet online is,
-// tonen de recepten- en ingrediëntenpagina's een laadmelding in plaats van oude data
+// tonen de pagina's met meta.needsServer (router) een laadmelding in plaats van oude data
 // (App.vue); de boodschappenlijst toont dan zijn offline kopie.
 //
 // status:

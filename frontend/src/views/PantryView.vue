@@ -7,6 +7,7 @@ import RecipeFilterChips from '@/components/RecipeFilterChips.vue'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { filterRecipes } from '@/utils/categories'
 
@@ -17,6 +18,7 @@ import { filterRecipes } from '@/utils/categories'
 const pantry = usePantryStore()
 const recipes = useRecipesStore()
 const shoppingList = useShoppingListStore()
+const server = useServerStatusStore()
 const confirmDialog = useTemplateRef('confirmDialog')
 
 // Hetzelfde filter als op het receptenoverzicht, in de URL. Tags filtert de server; de
@@ -89,19 +91,34 @@ async function resetToDefault() {
 
 // ---------- Laden ----------
 
+// Deze pagina opent pas als de server online is (meta.needsServer in de router); tot dan
+// toont App.vue de gedeelde laad- of offlinemelding, en daarna opent hij opnieuw en laadt
+// hij vers. Mislukt het laden toch, dan kijkt de serverstatus opnieuw: is de server weg,
+// dan neemt die gedeelde melding het over. Antwoordt de server wel maar met een fout
+// (bijv. een 500), dan staat die melding op de plek van "In huis laden…".
+const loadError = ref(null)
+
+function load() {
+  loadError.value = null
+  pantry.load(selectedTags.value).catch((e) => {
+    loadError.value = e.message
+    server.check()
+  })
+}
+
 // Bij openen, bij elk ander tagfilter, en bij terugkeren naar de app: iemand anders (of
 // het afvinken van boodschappen) kan de voorraad intussen hebben veranderd.
 watch(
   () => selectedTags.value.join(','),
   (now, before) => {
-    if (before === undefined) pantry.load(selectedTags.value)
+    if (before === undefined) load()
     else run(() => pantry.loadRecipes(selectedTags.value))
   },
   { immediate: true },
 )
 
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible') pantry.load(selectedTags.value)
+  if (document.visibilityState === 'visible') load()
 }
 
 onMounted(() => {
@@ -116,27 +133,22 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
 <template>
   <h1>In huis</h1>
 
-  <p v-if="pantry.isDefault" class="intro card">
-    Zet hieronder wat je in huis hebt. Dan zie je welke recepten je ermee kunt maken, en wat er nog
-    ontbreekt. Boodschappen die je afstreept, komen vanzelf in huis.
-  </p>
-
-  <RecipeFilterChips
-    :categories="recipes.categories"
-    :recipes="pantry.allRecipes"
-    :tags="recipes.tags"
-  />
-
-  <p v-if="pantry.loading && !pantry.pantry" class="muted">Laden…</p>
-
-  <div v-else-if="pantry.error" class="notice notice-error" role="alert">
-    <p>{{ pantry.error }}</p>
-    <button type="button" class="btn-primary" @click="pantry.load(selectedTags)">
-      Opnieuw proberen
-    </button>
-  </div>
+  <!-- Chips en voorraad pas als de voorraad er is; daarvoor alleen een laadregel, zoals
+       "Recepten laden…" op het overzicht. -->
+  <p v-if="!pantry.pantry" class="muted">{{ loadError ?? 'In huis laden…' }}</p>
 
   <template v-else>
+    <p v-if="pantry.isDefault" class="intro card">
+      Zet hieronder wat je in huis hebt. Dan zie je welke recepten je ermee kunt maken, en wat er
+      nog ontbreekt. Boodschappen die je afstreept, komen vanzelf in huis.
+    </p>
+
+    <RecipeFilterChips
+      :categories="recipes.categories"
+      :recipes="pantry.allRecipes"
+      :tags="recipes.tags"
+    />
+
     <p v-if="!groups.length" class="no-results card" role="status">
       Nog geen recept dat je (bijna) kunt maken<template v-if="selectedTags.length">
         met {{ selectedTags.join(' + ') }}</template
@@ -151,7 +163,6 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
     />
 
     <PantryStock
-      v-if="pantry.pantry"
       :error="actionError"
       @put="put"
       @remove="remove"

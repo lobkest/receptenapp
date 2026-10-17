@@ -36,7 +36,7 @@ export const routes = [
     meta: { needsServer: true },
   },
   // Wat je in huis hebt, en welke recepten je daarmee kunt maken.
-  { path: '/in-huis', name: 'pantry', component: PantryView },
+  { path: '/in-huis', name: 'pantry', component: PantryView, meta: { needsServer: true } },
   // Koppelen aan NEVO voor de voedingswaarde; iedereen mag dit, zoals recepten bewerken.
   {
     path: '/ingredienten',

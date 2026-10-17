@@ -18,6 +18,14 @@ class PantryMatcher
   Missing = Data.define(:id, :name)
   Result = Data.define(:recipe, :missing)
 
+  # What covers the row from these ingredient ids: the row itself (its own ingredient), the
+  # first of its alternatives, or nil. Also used by IngredientSearch ("met ingrediënt").
+  def self.covering(row, ids)
+    return row if ids.include?(row.ingredient_id)
+
+    row.alternatives.find { |alternative| ids.include?(alternative.ingredient_id) }
+  end
+
   # present_ids: the ingredient ids in the house (PantryItem.present_ingredient_ids).
   def initialize(present_ids)
     @present_ids = present_ids
@@ -42,6 +50,6 @@ class PantryMatcher
     end
 
     def available?(row)
-      @present_ids.include?(row.ingredient_id) || row.alternatives.any? { |alternative| @present_ids.include?(alternative.ingredient_id) }
+      !self.class.covering(row, @present_ids).nil?
     end
 end

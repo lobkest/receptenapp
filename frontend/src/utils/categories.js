@@ -65,3 +65,12 @@ export function categoryChips(categories, recipes, selected = null) {
   }
   return chips
 }
+
+// Zonder secties (bij "Met ingrediënt…", waar de volgorde van de server telt): dezelfde
+// filters als recipeSections, de volgorde blijft die van de invoer.
+export function filterRecipes(recipes, { selected = null, tags = [] } = {}) {
+  return recipes.filter(
+    (recipe) =>
+      hasAllTags(recipe, tags) && (selected === null || categoryKey(recipe.category) === selected),
+  )
+}

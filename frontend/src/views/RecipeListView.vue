@@ -1,20 +1,67 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import IngredientFilter from '@/components/IngredientFilter.vue'
 import RecipeCard from '@/components/RecipeCard.vue'
 import RecipeFilterChips from '@/components/RecipeFilterChips.vue'
+import { useIngredientList } from '@/composables/useIngredientNames'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { useRecipesStore } from '@/stores/recipes'
-import { categoryChips, recipeSections } from '@/utils/categories'
+import { categoryChips, filterRecipes, recipeSections } from '@/utils/categories'
+import { joinNames } from '@/utils/ingredientSearch'
 import { sortByCardHeight } from '@/utils/sortRecipes'
 
 const store = useRecipesStore()
 // Een melding van de vorige pagina, bijv. "… is verwijderd." na een verwijderverzoek.
 const notice = ref(store.takeNotice())
 
-// Het filter staat in de URL (?tags=vega,snel&category=3), zie useRecipeFilter. Filteren
-// op tags doet de server; op categorie gebeurt hier in de browser, de lijst van de server
-// blijft dan dezelfde.
-const { selectedTags, selectedCategory } = useRecipeFilter()
+// Het filter staat in de URL (?tags=vega,snel&category=3&met=12,34), zie useRecipeFilter.
+// Filteren op tags en ingrediënten doet de server; op categorie gebeurt hier in de
+// browser, de lijst van de server blijft dan dezelfde.
+const { selectedTags, selectedCategory, selectedIngredientIds } = useRecipeFilter()
+
+// ---------- Met ingrediënt ----------
+
+const ingredientList = useIngredientList()
+const searching = computed(() => selectedIngredientIds.value.length > 0)
+
+// De gekozen ingrediënten met naam. Staat een id (nog) niet in de lijst met ingrediënten,
+// dan de naam die de server bij een gevonden recept gaf.
+const chosenIngredients = computed(() => {
+  const found = store.recipes.flatMap((recipe) => recipe.ingredient_match?.matches ?? [])
+  return selectedIngredientIds.value.map((id) => ({
+    id,
+    name:
+      ingredientList.value.find((ingredient) => ingredient.id === id)?.name ??
+      found.find((match) => match.ingredient_id === id)?.name ??
+      `ingrediënt ${id}`,
+  }))
+})
+const chosenNames = computed(() => joinNames(chosenIngredients.value.map((item) => item.name)))
+
+// Met een ingrediënt gekozen: één lijst in de volgorde van de server (best passend eerst),
+// zonder secties. Categorie en tags filteren gewoon mee. Alleen recepten met
+// ingredient_match: zo staat de lijst van zonder ingrediënt er niet even plat, terwijl de
+// gezochte nog laadt.
+const foundRecipes = computed(() =>
+  filterRecipes(
+    store.recipes.filter((recipe) => recipe.ingredient_match),
+    { selected: selectedCategory.value, tags: selectedTags.value },
+  ),
+)
+
+// "Geen recepten met courgette of aubergine", met de tags en de categorie erbij als die
+// gekozen zijn.
+const noFoundRecipes = computed(() => {
+  const tags = selectedTags.value.length ? ` en ${selectedTags.value.join(' + ')}` : ''
+  const category = selectedCategory.value
+    ? categoryChips(store.categories, store.recipes, selectedCategory.value).find(
+        (chip) => chip.key === selectedCategory.value,
+      )?.name
+    : null
+  return `Geen recepten met ${chosenNames.value}${tags}${category ? ` in ${category}` : ''}`
+})
+
+// ---------- Secties ----------
 
 // Bij "Alles" een sectie per categorie met recepten; bij een gekozen categorie alleen die.
 // Binnen elke sectie op kaarthoogte (aantal tag-chips), zodat kaarten van gelijke hoogte
@@ -39,8 +86,8 @@ const noResultsInCategory = computed(() => {
 // Laden bij openen en bij elke wijziging van het filter. Altijd verversen; een eerder
 // geladen lijst blijft zichtbaar tot de nieuwe binnen is.
 watch(
-  () => selectedTags.value.join(','),
-  () => store.load(selectedTags.value),
+  () => `${selectedTags.value.join(',')}|${selectedIngredientIds.value.join(',')}`,
+  () => store.load(selectedTags.value, selectedIngredientIds.value),
   { immediate: true },
 )
 onMounted(() => {
@@ -54,14 +101,34 @@ onMounted(() => {
 
   <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
 
+  <IngredientFilter :chosen="chosenIngredients" />
+
   <RecipeFilterChips :categories="store.categories" :recipes="store.recipes" :tags="store.tags" />
 
-  <p v-if="store.loading && !store.hasRecipes" class="muted">Recepten laden…</p>
+  <p
+    v-if="store.loading && (!store.hasRecipes || (searching && !foundRecipes.length))"
+    class="muted"
+  >
+    Recepten laden…
+  </p>
 
   <div v-else-if="store.error" class="notice notice-error" role="alert">
     <p>{{ store.error }}</p>
     <button type="button" class="btn-primary" @click="store.load()">Opnieuw proberen</button>
   </div>
+
+  <p v-else-if="searching && !foundRecipes.length" class="no-results card" role="status">
+    {{ noFoundRecipes }}
+  </p>
+
+  <section v-else-if="searching" aria-labelledby="found-title">
+    <h2 id="found-title" class="section-title">Met {{ chosenNames }}</h2>
+    <ul class="recipe-grid">
+      <li v-for="recipe in foundRecipes" :key="recipe.id">
+        <RecipeCard :recipe="recipe" />
+      </li>
+    </ul>
+  </section>
 
   <p v-else-if="store.isEmpty && selectedTags.length" class="no-results card" role="status">
     Geen recepten met {{ selectedTags.join(' + ') }}

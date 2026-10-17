@@ -49,6 +49,34 @@ module RecipeSerializer
     }
   end
 
+  # A summary with what "Met ingrediënt…" found (IngredientSearch::Result):
+  # "ingredient_match" => {
+  #   "matches" => [ { "ingredient_id" => 12, "name" => "courgette", "via" => "alternative",
+  #     "swap" => { "recipe_ingredient_id" => 5, "alternative_id" => 3, "ingredient" => "aubergine", "alternative" => "courgette" } } ],
+  #   "missing" => [ { "id" => 7, "name" => "feta" } ], "missing_count" => 1 }
+  # via: "original", "alternative" or "optional". swap: only when the chosen ingredient is
+  # an alternative ("met courgette i.p.v. aubergine"), else null. missing: the rows still
+  # to buy, by row id (for "Ontbrekende op lijst") and the original's name, like "In huis".
+  def search_result(result, evaluator:)
+    summary(result.recipe, evaluator: evaluator).merge(
+      "ingredient_match" => {
+        "matches" => result.matches.map { |match| ingredient_match(match) },
+        "missing" => result.missing.map { |missing| { "id" => missing.id, "name" => missing.name } },
+        "missing_count" => result.missing.size
+      }
+    )
+  end
+
+  def ingredient_match(match)
+    swap = match.alternative && {
+      "recipe_ingredient_id" => match.row.id, "alternative_id" => match.alternative.id,
+      "ingredient" => match.row.ingredient_name, "alternative" => match.alternative.ingredient_name
+    }
+    name = (match.alternative || match.row).ingredient_name
+
+    { "ingredient_id" => match.ingredient_id, "name" => name, "via" => match.via, "swap" => swap }
+  end
+
   # Also what /api/categories sends per category.
   def category(category)
     category.slice("id", "name", "position")

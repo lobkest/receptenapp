@@ -16,7 +16,7 @@ const props = defineProps({
   tags: { type: Array, required: true },
 })
 
-const { selectedTags, selectedCategory, selectCategory, toggleTag, clearFilters } =
+const { selectedTags, selectedCategory, hasFilters, selectCategory, toggleTag, clearFilters } =
   useRecipeFilter()
 
 const categoryFilterChips = computed(() =>
@@ -70,12 +70,7 @@ const tagChips = computed(() => {
         <span v-if="tag.count != null" class="count">{{ tag.count }}</span>
       </button>
     </div>
-    <button
-      v-if="selectedTags.length || selectedCategory"
-      type="button"
-      class="clear-filters"
-      @click="clearFilters"
-    >
+    <button v-if="hasFilters" type="button" class="clear-filters" @click="clearFilters">
       Wis filters
     </button>
   </div>

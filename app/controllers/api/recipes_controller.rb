@@ -16,13 +16,22 @@ class Api::RecipesController < ApplicationController
 
   # GET /api/recipes
   # GET /api/recipes?tags=vega,snel  (only recipes with all of these tags)
+  # GET /api/recipes?category=3  (or category=overig), like /api/pantry/recipes
+  # GET /api/recipes?ingredient_ids=12,34  (with at least one of these ingredients)
   # Tags set by hand and automatic ones (vegetarisch, "met_wissel" passes too): see
-  # Recipe.with_all_tags.
+  # Recipe.with_all_tags. All filters combine. With ingredient_ids the best matches come
+  # first, each with "ingredient_match": how it matches and what to buy (IngredientSearch).
   def index
     evaluator = RecipeTagEvaluator.load
-    @recipes = Recipe.with_all_tags(params[:tags].to_s.split(","), evaluator: evaluator)
+    @recipes = Recipe.in_category(params[:category]).with_all_tags(params[:tags].to_s.split(","), evaluator: evaluator)
+    ingredient_ids = params[:ingredient_ids].to_s.split(",").filter_map { |id| Integer(id.strip, 10, exception: false) }
 
-    render json: @recipes.map { |recipe| RecipeSerializer.summary(recipe, evaluator: evaluator) }
+    if ingredient_ids.any?
+      results = IngredientSearch.new(ingredient_ids, present_ids: PantryItem.present_ingredient_ids).results(@recipes)
+      render json: results.map { |result| RecipeSerializer.search_result(result, evaluator: evaluator) }
+    else
+      render json: @recipes.map { |recipe| RecipeSerializer.summary(recipe, evaluator: evaluator) }
+    end
   end
 
   # GET /api/recipes/1

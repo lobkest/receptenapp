@@ -14,6 +14,8 @@ export const useRecipesStore = defineStore('recipes', {
     error: null,
     // Het filter van de laatste load(): de getoonde recepten hebben al deze tags.
     filter: [],
+    // De ingrediënten (id's) van de laatste load(); een recept heeft er minstens één.
+    ingredientFilter: [],
     // Alle tags van zichtbare recepten, met aantal: [{ name, count, automatic }].
     // automatic: uitgerekend uit de ingrediënten (vegetarisch), niet zelf te kiezen.
     tags: [],
@@ -45,13 +47,14 @@ export const useRecipesStore = defineStore('recipes', {
     },
 
     // Zonder argument: opnieuw laden met het huidige filter (bijv. na een beheeractie).
-    async load(tags = this.filter) {
+    async load(tags = this.filter, ingredientIds = this.ingredientFilter) {
       const current = ++latestLoad
       this.filter = tags
+      this.ingredientFilter = ingredientIds
       this.loading = true
       this.error = null
       try {
-        const recipes = await fetchRecipes(tags)
+        const recipes = await fetchRecipes(tags, ingredientIds)
         if (current === latestLoad) this.recipes = recipes
       } catch (e) {
         if (current === latestLoad) this.error = e.message

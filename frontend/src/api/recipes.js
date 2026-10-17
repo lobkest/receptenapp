@@ -3,9 +3,15 @@ import { request } from '@/api/client'
 
 // tags: ['vega', 'snel'] geeft alleen recepten met al deze tags: /api/recipes?tags=vega,snel.
 // Een tag kan zelf geen komma bevatten (de server weigert dat), dus de komma scheidt veilig.
-export function fetchRecipes(tags = []) {
-  const query = tags.length ? `?tags=${tags.map(encodeURIComponent).join(',')}` : ''
-  return request(`/api/recipes${query}`)
+// ingredientIds: [12, 34] geeft recepten met minstens één van deze ingrediënten, de beste
+// eerst, elk met ingredient_match: { matches: [{ ingredient_id, name, via, swap }],
+// missing: [{ id (regel-id), name }], missing_count }. via: 'original', 'alternative' of
+// 'optional'; swap: { recipe_ingredient_id, alternative_id, ingredient, alternative } of null.
+export function fetchRecipes(tags = [], ingredientIds = []) {
+  const params = []
+  if (tags.length) params.push(`tags=${tags.map(encodeURIComponent).join(',')}`)
+  if (ingredientIds.length) params.push(`ingredient_ids=${ingredientIds.join(',')}`)
+  return request(`/api/recipes${params.length ? `?${params.join('&')}` : ''}`)
 }
 
 // [{ name: 'vega', count: 3 }]: tags van zichtbare recepten, op naam.

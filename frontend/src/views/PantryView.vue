@@ -10,6 +10,7 @@ import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { categoryKey } from '@/utils/categories'
+import { findIngredients } from '@/utils/ingredientSearch'
 
 // "In huis": wat je in huis hebt, en welke recepten je daarmee (bijna) kunt maken. De
 // voorraad staat op de server, één voor iedereen met de link. Afgestreepte boodschappen
@@ -77,7 +78,6 @@ function addMissing(recipe) {
 const ingredientList = useIngredientList()
 const ingredientNames = useIngredientNames()
 const query = ref('')
-const MAX_MATCHES = 6
 
 const inHouseIds = computed(
   () =>
@@ -89,16 +89,9 @@ const inHouseIds = computed(
 
 // Bestaande ingrediënten die bij de zoekterm passen en nog niet in huis zijn. Wat precies
 // zo heet, staat bovenaan.
-const matches = computed(() => {
-  const text = query.value.trim().toLowerCase()
-  const words = text.split(/\s+/).filter(Boolean)
-  if (!words.length) return []
-  return ingredientList.value
-    .filter((ingredient) => !inHouseIds.value.has(ingredient.id))
-    .filter((ingredient) => words.every((word) => ingredient.name.includes(word)))
-    .toSorted((a, b) => (b.name === text) - (a.name === text) || a.name.localeCompare(b.name))
-    .slice(0, MAX_MATCHES)
-})
+const matches = computed(() =>
+  findIngredients(ingredientList.value, query.value, { exclude: inHouseIds.value }),
+)
 
 function put(ingredient) {
   query.value = ''

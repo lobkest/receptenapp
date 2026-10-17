@@ -1,46 +1,86 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MAX_CARD_TAGS, cardTags } from '@/utils/sortRecipes'
+import RecipeCardContent from '@/components/RecipeCardContent.vue'
+import { useShoppingListStore } from '@/stores/shoppingList'
+import { matchHints, matchSwaps } from '@/utils/ingredientSearch'
 
 const props = defineProps({
   recipe: { type: Object, required: true },
 })
 
-const tags = computed(() => cardTags(props.recipe))
-const visibleTags = computed(() => tags.value.slice(0, MAX_CARD_TAGS))
-const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.length)
+// Gevonden met "Met ingrediënt…": dan staat er onder de tags hoe het recept matcht en wat
+// je nog moet kopen, met een knop "Ontbrekende op lijst". Een knop mag niet in een link,
+// dus dan is de kaart een vak met de link en de knop naast elkaar erin.
+const match = computed(() => props.recipe.ingredient_match ?? null)
+const hints = computed(() => matchHints(match.value))
+const missingNames = computed(() => (match.value?.missing ?? []).map((row) => row.name))
+
+// Gevonden via een alternatief: het recept opent met die wissel aan ("⇄ courgette").
+const to = computed(() => {
+  const wissel = matchSwaps(match.value)
+  return wissel
+    ? { path: `/recepten/${props.recipe.id}`, query: { wissel } }
+    : `/recepten/${props.recipe.id}`
+})
+
+// ---------- Ontbrekende op lijst ----------
+
+// Hetzelfde als op "In huis": de ontbrekende regels (het origineel, niet de gekozen
+// ingrediënten: die tellen als in huis) met de porties van het recept zelf.
+const adding = ref(false)
+const added = ref(false)
+const error = ref(null)
+
+async function addMissing() {
+  if (adding.value) return
+  adding.value = true
+  error.value = null
+  try {
+    await useShoppingListStore().addRecipe(
+      props.recipe.id,
+      props.recipe.servings,
+      match.value.missing.map((row) => row.id),
+    )
+    added.value = true
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    adding.value = false
+  }
+}
 </script>
 
 <template>
-  <RouterLink :to="`/recepten/${recipe.id}`" class="card recipe-card">
-    <!-- Alleen met een foto een fotovak: zonder foto geen lege ruimte, de kaart wordt korter.
-         alt="": de foto is decoratief, de titel staat eronder al als tekst. -->
-    <div v-if="recipe.image_url" class="media">
-      <img :src="recipe.image_url" alt="" loading="lazy" />
+  <div v-if="match" class="card recipe-card search-card">
+    <RouterLink :to="to" class="card-link">
+      <RecipeCardContent :recipe="recipe">
+        <p v-if="hints.length" class="match-hint">{{ hints.join(' · ') }}</p>
+        <p class="to-buy" :title="missingNames.join(', ') || null">
+          nog kopen: {{ match.missing_count
+          }}<span v-if="missingNames.length" class="to-buy-names">
+            ({{ missingNames.join(', ') }})</span
+          >
+        </p>
+      </RecipeCardContent>
+    </RouterLink>
+    <div v-if="match.missing_count" class="actions">
+      <p v-if="added" class="added" role="status">Op de lijst ✓</p>
+      <button v-else type="button" class="add-missing" :disabled="adding" @click="addMissing">
+        Ontbrekende op lijst
+      </button>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
     </div>
+  </div>
 
-    <div class="body">
-      <!-- h3: op het overzicht staat het kopje van de sectie (h2) erboven. -->
-      <h3 class="title">{{ recipe.title }}</h3>
-      <ul v-if="tags.length" class="tags">
-        <li
-          v-for="(tag, index) in visibleTags"
-          :key="index"
-          class="tag"
-          :class="{ 'tag-hint': tag.hint }"
-          :title="tag.hint ? `${tag.name}: ${tag.hint}` : null"
-        >
-          {{ tag.name }}<span v-if="tag.hint" class="hint">{{ tag.hint }}</span>
-        </li>
-        <li v-if="hiddenTagCount > 0" class="tag tag-more">+{{ hiddenTagCount }}</li>
-      </ul>
-    </div>
+  <!-- De hele kaart is één link. -->
+  <RouterLink v-else :to="to" class="card recipe-card">
+    <RecipeCardContent :recipe="recipe" />
   </RouterLink>
 </template>
 
 <style scoped>
-/* De hele kaart is één link; .card geeft rand, achtergrond en ronde hoeken. */
+/* .card geeft rand, achtergrond en ronde hoeken. */
 .recipe-card {
   display: flex;
   flex-direction: column;
@@ -53,89 +93,76 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
     box-shadow var(--duration) ease;
 }
 
-.recipe-card:hover {
+.recipe-card:hover,
+.search-card:has(.card-link:hover) {
   color: var(--color-text);
   border-color: var(--color-brand);
   box-shadow: var(--shadow);
 }
 
-.media {
-  aspect-ratio: 4 / 3;
-  background: var(--color-surface-hover);
+.search-card:hover {
+  border-color: var(--color-border);
+  box-shadow: none;
 }
 
-.media img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.body {
+.card-link {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
 }
 
-/* Maximaal twee regels, daarna een beletselteken. anywhere: ook een lange titel
-   zonder spaties breekt af in plaats van de kaart op te rekken. */
-.title {
+.card-link:hover {
+  color: var(--color-text);
+}
+
+/* Kort houden: hoogstens twee regels uitleg en één regel "nog kopen". */
+.match-hint {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  margin: 0;
-  font-size: var(--text-base);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  color: var(--color-accent-text);
   overflow-wrap: anywhere;
 }
 
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin: var(--space-1) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.tag {
-  max-width: 100%;
-  padding: 0 var(--space-2);
+.to-buy {
+  margin: 0;
   overflow: hidden;
   font-size: var(--text-xs);
   font-weight: 600;
-  line-height: 1.6;
-  color: var(--color-accent-text);
+  color: var(--color-text-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
-  background: var(--color-brand-soft);
-  border-radius: var(--radius-full);
 }
 
-/* Met een wissel: de uitleg klein eronder, en mag over twee regels. */
-.tag-hint {
-  display: flex;
-  flex-direction: column;
-  padding: 0.125rem var(--space-2);
-  white-space: normal;
-  border-radius: var(--radius-sm);
-}
-
-.hint {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+.to-buy-names {
   font-weight: 400;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }
 
-.tag-more {
-  color: var(--color-text-muted);
-  background: var(--color-surface-hover);
+.actions {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.add-missing {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.added {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.error {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-error-text);
 }
 </style>

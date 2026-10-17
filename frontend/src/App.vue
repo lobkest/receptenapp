@@ -48,11 +48,21 @@ onUnmounted(() => {
       </svg>
       <span class="nav-label">Recepten</span>
     </RouterLink>
+    <RouterLink to="/in-huis" class="nav-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M3 11 12 4l9 7" />
+        <path d="M5 10v10h14V10" />
+        <path d="M10 20v-5h4v5" />
+      </svg>
+      <span class="nav-label">In huis</span>
+    </RouterLink>
     <RouterLink to="/recepten/nieuw" class="nav-link">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M12 5v14M5 12h14" />
       </svg>
-      <span class="nav-label">Recept toevoegen</span>
+      <!-- Op mobiel alleen "Recept" (naast het plus-icoon): met zes items paste "toevoegen"
+           alleen afgebroken over drie regels. Schermlezers horen het hele label. -->
+      <span class="nav-label">Recept<span class="nav-wide"> toevoegen</span></span>
     </RouterLink>
     <RouterLink to="/boodschappen" class="nav-link shopping-link">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -62,7 +72,7 @@ onUnmounted(() => {
       </svg>
       <!-- "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
            Op mobiel staat het aantal als bolletje op het icoon (zie .nav-count), zodat
-           het label met vijf menu-items op twee regels past; de tekst blijft hetzelfde. -->
+           het label met zes menu-items op twee regels past; de tekst blijft hetzelfde. -->
       <span class="nav-label"
         >Boodschappen<span v-if="shoppingList.openCount" class="nav-count"
           ><span class="paren"> (</span>{{ shoppingList.openCount
@@ -120,8 +130,8 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  /* minmax(0, …): vijf gelijke kolommen, ook als een woord breder is dan zijn kolom. */
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* minmax(0, …): zes gelijke kolommen, ook als een woord breder is dan zijn kolom. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   /* De balk loopt door tot de onderrand; de veilige zone (thuisbalk van de
      iPhone) blijft leeg, zodat er geen link onder je duim-gebaar zit. */
   padding-bottom: env(safe-area-inset-bottom);
@@ -174,7 +184,17 @@ main {
   white-space: nowrap;
 }
 
-/* Vijf items op een smalle telefoon: lange woorden ("Boodschappen", "Ingrediënten")
+/* Alleen op brede schermen te zien, maar altijd voorgelezen (zoals .nav-count .paren). */
+.nav-wide {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Zes items op een smalle telefoon: lange woorden ("Boodschappen", "Ingrediënten")
    breken af met een streepje in plaats van uit de balk te lopen. */
 .nav-label {
   max-width: 100%;
@@ -280,6 +300,7 @@ footer {
     background: none;
   }
 
+  .nav-wide,
   .nav-count .paren {
     position: static;
     width: auto;

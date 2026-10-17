@@ -22,12 +22,12 @@ class RecipeIngredient < ApplicationRecord
   validate :alternatives_count
   validate :original_not_among_alternatives, if: -> { will_save_change_to_ingredient_id? || ingredient&.new_record? }
 
-  # [name, quantity, unit] for the shopping list: this row, or the alternative it is
-  # swapped for (with the row's amount when the alternative has none of its own).
+  # [name, quantity, unit, ingredient_id] for the shopping list: this row, or the alternative
+  # it is swapped for (with the row's amount when the alternative has none of its own).
   def shopping_line(alternative = nil)
-    return [ ingredient_name, quantity, unit ] if alternative.nil?
+    return [ ingredient_name, quantity, unit, ingredient_id ] if alternative.nil?
 
-    [ alternative.ingredient_name, alternative.effective_quantity, alternative.effective_unit ]
+    [ alternative.ingredient_name, alternative.effective_quantity, alternative.effective_unit, alternative.ingredient_id ]
   end
 
   private

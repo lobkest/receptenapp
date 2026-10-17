@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_180005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -47,6 +47,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
     t.integer "lock_version", default: 0, null: false
     t.boolean "traits_checked", default: false, null: false
     t.boolean "negligible", default: false, null: false
+    t.boolean "staple", default: false, null: false
     t.index ["name"], name: "index_ingredients_on_name", unique: true
     t.index ["nevo_food_id"], name: "index_ingredients_on_nevo_food_id"
     t.check_constraint "grams_per_ml > 0::numeric", name: "ingredients_grams_per_ml_positive"
@@ -68,6 +69,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
     t.datetime "updated_at", null: false
     t.index ["code"], name: "index_nevo_foods_on_code", unique: true
     t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying]::text[])", name: "nevo_foods_unit_known"
+  end
+
+  create_table "pantry_items", force: :cascade do |t|
+    t.bigint "ingredient_id", null: false
+    t.boolean "present", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ingredient_id"], name: "index_pantry_items_on_ingredient_id", unique: true
   end
 
   create_table "recipe_ingredient_alternatives", force: :cascade do |t|
@@ -154,6 +163,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
     t.boolean "checked", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "ingredient_id"
+    t.boolean "pantry_changed", default: false, null: false
+    t.index ["ingredient_id"], name: "index_shopping_list_items_on_ingredient_id"
     t.index ["recipe_id"], name: "index_shopping_list_items_on_recipe_id"
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "shopping_list_items_quantity_has_unit"
     t.check_constraint "quantity > 0::numeric", name: "shopping_list_items_quantity_positive"
@@ -234,6 +246,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
   add_foreign_key "ingredient_traits", "ingredients", on_delete: :cascade
   add_foreign_key "ingredient_traits", "traits", on_delete: :cascade
   add_foreign_key "ingredients", "nevo_foods", on_delete: :nullify
+  add_foreign_key "pantry_items", "ingredients", on_delete: :cascade
   add_foreign_key "recipe_ingredient_alternatives", "ingredients"
   add_foreign_key "recipe_ingredient_alternatives", "recipe_ingredients", on_delete: :cascade
   add_foreign_key "recipe_ingredients", "ingredients"
@@ -243,6 +256,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_170001) do
   add_foreign_key "recipe_variations", "recipes", on_delete: :cascade
   add_foreign_key "recipe_versions", "recipes", on_delete: :cascade
   add_foreign_key "recipes", "categories"
+  add_foreign_key "shopping_list_items", "ingredients", on_delete: :nullify
   add_foreign_key "shopping_list_items", "recipes", on_delete: :nullify
   add_foreign_key "steps", "recipes"
   add_foreign_key "tag_exclusions", "tags", on_delete: :cascade

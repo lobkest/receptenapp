@@ -26,8 +26,16 @@ Rails.application.routes.draw do
     resources :ingredients, only: %i[ index show update ] do
       # Traits for the automatic tags (vlees, gluten, ...), separate from the NEVO settings.
       patch :traits, on: :member, action: :update_traits
+      # Basisvoorraad (zout, olijfolie, ...): in the house unless it is out. Like traits.
+      patch :staple, on: :member, action: :update_staple
     end
     resources :traits, only: :index
+    # "In huis": one stock for everybody, like the shopping list (no code needed).
+    resource :pantry, only: :show, controller: "pantry" do
+      get :recipes
+      post :reset
+      patch "ingredients/:ingredient_id", action: :update_ingredient, as: :ingredient
+    end
     resources :nevo_foods, only: :index
 
     # Public, no code needed: anyone with the link shares these two lists.

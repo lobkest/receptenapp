@@ -27,3 +27,8 @@ end
   tag = Tag.named(tag_name)
   Trait.where(name: trait_names).find_each { |trait| TagExclusion.find_or_create_by!(tag: tag, trait: trait) }
 end
+
+# The basisvoorraad, the same list as migration MarkStapleIngredients. Only ingredients
+# that exist; a name that does not is skipped.
+Ingredient.where(name: [ "zout", "peper", "olijfolie", "suiker", "bloem", "balsamicoazijn", "paprikapoeder",
+  "italiaanse kruiden", "water" ]).where(staple: false).update_all(staple: true, updated_at: Time.current)

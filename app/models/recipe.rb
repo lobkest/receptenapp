@@ -10,6 +10,8 @@ class Recipe < ApplicationRecord
   # Same as the most the recipe page lets you scale to.
   MAX_SERVINGS = 50
   MAX_TAGS = 10
+  # The recipes without a category, in a filter (the frontend says "Overig").
+  NO_CATEGORY_KEY = "overig"
 
   # index_errors: errors read "steps[2].body", where 2 is the place in the request.
   has_many :steps, -> { order(:position) }, dependent: :destroy, inverse_of: :recipe,
@@ -55,6 +57,15 @@ class Recipe < ApplicationRecord
     where(id: matching)
   }
 
+  # ?category=3, or ?category=overig for the recipes without one; blank is all of them.
+  # An id that is not a number finds nothing.
+  scope :in_category, ->(key) {
+    next all if key.blank?
+    next where(category_id: nil) if key.to_s == NO_CATEGORY_KEY
+
+    where(category_id: Integer(key.to_s, exception: false) || -1)
+  }
+
   before_validation :number_steps
 
   validates :title, presence: true, length: { maximum: 150 }
@@ -75,6 +86,19 @@ class Recipe < ApplicationRecord
 
   after_save :record_version, unless: :restoring?
   after_save :forget_submitted_lists
+
+  # The visible recipes that have ALL of these tags (the filter of /api/recipes and of
+  # "In huis"), as an array in id order. A hand-set tag is filtered in the database; an
+  # automatic one (vegetarisch) is worked out per recipe by the evaluator, and "met_wissel"
+  # passes too (a swap makes it vegetarian). Loaded with what the evaluator and the list
+  # need, so there is no query per recipe. Works on a scope: Recipe.in_category(3).with_all_tags(...).
+  def self.with_all_tags(names, evaluator:)
+    automatic, manual = normalize_tag_names(names).partition { |name| evaluator.automatic?(name) }
+    recipes = visible.tagged_with_all(manual).includes(:tags, :category, RecipeTagEvaluator::PRELOAD).order(:id)
+    return recipes.to_a if automatic.empty?
+
+    recipes.select { |recipe| (automatic - evaluator.passing_names(recipe)).empty? }
+  end
 
   # Remembers each step's place in the request, so positions follow the submitted order.
   def steps_attributes=(attributes)

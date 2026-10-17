@@ -8,6 +8,7 @@ import RecipeEditView from '@/views/RecipeEditView.vue'
 import AdminView from '@/views/AdminView.vue'
 import IngredientsView from '@/views/IngredientsView.vue'
 import IngredientEditView from '@/views/IngredientEditView.vue'
+import PantryView from '@/views/PantryView.vue'
 import AdminRecipeVersionsView from '@/views/AdminRecipeVersionsView.vue'
 import { useAdminStore } from '@/stores/admin'
 
@@ -20,6 +21,8 @@ export const routes = [
   { path: '/recepten/:id/bewerken', name: 'recipe-edit', component: RecipeEditView, props: true },
   { path: '/boodschappen', name: 'shopping-list', component: ShoppingListView },
   { path: '/standaard', name: 'standard-items', component: StandardItemsView },
+  // Wat je in huis hebt, en welke recepten je daarmee kunt maken.
+  { path: '/in-huis', name: 'pantry', component: PantryView },
   // Koppelen aan NEVO voor de voedingswaarde; iedereen mag dit, zoals recepten bewerken.
   { path: '/ingredienten', name: 'ingredients', component: IngredientsView },
   { path: '/ingredienten/:id', name: 'ingredient', component: IngredientEditView, props: true },

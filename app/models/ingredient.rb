@@ -18,6 +18,10 @@ class Ingredient < ApplicationRecord
   # traits_checked: someone confirmed them ("Gecontroleerd"); new ingredients start unchecked.
   has_many :ingredient_traits, dependent: :delete_all
   has_many :traits, through: :ingredient_traits
+  # In the house or not (PantryItem): a row only where it differs from staple, the default.
+  has_one :pantry_item, dependent: :delete
+  # The database unlinks shopping list lines when an ingredient goes (on_delete: :nullify).
+  has_many :shopping_list_items, dependent: nil
 
   # "  Verse   BASILICUM " and "verse basilicum" are the same ingredient.
   normalizes :name, with: ->(name) { name.squish.downcase }
@@ -60,6 +64,11 @@ class Ingredient < ApplicationRecord
     grams = grams_for(quantity, unit)
     millilitres = ML_PER_UNIT.key?(unit) ? quantity * ML_PER_UNIT[unit] : (grams && grams_per_ml && grams / grams_per_ml)
     basis == "ml" ? millilitres : grams
+  end
+
+  # In the house: what the pantry row says, or else the default (a staple is).
+  def in_house?
+    pantry_item ? pantry_item.present : staple
   end
 
   # The trait ids, from the preloaded ingredient_traits (RecipeTagEvaluator::PRELOAD), so

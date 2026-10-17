@@ -6,7 +6,9 @@
 #
 # What refers to an ingredient:
 # - by id: recipe_ingredients and recipe_ingredient_alternatives;
-# - by name: added ingredients of variations, shopping list lines and standard list items.
+# - by name: added ingredients of variations, shopping list lines and standard list items;
+# - by id as well: shopping list lines (ingredient_id) and the stock ("In huis", PantryItem).
+#   The stock of the target wins: a row of the source only moves when the target has none.
 #
 # A recipe that contains both (as rows, or one as an alternative of the other) cannot simply
 # be moved: a recipe has each ingredient only once. Such a recipe is left alone and named in
@@ -46,6 +48,7 @@ class IngredientMerge
       record_original_versions(moved)
       move_rows(skipped)
       rename_by_name(skipped)
+      move_shopping_list_and_pantry
       copied = copy_nutrition + copy_traits
       touch_recipes(moved)
 
@@ -104,6 +107,21 @@ class IngredientMerge
         StandardItem.where(name: @source.name).delete_all
       else
         StandardItem.where(name: @source.name).update_all(name: @target.name, updated_at: Time.current)
+      end
+    end
+
+    # Before the source can be deleted: its pantry row would go with it (on_delete: :cascade).
+    # A moved row that says what the target's default says is not needed (see PantryItem).
+    def move_shopping_list_and_pantry
+      ShoppingListItem.where(ingredient_id: @source.id).update_all(ingredient_id: @target.id, updated_at: Time.current)
+
+      row = PantryItem.find_by(ingredient_id: @source.id)
+      return if row.nil?
+
+      if PantryItem.exists?(ingredient_id: @target.id) || row.present == @target.staple
+        row.delete
+      else
+        row.update_columns(ingredient_id: @target.id, updated_at: Time.current)
       end
     end
 

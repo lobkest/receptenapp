@@ -16,13 +16,11 @@ class Api::RecipesController < ApplicationController
 
   # GET /api/recipes
   # GET /api/recipes?tags=vega,snel  (only recipes with all of these tags)
-  # Tags set by hand are filtered in the database. An automatic tag (vegetarisch) is worked
-  # out per recipe here; "met_wissel" passes too (a swap makes it vegetarian).
+  # Tags set by hand and automatic ones (vegetarisch, "met_wissel" passes too): see
+  # Recipe.with_all_tags.
   def index
     evaluator = RecipeTagEvaluator.load
-    automatic, manual = Recipe.normalize_tag_names(params[:tags].to_s.split(",")).partition { |name| evaluator.automatic?(name) }
-    @recipes = Recipe.visible.tagged_with_all(manual).includes(:tags, :category, RecipeTagEvaluator::PRELOAD).order(:id)
-    @recipes = @recipes.select { |recipe| (automatic - evaluator.passing_names(recipe)).empty? } if automatic.any?
+    @recipes = Recipe.with_all_tags(params[:tags].to_s.split(","), evaluator: evaluator)
 
     render json: @recipes.map { |recipe| RecipeSerializer.summary(recipe, evaluator: evaluator) }
   end

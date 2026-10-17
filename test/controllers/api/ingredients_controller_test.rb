@@ -111,4 +111,52 @@ class Api::IngredientsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "ei", @ei.reload.name
   end
+
+  # Basisvoorraad
+
+  test "staple: on and off, without lock_version, and the NEVO settings stay as they are" do
+    @ei.update!(grams_per_piece: 50)
+    lock_version = @ei.reload.lock_version
+
+    patch staple_api_ingredient_url(@ei), params: { ingredient: { staple: true } }, as: :json
+
+    assert_response :ok
+    assert response.parsed_body["staple"]
+    assert @ei.reload.staple
+    assert_equal lock_version, @ei.lock_version, "an open edit form gets no conflict"
+    assert_equal 50, @ei.grams_per_piece
+
+    patch staple_api_ingredient_url(@ei), params: { ingredient: { staple: false } }, as: :json
+    refute response.parsed_body["staple"]
+    assert_equal lock_version, @ei.reload.lock_version
+  end
+
+  test "staple: the stock starts again from the new default" do
+    PantryItem.set!(@ei, true)
+
+    patch staple_api_ingredient_url(@ei), params: { ingredient: { staple: true } }, as: :json
+
+    refute PantryItem.exists?(ingredient: @ei)
+    assert @ei.reload.in_house?, "a staple is in the house"
+  end
+
+  test "staple: without the field 400, unknown ingredient 404, and in the list" do
+    patch staple_api_ingredient_url(@ei), params: { ingredient: { negligible: true } }, as: :json
+    assert_response :bad_request
+
+    patch staple_api_ingredient_url(id: 0), params: { ingredient: { staple: true } }, as: :json
+    assert_response :not_found
+
+    @ei.update!(staple: true)
+    get api_ingredients_url, as: :json
+    assert_equal [ "ei" ], response.parsed_body.select { |ingredient| ingredient["staple"] }.pluck("name")
+  end
+
+  test "staple: counts towards the shared public limit" do
+    PublicWriteRateLimit::WRITES_PER_MINUTE.times { delete clear_checked_api_shopping_list_items_url, as: :json }
+
+    patch staple_api_ingredient_url(@ei), params: { ingredient: { staple: true } }, as: :json
+
+    assert_response :too_many_requests
+  end
 end

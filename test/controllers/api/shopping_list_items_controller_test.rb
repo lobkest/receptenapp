@@ -17,7 +17,8 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ @bloem.id, @zout.id, @melk.id ].sort, response.parsed_body.map { |item| item["id"] }
     assert_equal({
       "id" => @bloem.id, "name" => "bloem", "quantity" => 250, "unit" => "g",
-      "source_label" => "Pannenkoeken", "recipe_id" => recipes(:pannenkoeken).id, "checked" => false
+      "source_label" => "Pannenkoeken", "recipe_id" => recipes(:pannenkoeken).id,
+      "ingredient_id" => ingredients(:bloem).id, "checked" => false
     }, response.parsed_body.find { |item| item["id"] == @bloem.id })
   end
 

@@ -411,8 +411,12 @@ describe('IngredientEditView: samenvoegen', () => {
 
       const call = fetch.mock.calls.find((c) => c[0] === '/api/ingredients/2/traits')
       expect(call[1].method).toBe('PATCH')
-      expect(JSON.parse(call[1].body)).toEqual({ ingredient: { trait_names: ['vlees', 'dierlijk'] } })
-      expect(fetch.mock.calls.some((c) => c[0] === '/api/ingredients/2' && c[1]?.method === 'PATCH')).toBe(false)
+      expect(JSON.parse(call[1].body)).toEqual({
+        ingredient: { trait_names: ['vlees', 'dierlijk'] },
+      })
+      expect(
+        fetch.mock.calls.some((c) => c[0] === '/api/ingredients/2' && c[1]?.method === 'PATCH'),
+      ).toBe(false)
       expect(wrapper.find('[role="status"]').text()).toBe('Kenmerken opgeslagen.')
       expect(checked(wrapper)).toEqual(['vlees', 'dierlijk'])
     })
@@ -438,5 +442,54 @@ describe('IngredientEditView: samenvoegen', () => {
       await flushPromises()
       expect(wrapper.find('.traits [role="alert"]').exists()).toBe(true)
     })
+  })
+})
+
+describe('IngredientEditView: basis', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function fakeStapleApi(respond = (body) => jsonResponse({ ...egg(), staple: body.staple })) {
+    return mockFetch((method, url, options) => {
+      if (url === '/api/traits') return jsonResponse(TRAITS)
+      if (url === '/api/ingredients/2' && method === 'GET')
+        return jsonResponse(egg({ staple: false }))
+      if (url === '/api/ingredients/2/staple' && method === 'PATCH')
+        return respond(JSON.parse(options.body).ingredient)
+      if (url.startsWith('/api/nevo_foods?q=')) return jsonResponse([])
+      throw new Error(`Onverwacht: ${method} ${url}`)
+    })
+  }
+
+  it('de schakelaar slaat meteen op via .../staple, zonder lock_version en los van het formulier', async () => {
+    const fetch = fakeStapleApi()
+    const wrapper = await mountAt('/ingredienten/2')
+
+    const box = wrapper.find('#staple')
+    expect(box.element.checked).toBe(false)
+    expect(wrapper.find('.staple').text()).toContain('Basis')
+    // Niet in het NEVO-formulier: opslaan daar stuurt hem niet mee.
+    expect(wrapper.find('form #staple').exists()).toBe(false)
+
+    box.element.checked = true
+    await box.trigger('change')
+    await flushPromises()
+
+    const call = fetch.mock.calls.find(([url]) => url === '/api/ingredients/2/staple')
+    expect(JSON.parse(call[1].body)).toEqual({ ingredient: { staple: true } })
+    expect(wrapper.find('#staple').element.checked).toBe(true)
+    expect(wrapper.find('.staple [role="status"]').text()).toBe('Staat nu in de basis.')
+  })
+
+  it('een fout zet het vinkje terug en toont een melding', async () => {
+    fakeStapleApi(() => jsonResponse({ error: 'Te veel verzoeken.' }, 429))
+    const wrapper = await mountAt('/ingredienten/2')
+
+    const box = wrapper.find('#staple')
+    box.element.checked = true
+    await box.trigger('change')
+    await flushPromises()
+
+    expect(box.element.checked).toBe(false)
+    expect(wrapper.find('.staple [role="alert"]').text()).toBe('Te veel verzoeken.')
   })
 })

@@ -95,4 +95,36 @@ class Api::RecipeShoppingListTest < ActionDispatch::IntegrationTest
 
     assert_response :too_many_requests
   end
+
+  # The lines know their ingredient, so ticking them off puts it in the house.
+
+  test "lines from a recipe get the ingredient of their row, a swapped row that of the alternative" do
+    tofu = Ingredient.create!(name: "tofu")
+    alternative = recipe_ingredients(:pannenkoeken_ei).alternatives.create!(ingredient: tofu, position: 1)
+
+    post add_to_shopping_list_api_recipe_url(@recipe), as: :json, params: { alternative_ids: [ alternative.id ] }
+
+    assert_equal({ "bloem" => ingredients(:bloem).id, "melk" => ingredients(:melk).id, "tofu" => tofu.id },
+      response.parsed_body.to_h { |item| item.values_at("name", "ingredient_id") })
+  end
+
+  test "Ontbrekende op lijst: only the missing rows, for the recipe's own servings" do
+    rows = [ recipe_ingredients(:pannenkoeken_melk), recipe_ingredients(:pannenkoeken_ei) ]
+
+    post add_to_shopping_list_api_recipe_url(@recipe), as: :json, params: { ingredient_ids: rows.map(&:id) }
+
+    assert_equal [ [ "ei", 2, ingredients(:ei).id ], [ "melk", 500, ingredients(:melk).id ] ],
+      response.parsed_body.map { |item| item.values_at("name", "quantity", "ingredient_id") }.sort
+  end
+
+  test "a variation's lines too; what it adds is linked by name" do
+    variation = recipe_variations(:spek)
+
+    post add_to_shopping_list_api_recipe_variation_url(@recipe, variation), as: :json, params: {}
+
+    assert_response :created
+    linked = response.parsed_body.to_h { |item| item.values_at("name", "ingredient_id") }
+    assert_equal ingredients(:spek).id, linked["spek"]
+    assert_equal ingredients(:bloem).id, linked["bloem"]
+  end
 end

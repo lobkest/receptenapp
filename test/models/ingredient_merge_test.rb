@@ -132,4 +132,41 @@ class IngredientMergeTest < ActiveSupport::TestCase
     IngredientMerge.new(room, @ei).call
     assert_equal %w[ dierlijk lactose ], @ei.reload.traits.map(&:name).sort
   end
+
+  test "shopping list lines linked to the source are linked to the target" do
+    line = ShoppingListItem.create!(name: "eieren")
+    assert_equal @eieren.id, line.ingredient_id
+
+    merge
+
+    assert_equal [ "ei", @ei.id ], [ line.reload.name, line.ingredient_id ]
+  end
+
+  test "the stock: the source's row moves to the target when the target has none" do
+    PantryItem.set!(@eieren, true)
+
+    assert_no_difference("PantryItem.count") { merge }
+
+    assert @ei.reload.in_house?
+  end
+
+  test "the stock: a row of the target stays as it is, the source's goes" do
+    @ei.update!(staple: true)
+    PantryItem.set!(@ei, false)
+    PantryItem.set!(@eieren, true)
+
+    merge
+
+    assert_equal [ [ @ei.id, false ] ], PantryItem.pluck(:ingredient_id, :present)
+  end
+
+  test "the stock: a moved row that says what the target's default says is not kept" do
+    @ei.update!(staple: true)
+    PantryItem.set!(@eieren, true)
+
+    merge
+
+    assert_equal 0, PantryItem.count
+    assert @ei.reload.in_house?
+  end
 end

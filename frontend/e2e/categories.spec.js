@@ -171,8 +171,8 @@ test('nieuw recept met een nieuwe categorie komt in de juiste sectie, achteraan'
   expect(titles.slice(0, 3)).toEqual(['Ontbijt', 'Diner', 'Bijgerecht'])
   await expect(section(page, 'Bijgerecht').locator('.title')).toHaveText(['Gegrilde groenten'])
   await expect(section(page, 'Ontbijt').locator('.title')).toHaveText([
-    'Havermout met appel',
     'Spek met ei',
+    'Havermout met appel',
   ])
 })
 
@@ -217,8 +217,8 @@ test('chips: één categorie tegelijk, samen met de tags', async ({ page }) => {
   await expect(categoryChip(page, 'Alles')).toHaveAttribute('aria-pressed', 'false')
   await expect(sectionTitles(page)).toHaveText(['Ontbijt'])
   await expect(page.locator('.recipe-grid .title')).toHaveText([
-    'Havermout met appel',
     'Spek met ei',
+    'Havermout met appel',
   ])
   await checkLayout(page, errors, 'recepten-categorie-ontbijt')
 

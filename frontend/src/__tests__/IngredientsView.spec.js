@@ -60,6 +60,7 @@ describe('IngredientsView', () => {
       'Nog niet gekoppeld 1',
       'Te controleren 1',
       'Kenmerken te controleren 4',
+      'Basis 0',
     ])
 
     await chips[1].trigger('click')
@@ -92,6 +93,29 @@ describe('IngredientsView', () => {
       .findAll('.ingredient-list li')
       .find((li) => li.text().includes('bakpoeder'))
     expect(bakpoeder.find('.badge').text()).toBe('verwaarloosbaar')
+  })
+
+  it('basis: een badge en een eigen filter, naast de kenmerken en verwaarloosbaar', async () => {
+    const list = INGREDIENTS.map((ingredient) =>
+      ingredient.name === 'bloem' ? { ...ingredient, staple: true } : ingredient,
+    )
+    mockFetch(() => jsonResponse(list))
+    const { wrapper, router } = await mountAt('/ingredienten')
+
+    const chip = wrapper.findAll('.filter-chip').find((c) => c.text().startsWith('Basis'))
+    expect(chip.text()).toBe('Basis 1')
+    expect(wrapper.findAll('.filter-chip').map((c) => c.text().split(' ')[0])).toEqual([
+      'Alle',
+      'Nog',
+      'Te',
+      'Kenmerken',
+      'Basis',
+    ])
+    await chip.trigger('click')
+    await flushPromises()
+    expect(names(wrapper)).toEqual(['bloem'])
+    expect(router.currentRoute.value.query).toEqual({ filter: 'basis' })
+    expect(wrapper.find('.ingredient-list .badge:not(.review)').text()).toBe('basis')
   })
 
   it('toont de kenmerken per rij en filtert op kenmerken te controleren', async () => {

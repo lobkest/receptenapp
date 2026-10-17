@@ -6,9 +6,9 @@
 # and a recipe version is a snapshot of one recipe.
 class Api::IngredientsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ update update_traits ]
+  limit_public_writes only: %i[ update update_traits update_staple ]
 
-  before_action :set_ingredient, only: %i[ show update update_traits ]
+  before_action :set_ingredient, only: %i[ show update update_traits update_staple ]
 
   # GET /api/ingredients  (all of them; the page searches and filters itself)
   def index
@@ -53,6 +53,22 @@ class Api::IngredientsController < ApplicationController
     Ingredient.transaction do
       @ingredient.traits = traits if fields.key?(:trait_names)
       @ingredient.update_columns(traits_checked: ActiveModel::Type::Boolean.new.cast(fields[:traits_checked]) || false, updated_at: Time.current) if fields.key?(:traits_checked)
+    end
+
+    render json: IngredientSerializer.summary(Ingredient.includes(:nevo_food, :traits).find(@ingredient.id))
+  end
+
+  # PATCH /api/ingredients/1/staple  { "ingredient": { "staple": true } }
+  # Basisvoorraad: in the house unless someone says it is out ("In huis"). Like the traits:
+  # without lock_version, the last one wins, and the NEVO settings are left alone. What
+  # the stock said about this ingredient goes: it starts again from the new default.
+  def update_staple
+    fields = params.expect(ingredient: [ :staple ])
+    raise ActionController::ParameterMissing, :staple unless fields.key?(:staple)
+
+    Ingredient.transaction do
+      @ingredient.update_columns(staple: ActiveModel::Type::Boolean.new.cast(fields[:staple]) || false, updated_at: Time.current)
+      PantryItem.where(ingredient_id: @ingredient.id).delete_all
     end
 
     render json: IngredientSerializer.summary(Ingredient.includes(:nevo_food, :traits).find(@ingredient.id))

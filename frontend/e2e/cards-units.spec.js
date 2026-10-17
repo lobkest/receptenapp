@@ -93,8 +93,12 @@ test('receptenoverzicht: kaarten met en zonder foto, zonder porties', async ({ p
 
   // Elke kaart is zo hoog als zijn inhoud: zonder foto korter, ook naast een kaart met
   // foto in dezelfde rij (geen uitgerekt leeg vlak). Beide beginnen bovenaan de rij.
-  const photoCard = await cards.filter({ hasText: 'Shakshuka' }).boundingBox()
-  expect(cardBox.height).toBeLessThan(photoCard.height / 2)
+  // Op kaarthoogte gesorteerd staat Tomatensoep naast Bananenbrood: allebei 1 eigen tag.
+  // Zelfde aantal tags, dus het verschil in hoogte is precies het fotovak.
+  const photo = cards.filter({ hasText: 'Bananenbrood' })
+  const photoCard = await photo.boundingBox()
+  const media = await photo.locator('.media').boundingBox()
+  expect(Math.abs(photoCard.height - cardBox.height - media.height)).toBeLessThanOrEqual(2)
   expect(Math.abs(cardBox.y - photoCard.y)).toBeLessThanOrEqual(1)
 
   await page.screenshot({ path: 'e2e/screenshots/kaarten-met-en-zonder-foto.png', fullPage: true })

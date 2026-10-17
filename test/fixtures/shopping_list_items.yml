@@ -1,9 +1,11 @@
+# bloem came from the recipe and knows its ingredient; the other two do not.
 bloem:
   name: bloem
   quantity: 250
   unit: g
   source_label: Pannenkoeken
   recipe: pannenkoeken
+  ingredient: bloem
 
 zout:
   name: zout

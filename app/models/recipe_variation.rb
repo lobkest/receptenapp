@@ -101,7 +101,8 @@ class RecipeVariation < ApplicationRecord
   # servings. Attributes for ShoppingListItem (see ShoppingListAddition).
   # only: picking single rows is for the recipe itself (Recipe#shopping_list_items).
   # swaps: rows of the base recipe swapped for an alternative; a removed row stays removed.
-  # The added ingredients have no alternatives.
+  # The added ingredients have no alternatives, and get their ingredient by name
+  # (ShoppingListItem links it).
   def shopping_list_items(servings:, only: nil, swaps: {})
     raise ArgumentError, "a variation always goes on the list as a whole" if only
 

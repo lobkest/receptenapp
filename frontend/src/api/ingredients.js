@@ -41,3 +41,12 @@ export function updateIngredientTraits(id, fields) {
     body: JSON.stringify({ ingredient: fields }),
   })
 }
+
+// Basis (zout, olijfolie, ...): standaard in huis. Zonder lock_version, zoals de kenmerken.
+// Geeft het ingrediënt terug zoals in de lijst.
+export function updateIngredientStaple(id, staple) {
+  return request(`/api/ingredients/${encodeURIComponent(id)}/staple`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ingredient: { staple } }),
+  })
+}

@@ -1,29 +1,14 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { automaticTagLabels } from '@/utils/automaticTags'
+import { MAX_CARD_TAGS, cardTags } from '@/utils/sortRecipes'
 
 const props = defineProps({
   recipe: { type: Object, required: true },
 })
 
-const MAX_TAGS = 5
-
-// Een tag kan een kale string zijn ("snel") of een object ({ name: "snel" }).
-function tagName(tag) {
-  return typeof tag === 'string' ? tag : (tag?.name ?? '')
-}
-
-// Eerst de automatische tags (vegetarisch, ...), met een korte uitleg als er een wissel
-// nodig is ("met tofu i.p.v. kip"), dan de tags die iemand zelf koos. Op de kaart is
-// nooit iets gewisseld, dus de uitleg staat er altijd bij.
-const tags = computed(() => [
-  ...automaticTagLabels(props.recipe),
-  ...(Array.isArray(props.recipe.tags) ? props.recipe.tags.map(tagName).filter(Boolean) : []).map(
-    (name) => ({ name, hint: null }),
-  ),
-])
-const visibleTags = computed(() => tags.value.slice(0, MAX_TAGS))
+const tags = computed(() => cardTags(props.recipe))
+const visibleTags = computed(() => tags.value.slice(0, MAX_CARD_TAGS))
 const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.length)
 </script>
 

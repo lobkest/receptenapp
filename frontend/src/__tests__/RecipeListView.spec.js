@@ -100,13 +100,15 @@ describe('RecipeListView', () => {
     const fetch = fakeApi()
     const { wrapper } = await mountAt()
 
+    // Op kaarthoogte: Tosti (1 tag) eerst, dan Groentesoep en Pannenkoeken (2 tags, op titel).
     const cards = wrapper.findAll('.recipe-grid > li')
     expect(cards).toHaveLength(3)
-    expect(cards[0].text()).toContain('Pannenkoeken')
-    expect(cards[0].text()).not.toContain('portie')
-    expect(cards[0].findAll('.tag').map((t) => t.text())).toEqual(['vega', 'zoet'])
+    expect(titles(wrapper)).toEqual(['Tosti', 'Groentesoep', 'Pannenkoeken'])
+    const pancakes = cards[2]
+    expect(pancakes.text()).not.toContain('portie')
+    expect(pancakes.findAll('.tag').map((t) => t.text())).toEqual(['vega', 'zoet'])
     expect(cards[1].text()).not.toContain('portie')
-    expect(cards[0].find('a').attributes('href')).toBe('/recepten/1')
+    expect(pancakes.find('a').attributes('href')).toBe('/recepten/1')
     expect(recipeUrls(fetch)).toEqual(['/api/recipes'])
   })
 
@@ -132,7 +134,7 @@ describe('RecipeListView', () => {
       expect(router.currentRoute.value.query.tags).toBe('vega')
       expect(chip(wrapper, 'vega').attributes('aria-pressed')).toBe('true')
       expect(recipeUrls(fetch).at(-1)).toBe('/api/recipes?tags=vega')
-      expect(titles(wrapper)).toEqual(['Pannenkoeken', 'Groentesoep'])
+      expect(titles(wrapper)).toEqual(['Groentesoep', 'Pannenkoeken'])
     })
 
     it('combineert filters (AND) en zet ze ook weer uit', async () => {
@@ -285,7 +287,7 @@ describe('RecipeListView', () => {
         ['Overig', 'false'],
       ])
       expect(sections(wrapper)).toEqual([
-        ['Ontbijt', ['Pannenkoeken', 'Wentelteefjes']],
+        ['Ontbijt', ['Wentelteefjes', 'Pannenkoeken']],
         ['Diner', ['Groentesoep']],
         ['Overig', ['Tosti']],
       ])
@@ -300,7 +302,7 @@ describe('RecipeListView', () => {
       expect(router.currentRoute.value.query.category).toBe('1')
       expect(categoryChip(wrapper, 'Ontbijt').attributes('aria-pressed')).toBe('true')
       expect(categoryChip(wrapper, 'Alles').attributes('aria-pressed')).toBe('false')
-      expect(sections(wrapper)).toEqual([['Ontbijt', ['Pannenkoeken', 'Wentelteefjes']]])
+      expect(sections(wrapper)).toEqual([['Ontbijt', ['Wentelteefjes', 'Pannenkoeken']]])
       expect(recipeUrls(fetch)).toEqual(['/api/recipes'])
 
       await categoryChip(wrapper, 'Diner').trigger('click')

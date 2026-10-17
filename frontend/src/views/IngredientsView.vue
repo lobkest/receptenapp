@@ -45,6 +45,8 @@ const FILTERS = [
   { key: 'controleren', label: 'Te controleren', test: (i) => i.needs_review },
   // De kenmerken voor de automatische tags (vegetarisch, ...), los van NEVO.
   { key: 'kenmerken', label: 'Kenmerken te controleren', test: (i) => !i.traits_checked },
+  // Basisvoorraad: standaard in huis ("In huis").
+  { key: 'basis', label: 'Basis', test: (i) => i.staple },
 ]
 
 const query = ref(String(route.query.zoek ?? ''))
@@ -133,6 +135,7 @@ const shown = computed(() => {
           <span v-if="ingredient.needs_review" class="badge review">te controleren</span>
           <span v-if="ingredient.label_values" class="badge">etiket</span>
           <span v-if="ingredient.negligible" class="badge">verwaarloosbaar</span>
+          <span v-if="ingredient.staple" class="badge">basis</span>
         </span>
         <span
           v-if="ingredient.traits?.length || !ingredient.traits_checked"

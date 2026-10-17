@@ -8,6 +8,7 @@ import {
   fetchTraits,
   searchNevoFoods,
   updateIngredient,
+  updateIngredientStaple,
 } from '@/api/ingredients'
 import { useTraitSaver } from '@/composables/useTraitSaver'
 import { useAdminStore } from '@/stores/admin'
@@ -113,6 +114,30 @@ function onTraitToggle(name) {
 
 function markTraitsChecked() {
   saveTraits({ traits_checked: true }, 'Kenmerken gecontroleerd.')
+}
+
+// ---------- Basis (voor "In huis") ----------
+
+// Ook los van het NEVO-formulier: meteen opgeslagen, zonder lock_version (de laatste wint).
+const stapleError = ref(null)
+const stapleMessage = ref(null)
+const stapleSaving = ref(false)
+
+async function onStapleToggle(event) {
+  const staple = event.target.checked
+  stapleError.value = null
+  stapleMessage.value = null
+  stapleSaving.value = true
+  try {
+    const result = await updateIngredientStaple(ingredient.value.id, staple)
+    ingredient.value = { ...ingredient.value, staple: result.staple }
+    stapleMessage.value = result.staple ? 'Staat nu in de basis.' : 'Niet meer in de basis.'
+  } catch (e) {
+    event.target.checked = ingredient.value.staple
+    stapleError.value = e.message
+  } finally {
+    stapleSaving.value = false
+  }
 }
 
 // ---------- NEVO zoeken: suggesties op de naam, daarna zelf zoeken ----------
@@ -392,6 +417,27 @@ watch(() => props.id, load, { immediate: true })
       </button>
     </section>
 
+    <section class="card section staple">
+      <label class="check">
+        <input
+          id="staple"
+          type="checkbox"
+          :checked="ingredient.staple"
+          :disabled="stapleSaving"
+          @change="onStapleToggle"
+        />
+        <span>
+          <strong>Basis</strong><br />
+          <span class="muted small">
+            Heb je meestal in huis, zoals zout of olijfolie. Telt op "In huis" mee, tenzij je zegt
+            dat het op is. Wordt meteen opgeslagen.
+          </span>
+        </span>
+      </label>
+      <p v-if="stapleError" class="error" role="alert">{{ stapleError }}</p>
+      <p v-else-if="stapleMessage" class="muted small" role="status">{{ stapleMessage }}</p>
+    </section>
+
     <form novalidate @submit.prevent="save">
       <section class="card section negligible">
         <label class="check">
@@ -631,7 +677,8 @@ watch(() => props.id, load, { immediate: true })
   margin-top: var(--space-2);
 }
 
-.negligible .check {
+.negligible .check,
+.staple .check {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -640,7 +687,8 @@ watch(() => props.id, load, { immediate: true })
   cursor: pointer;
 }
 
-.negligible input {
+.negligible input,
+.staple input {
   flex-shrink: 0;
   margin-top: 0.15rem;
 }

@@ -12,6 +12,7 @@ module IngredientSerializer
       "label_values" => ingredient.label_values?,
       "needs_review" => ingredient.needs_review,
       "negligible" => ingredient.negligible,
+      "staple" => ingredient.staple,
       "traits" => Trait.sort(ingredient.traits).map(&:name),
       "traits_checked" => ingredient.traits_checked
     }

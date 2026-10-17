@@ -22,6 +22,27 @@ class Api::RecipeShoppingListTest < ActionDispatch::IntegrationTest
     assert_equal [ @recipe.id ], response.parsed_body.pluck("recipe_id").uniq
   end
 
+  test "Alles op lijst leaves out the rows that are in the house" do
+    skip_ids = [ recipe_ingredients(:pannenkoeken_melk).id, recipe_ingredients(:pannenkoeken_ei).id ]
+
+    assert_difference("ShoppingListItem.count", 1) do
+      post add_to_shopping_list_api_recipe_url(@recipe), as: :json, params: { skip_ingredient_ids: skip_ids }
+    end
+
+    assert_response :created
+    assert_equal [ "bloem" ], response.parsed_body.pluck("name")
+  end
+
+  test "Alles op lijst with everything in the house adds nothing; unknown skip ids are ignored" do
+    skip_ids = %i[ pannenkoeken_bloem pannenkoeken_melk pannenkoeken_ei ].map { |name| recipe_ingredients(name).id }
+
+    assert_no_difference("ShoppingListItem.count") do
+      post add_to_shopping_list_api_recipe_url(@recipe), as: :json, params: { skip_ingredient_ids: skip_ids + [ 0, "x" ] }
+    end
+    assert_response :created
+    assert_equal [], response.parsed_body
+  end
+
   test "+ lijst: only the chosen ingredient, also an optional one" do
     ei = recipe_ingredients(:pannenkoeken_ei)
     zout = recipe_ingredients(:pannenkoeken_zout)

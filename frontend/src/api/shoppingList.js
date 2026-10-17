@@ -42,6 +42,17 @@ export function removeRecipeFromShoppingListItem(id) {
   return request(`${itemPath(id)}/remove_recipe`, { method: 'POST' })
 }
 
+// "Verwijder" in "Recepten op je lijst": alle open regels van één recept, in één request.
+// recipeId, of voor een verwijderd recept sourceLabel. Regels die ook van de standaardlijst
+// kwamen, blijven als standaardregel. Geeft { removed_ids, items } terug (items: die bleven).
+export function removeRecipeFromShoppingList({ recipeId = null, sourceLabel = null }) {
+  const query =
+    recipeId != null
+      ? `recipe_id=${encodeURIComponent(recipeId)}`
+      : `source_label=${encodeURIComponent(sourceLabel)}`
+  return request(`${BASE}?${query}`, { method: 'DELETE' })
+}
+
 export function clearCheckedShoppingListItems() {
   return request(`${BASE}/clear_checked`, { method: 'DELETE' })
 }

@@ -147,6 +147,39 @@ function shoppingRoutes(initial) {
       const lines = list.map(add)
       return jsonResponse(structuredClone(body.shopping_list_items ? lines : lines[0]), 201)
     }
+    // Zoals ShoppingListItem.remove_recipe!: de open regels van één recept; met een
+    // standaarddeel blijven ze staan als standaardregel.
+    if (url.startsWith(`${SHOPPING_BASE}?`) && method === 'DELETE') {
+      const query = new URLSearchParams(url.split('?')[1])
+      const recipeId = query.has('recipe_id') ? Number(query.get('recipe_id')) : null
+      const label = query.get('source_label')
+      const lines = db.filter(
+        (item) =>
+          !item.checked &&
+          (recipeId != null
+            ? item.recipe_id === recipeId
+            : item.recipe_id == null && item.source_label === label && label !== 'standaard'),
+      )
+      const removed = []
+      const kept = []
+      for (const line of lines) {
+        if (line.standard_count) {
+          Object.assign(line, {
+            recipe_id: null,
+            recipe_title: null,
+            recipe_visible: false,
+            quantity: null,
+            unit: null,
+            source_label: 'standaard',
+          })
+          kept.push(structuredClone(line))
+        } else {
+          db.splice(db.indexOf(line), 1)
+          removed.push(line.id)
+        }
+      }
+      return jsonResponse({ removed_ids: removed, items: kept })
+    }
     if (url === `${SHOPPING_BASE}/clear_checked` && method === 'DELETE') {
       db.splice(0, db.length, ...db.filter((item) => !item.checked))
       return new Response(null, { status: 204 })

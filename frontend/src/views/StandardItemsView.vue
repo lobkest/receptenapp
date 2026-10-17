@@ -4,9 +4,12 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
 import StandardItemRow from '@/components/StandardItemRow.vue'
 import StandardItemsBottomBar from '@/components/StandardItemsBottomBar.vue'
+import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useTimedMessage } from '@/composables/useTimedMessage'
+import { usePantryStore } from '@/stores/pantry'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { useStandardItemsStore } from '@/stores/standardItems'
+import { skippedMessage, splitInHouse } from '@/utils/inHouse'
 
 // De items staan op de server (via de store), openbaar: iedereen met de link ziet en
 // wijzigt dezelfde lijst. Wat je selecteert en welk item je bewerkt, is alleen state
@@ -31,12 +34,22 @@ async function load() {
   }
 }
 
-// De boodschappenlijst ook verversen, voor "✓ op lijst". Terug naar de app ververst App.vue
-// hem. Mislukt dat, dan blijft de oude stand staan; de boodschappenpagina meldt het.
+// De boodschappenlijst ook verversen, voor "✓ op lijst", en de voorraad voor het huisje.
+// Terug naar de app ververst App.vue ze. Mislukt dat, dan blijft de oude stand staan; de
+// boodschappenpagina meldt het, en zonder voorraad zijn er geen huisjes.
+const pantry = usePantryStore()
 onMounted(() => {
   load()
   shoppingList.load().catch(() => {})
+  pantry.loadPantry().catch(() => {})
 })
+
+// Een standaarditem heeft geen ingredient_id: het huisje matcht op naam.
+const { statusOf } = useHouseStatus()
+
+function inHouse(item) {
+  return statusOf(item)?.inHouse ?? false
+}
 
 // Zelfde regel als op de receptpagina: een open regel met dezelfde naam, van welke
 // herkomst ook. Een standaarditem heeft geen ingredient_id, dus telt de naam.
@@ -143,12 +156,22 @@ function stopSelecting() {
   selected.value = []
 }
 
+// Wat in huis is, slaan we over ("5 toegevoegd, 2 al in huis"); [+] per item zet het wel
+// op de lijst.
 async function addSelected() {
+  const chosen = standard.items.filter((item) => selected.value.includes(item.id))
+  const { toAdd, inHouse: skipped } = splitInHouse(chosen, statusOf)
   let count = 0
-  const ok = await attempt(async () => (count = await standard.addToShoppingList(selected.value)))
-  if (!ok) return
+  if (toAdd.length) {
+    const ids = toAdd.map((item) => item.id)
+    const ok = await attempt(async () => (count = await standard.addToShoppingList(ids)))
+    if (!ok) return
+  }
   stopSelecting()
-  confirm(`${countText(count)} op je boodschappenlijst gezet.`, { toList: true })
+  confirm(
+    skippedMessage(count, skipped.length) ?? `${countText(count)} op je boodschappenlijst gezet.`,
+    { toList: count > 0 },
+  )
 }
 
 async function removeSelected() {
@@ -224,7 +247,9 @@ watch(
           :item="item"
           :selecting="selecting"
           :on-list="onList(item)"
+          :in-house="inHouse(item)"
           @add="addOne"
+          @error="error = $event"
           @edit="startEdit"
           @remove="removeOne"
         />

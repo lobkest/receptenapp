@@ -47,6 +47,12 @@
 
   --color-focus: #2e7d43;
 
+  /* "In huis" (het huisje): warm amber, zodat het naast het groene "✓ op lijst" opvalt.
+     Tekst 7,4:1 op de lichte achtergrond. */
+  --color-house-text: #6e4500;
+  --color-house-soft: #fbedc9;
+  --color-house-border: #e2b85c;
+
   /* Ruimte: één schaal, zodat afstanden overal in dezelfde maat verspringen. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;

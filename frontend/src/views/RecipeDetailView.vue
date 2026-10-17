@@ -10,6 +10,7 @@ import RecipeDetailVariations from '@/components/RecipeDetailVariations.vue'
 import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
+import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { formatSwaps, parseSwaps } from '@/utils/alternatives'
@@ -101,9 +102,14 @@ function reload() {
 // Van /recepten/1 naar /recepten/2 hergebruikt Vue hetzelfde component,
 // dus onMounted draait niet opnieuw. Daarom kijken we naar het id zelf.
 watch(() => props.id, load, { immediate: true })
+// De voorraad voor het huisje bij elk ingrediënt ("in huis"); mislukt dat, dan geen huisjes.
+const pantry = usePantryStore()
 watch(
   () => props.id,
-  () => shoppingList.load().catch(() => {}),
+  () => {
+    shoppingList.load().catch(() => {})
+    pantry.loadPantry().catch(() => {})
+  },
   { immediate: true },
 )
 </script>

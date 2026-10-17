@@ -2,12 +2,14 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import ServerWaiting from '@/components/ServerWaiting.vue'
+import { usePantryStore } from '@/stores/pantry'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { watchConnectivity } from '@/offline'
 
 const shoppingList = useShoppingListStore()
 const server = useServerStatusStore()
+const pantry = usePantryStore()
 const route = useRoute()
 
 // Pagina's met meta.needsServer (router/index.js) wachten tot de server online is; tot dan
@@ -31,6 +33,9 @@ function onVisibilityChange() {
   if (document.visibilityState !== 'visible') return
   server.start()
   refreshShoppingList()
+  // De voorraad alleen als een pagina hem gebruikt (receptpagina, standaardlijst, In huis):
+  // dan ververst ook het huisje bij terugkeren naar de app.
+  if (pantry.pantry) pantry.loadPantry().catch(() => {})
 }
 
 // Is de server (weer) online en is de lijst nog niet vers, haal hem dan nu op.

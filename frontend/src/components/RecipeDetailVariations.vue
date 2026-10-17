@@ -4,9 +4,11 @@ import VariationCard from '@/components/VariationCard.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { createVariation, requestVariationDeletion, updateVariation } from '@/api/variations'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
-import { swappedAlternativeIds } from '@/utils/alternatives'
+import { applySwaps, swappedAlternativeIds } from '@/utils/alternatives'
+import { skippedMessage, splitInHouse } from '@/utils/inHouse'
 
 // De variaties op de receptpagina. De kaarten tonen de verschillen met het basisrecept;
 // het formulier klapt open op de pagina, voor een nieuwe variatie onder de kaarten, bij
@@ -117,19 +119,46 @@ function reloadAfterConflict() {
   emit('reload')
 }
 
+const { statusOf } = useHouseStatus()
+
+// Wat in huis is van deze variatie: de regels van het basisrecept die meegaan (na wisselen,
+// zonder optionele en weggelaten) en de toevoegingen. Zoals het huisje het toont.
+function inHouseOf(variation) {
+  const removed = variation.changes
+    .filter((change) => change.kind === 'remove')
+    .map((change) => change.recipe_ingredient_id)
+  const rows = applySwaps(props.recipe.ingredients ?? [], props.swaps).filter(
+    (row) => !row.optional && !removed.includes(row.id),
+  )
+  const additions = variation.changes.filter((change) => change.kind === 'add')
+  return {
+    ingredientIds: splitInHouse(rows, statusOf).inHouse.map((row) => row.id),
+    additionIds: splitInHouse(additions, statusOf).inHouse.map((addition) => addition.id),
+  }
+}
+
 // Wat op het scherm staat: het gekozen aantal porties en de gewisselde ingrediënten. De
-// server rekent de regels uit; een ingrediënt dat de variatie weglaat, blijft weg.
+// server rekent de regels uit; een ingrediënt dat de variatie weglaat, blijft weg, en wat
+// in huis is slaan we over.
 async function addVariationToList(variation) {
   busyVariationId.value = variation.id
   resetVariationFeedback()
   try {
-    await shoppingList.addVariation(
+    const skip = inHouseOf(variation)
+    const lines = await shoppingList.addVariation(
       props.recipe.id,
       variation.id,
       props.servings,
       swappedAlternativeIds(props.swaps),
+      skip,
     )
-    variationMessage.value = `"${variation.name}" staat op je boodschappenlijst.`
+    const skipped = skippedMessage(
+      lines.length,
+      skip.ingredientIds.length + skip.additionIds.length,
+    )
+    variationMessage.value = skipped
+      ? `"${variation.name}": ${skipped}`
+      : `"${variation.name}" staat op je boodschappenlijst.`
   } catch (e) {
     variationError.value = e.message
   } finally {
@@ -232,6 +261,7 @@ async function askVariationDeletion(variation) {
           @add-to-list="addVariationToList"
           @add-ingredient="addAdditionToList"
           @remove-ingredient="removeAdditionFromList"
+          @error="variationError = $event"
           @edit="startEditing"
           @delete="askVariationDeletion"
         />

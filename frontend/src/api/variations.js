@@ -39,8 +39,18 @@ export function requestVariationDeletion(recipeId, id, reason) {
 // het basisrecept min de weggelaten en optionele ingrediënten, plus de extra's. Met
 // alternativeIds gaan gewisselde ingrediënten als hun alternatief mee. Geeft de nieuwe
 // regels terug.
-export function addVariationToShoppingList(recipeId, id, servings, alternativeIds = []) {
+// skip: wat in huis is en dus niet op de lijst hoeft: { ingredientIds (regels van het
+// recept), additionIds (toevoegingen van de variatie) }.
+export function addVariationToShoppingList(
+  recipeId,
+  id,
+  servings,
+  alternativeIds = [],
+  { ingredientIds = [], additionIds = [] } = {},
+) {
   const body = alternativeIds.length ? { servings, alternative_ids: alternativeIds } : { servings }
+  if (ingredientIds.length) body.skip_ingredient_ids = ingredientIds
+  if (additionIds.length) body.skip_addition_ids = additionIds
   return request(`${variationPath(recipeId, id)}/add_to_shopping_list`, {
     method: 'POST',
     body: JSON.stringify(body),

@@ -2,7 +2,7 @@
 # any device. Writes are rate limited (PublicWriteRateLimit).
 class Api::ShoppingListItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy remove_standard remove_recipe clear_checked clear_all ]
+  limit_public_writes only: %i[ create update destroy remove_standard remove_recipe destroy_recipe clear_checked clear_all ]
 
   # "Alles op lijst" for a big recipe is a few dozen; this only stops absurd requests.
   MAX_ITEMS_PER_REQUEST = 100
@@ -12,7 +12,7 @@ class Api::ShoppingListItemsController < ApplicationController
 
   # GET /api/shopping_list_items
   def index
-    render json: ShoppingListItem.order(:id).map { |item| serialize(item) }
+    render json: ShoppingListItemSerializer.items(ShoppingListItem.order(:id).to_a)
   end
 
   # POST /api/shopping_list_items  { "shopping_list_item": { "name": "melk", ... } }
@@ -57,6 +57,21 @@ class Api::ShoppingListItemsController < ApplicationController
   # { "item": line } or, when the line is gone, { "item": null }.
   def remove_recipe
     render json: { item: @item.remove_recipe_part!&.then { |item| serialize(item) } }
+  end
+
+  # DELETE /api/shopping_list_items?recipe_id=5
+  # DELETE /api/shopping_list_items?source_label=Pannenkoeken  (a deleted recipe)
+  # "Verwijder" in "Recepten op je lijst": every open line of the recipe in one transaction;
+  # a line also added from the standard list stays as a standard line (like "✓ op lijst").
+  # { "removed_ids": [ 1, 2 ], "items": [ the lines that stayed ] }
+  def destroy_recipe
+    removed_ids, kept = if params[:recipe_id].present?
+      ShoppingListItem.remove_recipe!(recipe_id: params[:recipe_id])
+    else
+      ShoppingListItem.remove_recipe!(source_label: params.expect(:source_label))
+    end
+
+    render json: { removed_ids: removed_ids, items: ShoppingListItemSerializer.items(kept) }
   end
 
   # DELETE /api/shopping_list_items/clear_checked

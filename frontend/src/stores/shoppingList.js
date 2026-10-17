@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import { addRecipeToShoppingList } from '@/api/recipes'
 import { addStandardItemsToShoppingList } from '@/api/standardItems'
 import { addVariationToShoppingList } from '@/api/variations'
+import { recipesOnList } from '@/utils/shoppingListRecipes'
 import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapshot } from '@/offline'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
@@ -86,6 +87,8 @@ export const useShoppingListStore = defineStore('shoppingList', {
   getters: {
     openCount: (state) => state.items.filter((item) => !item.checked).length,
     hasChecked: (state) => state.items.some((item) => item.checked),
+    // "Recepten op je lijst": zie src/utils/shoppingListRecipes.js.
+    recipesOnList: (state) => recipesOnList(state.items),
 
     // Staat dit ingrediënt ({ ingredient_id, name }) op de lijst, gezien vanaf het recept
     // recipeId? Alleen open (niet afgestreepte) regels tellen, van welke herkomst ook.
@@ -234,13 +237,20 @@ export const useShoppingListStore = defineStore('shoppingList', {
 
     // "Alles op lijst" (ingredientIds null: alles behalve de optionele) of "+ lijst" (één
     // id) op de receptpagina. De server schaalt en rondt af (app/models/quantity.rb), net
-    // als bij een variatie, en geeft de nieuwe regels terug.
-    async addRecipe(recipeId, servings, ingredientIds = null, alternativeIds = []) {
+    // als bij een variatie, en geeft de nieuwe regels terug (die geven we ook terug).
+    // skipIds: regels die in huis zijn; die slaat "Alles op lijst" over.
+    async addRecipe(recipeId, servings, ingredientIds = null, alternativeIds = [], skipIds = []) {
       this.changes++
-      this.items.push(
-        ...(await addRecipeToShoppingList(recipeId, servings, ingredientIds, alternativeIds)),
+      const lines = await addRecipeToShoppingList(
+        recipeId,
+        servings,
+        ingredientIds,
+        alternativeIds,
+        skipIds,
       )
+      this.items.push(...lines)
       this.persist()
+      return lines
     },
 
     // "Ontbrekende op lijst" (op "In huis" en bij "Met ingrediënt…"): de regels die nog
@@ -254,13 +264,20 @@ export const useShoppingListStore = defineStore('shoppingList', {
       )
     },
 
-    // "Variatie op lijst": de server stelt de regels samen en geeft ze terug.
-    async addVariation(recipeId, variationId, servings, alternativeIds = []) {
+    // "Variatie op lijst": de server stelt de regels samen en geeft ze terug (wij ook).
+    // skip: wat in huis is, zie addVariationToShoppingList.
+    async addVariation(recipeId, variationId, servings, alternativeIds = [], skip = {}) {
       this.changes++
-      this.items.push(
-        ...(await addVariationToShoppingList(recipeId, variationId, servings, alternativeIds)),
+      const lines = await addVariationToShoppingList(
+        recipeId,
+        variationId,
+        servings,
+        alternativeIds,
+        skip,
       )
+      this.items.push(...lines)
       this.persist()
+      return lines
     },
 
     // Optimistisch: het vinkje staat er meteen, het request volgt. Naar de server gaat de
@@ -340,6 +357,18 @@ export const useShoppingListStore = defineStore('shoppingList', {
           }
         }),
       )
+      this.persist()
+    },
+
+    // "Verwijder" in "Recepten op je lijst" (recipe: een rij van recipesOnList): alle open
+    // regels van dat recept in één request. Wat ook van de standaardlijst kwam, blijft als
+    // standaardregel, net als bij "✓ op lijst" (ShoppingListItem#remove_recipe_part!).
+    // De receptpagina en de standaardlijst lezen uit items, dus die kloppen meteen.
+    async removeRecipe(recipe) {
+      this.changes++
+      const { removed_ids: removedIds, items } = await api.removeRecipeFromShoppingList(recipe)
+      for (const id of removedIds) this.putLine(id, null)
+      for (const item of items) this.putLine(item.id, item)
       this.persist()
     },
 

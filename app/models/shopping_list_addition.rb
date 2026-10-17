@@ -14,7 +14,10 @@ class ShoppingListAddition
   # ingredient_ids: rows of the recipe, or nil for everything except the optional ones.
   # alternative_ids: the alternatives swapped in on the recipe page, at most one per row
   # (RecipeIngredientAlternative ids; the row follows from the alternative).
-  attr_accessor :source, :ingredient_ids, :alternative_ids
+  # skip_ingredient_ids: rows of the recipe to leave out, because they are in the house
+  # ("Alles op lijst" and "Variatie op lijst"). skip_addition_ids: the same for the
+  # ingredients a variation adds (VariationChange ids). Unknown ids are ignored.
+  attr_accessor :source, :ingredient_ids, :alternative_ids, :skip_ingredient_ids, :skip_addition_ids
   attr_writer :servings
   attr_reader :items
 
@@ -25,7 +28,7 @@ class ShoppingListAddition
   def save
     return false if invalid?
 
-    lines = source.shopping_list_items(servings: Integer(servings.to_s), only: chosen_ids, swaps: swaps)
+    lines = source.shopping_list_items(servings: Integer(servings.to_s), only: chosen_ids, swaps: swaps, **skips)
     @items = ShoppingListItem.transaction { lines.map { |attributes| ShoppingListItem.create!(attributes) } }
     true
   end
@@ -44,7 +47,18 @@ class ShoppingListAddition
     end
 
     def chosen_alternative_ids
-      Array.wrap(alternative_ids).map { |id| Integer(id.to_s, exception: false) }
+      integers(alternative_ids)
+    end
+
+    # Only a variation adds ingredients of its own.
+    def skips
+      skips = { skip: integers(skip_ingredient_ids) }
+      skips[:skip_additions] = integers(skip_addition_ids) if source.is_a?(RecipeVariation)
+      skips
+    end
+
+    def integers(ids)
+      Array.wrap(ids).map { |id| Integer(id.to_s, exception: false) }
     end
 
     # { row id => alternative }, for the alternatives that were asked for.

@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/pantry'
+import { presentIngredientIds } from '@/utils/inHouse'
 
 // Telt elke loadRecipes(): alleen het antwoord op de laatste telt (snel filters aantikken).
 let latestRecipes = 0
+// Per store een lopende loadPantry(), zodat de pagina en App.vue die tegelijk aanroepen
+// maar één request doen. Per store (niet één variabele), zodat een nieuwe Pinia (in de
+// tests) nooit het antwoord voor een oude krijgt.
+const pendingPantry = new WeakMap()
 
 // "In huis": de voorraad en de recepten die je ermee kunt maken. Alles staat op de server
 // (één voorraad voor iedereen met de link); hier alleen wat de pagina laat zien. De pagina
@@ -28,6 +33,9 @@ export const usePantryStore = defineStore('pantry', {
       !!state.pantry &&
       state.pantry.in_house.length === 0 &&
       state.pantry.staples.every((staple) => staple.present),
+    // De ingrediënt-ids die in huis zijn (ook de basis die niet op is), of null voor het
+    // laden. Voor het huisje op de receptpagina en de standaardlijst (src/utils/inHouse.js).
+    presentIds: (state) => presentIngredientIds(state.pantry),
     // Alle recepten uit de drie groepen, voor de categorie-chips.
     allRecipes: (state) => state.groups.flatMap((group) => group.recipes),
   },
@@ -39,8 +47,20 @@ export const usePantryStore = defineStore('pantry', {
       await Promise.all([this.loadPantry(), this.loadRecipes(tags)])
     },
 
-    async loadPantry() {
-      this.pantry = await api.fetchPantry()
+    loadPantry() {
+      if (pendingPantry.has(this)) return pendingPantry.get(this)
+      const pending = api
+        .fetchPantry()
+        .then((pantry) => {
+          // Een onverwacht antwoord (geen voorraad): niet overnemen, dan liever geen huisjes.
+          if (!Array.isArray(pantry?.in_house) || !Array.isArray(pantry?.staples)) {
+            throw new TypeError('geen voorraad')
+          }
+          this.pantry = pantry
+        })
+        .finally(() => pendingPantry.delete(this))
+      pendingPantry.set(this, pending)
+      return pending
     },
 
     async loadRecipes(tags = this.tags) {
@@ -63,9 +83,43 @@ export const usePantryStore = defineStore('pantry', {
       }
     },
 
+    // Het huisje op de receptpagina en de standaardlijst: in huis of eruit, zonder de
+    // recepten van "In huis" opnieuw te laden (die pagina doet dat zelf bij openen).
+    // Optimistisch: het huisje verandert meteen; weigert de server, dan zetten we de oude
+    // voorraad terug en gooien we de fout door voor de melding.
+    async toggleInHouse(ingredientId, name, present) {
+      if (this.busy.has(ingredientId) || !this.pantry) return
+      this.busy.add(ingredientId)
+      const before = this.pantry
+      this.pantry = withPresence(before, { id: ingredientId, name }, present)
+      try {
+        this.pantry = await api.setInHouse(ingredientId, present)
+      } catch (e) {
+        this.pantry = before
+        throw e
+      } finally {
+        this.busy.delete(ingredientId)
+      }
+    },
+
     async reset() {
       this.pantry = await api.resetPantry()
       await this.loadRecipes()
     },
   },
 })
+
+// De voorraad met één ingrediënt in huis (present true) of eruit, zoals de server het zou
+// opslaan: basis staat in staples (present), de rest in in_house.
+function withPresence(pantry, ingredient, present) {
+  if (pantry.staples.some((staple) => staple.id === ingredient.id)) {
+    return {
+      ...pantry,
+      staples: pantry.staples.map((staple) =>
+        staple.id === ingredient.id ? { ...staple, present } : staple,
+      ),
+    }
+  }
+  const others = pantry.in_house.filter((item) => item.id !== ingredient.id)
+  return { ...pantry, in_house: present ? [...others, ingredient] : others }
+}

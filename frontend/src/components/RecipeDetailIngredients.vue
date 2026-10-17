@@ -1,14 +1,19 @@
 <script setup>
 import { computed, ref } from 'vue'
+import HouseButton from '@/components/HouseButton.vue'
 import ShoppingListButton from '@/components/ShoppingListButton.vue'
+import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { applySwaps, swappedAlternativeIds, swapRow } from '@/utils/alternatives'
+import { alternativeHint, skippedMessage, splitInHouse } from '@/utils/inHouse'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
 
 // De ingrediënten op de receptpagina, geschaald naar het gekozen aantal porties, met
 // "+ lijst" (of "✓ op lijst", zie ShoppingListButton) per ingrediënt en "Alles op lijst". Onder een ingrediënt met alternatieven
 // staan chips: "⇄ tofu" wisselt, "↺ kip" zet het origineel terug.
+// Naast de lijstknop het huisje (HouseButton): in huis of niet, een tik zet het om. Is het
+// ingrediënt niet in huis maar een alternatief wel, dan "tofu in huis → wissel".
 const props = defineProps({
   // Het recept zoals de API het stuurt: { id, servings, ingredients }.
   recipe: { type: Object, required: true },
@@ -50,16 +55,18 @@ const busyId = ref(null)
 
 // ingredientIds null: alles behalve de optionele ingrediënten. De gewisselde
 // ingrediënten gaan als hun alternatief mee; de herkomst blijft het recept.
-async function addToShoppingList(ingredientIds, message) {
+// message: een tekst, of een functie die de nieuwe regels krijgt.
+async function addToShoppingList(ingredientIds, message, skipIds = []) {
   addError.value = null
   try {
-    await shoppingList.addRecipe(
+    const lines = await shoppingList.addRecipe(
       props.recipe.id,
       props.servings,
       ingredientIds,
       swappedAlternativeIds(swaps.value),
+      skipIds,
     )
-    confirmAdded(message)
+    confirmAdded(typeof message === 'function' ? message(lines) : message)
   } catch (e) {
     hideAdded()
     addError.value = e.message
@@ -91,15 +98,36 @@ async function removeFromList(ingredient) {
   }
 }
 
+const { statusOf } = useHouseStatus()
+
 // Optionele ingrediënten laat de server weg: die zet je los op de lijst met "+ lijst".
+// Wat in huis is (zoals het huisje het toont, dus na wisselen) slaan we ook over; "+ lijst"
+// zet het wel op de lijst.
 function addAllToList() {
-  const hasOptional = props.recipe.ingredients.some((ingredient) => ingredient.optional)
+  const hasOptional = scaledIngredients.value.some((ingredient) => ingredient.optional)
+  const { inHouse } = splitInHouse(
+    scaledIngredients.value.filter((ingredient) => !ingredient.optional),
+    statusOf,
+  )
   addToShoppingList(
     null,
-    hasOptional
-      ? 'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.'
-      : 'Alle ingrediënten staan op je boodschappenlijst.',
+    (lines) =>
+      skippedMessage(lines.length, inHouse.length) ??
+      (hasOptional
+        ? 'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.'
+        : 'Alle ingrediënten staan op je boodschappenlijst.'),
+    inHouse.map((ingredient) => ingredient.id),
   )
+}
+
+// Per regel (id) de wissel-hint, of null.
+const hints = computed(
+  () => new Map(scaledIngredients.value.map((row) => [row.id, alternativeHint(row, statusOf)])),
+)
+
+// "kidneybonen in huis → wissel", met "+1" als er nog meer alternatieven in huis zijn.
+function hintText(hint) {
+  return `${hint.name} in huis → wissel${hint.more ? ` (+${hint.more})` : ''}`
 }
 
 // alternativeId null: terug naar het origineel.
@@ -123,14 +151,25 @@ function swap(ingredient, alternativeId) {
             {{ ingredientLine(ingredient) }}
             <span v-if="ingredient.optional" class="optional muted">(optioneel)</span>
           </span>
-          <ShoppingListButton
-            :ingredient="ingredient"
-            :recipe-id="recipe.id"
-            :busy="busyId === ingredient.id"
-            @add="addToList(ingredient)"
-            @remove="removeFromList(ingredient)"
-          />
+          <div class="row-buttons">
+            <HouseButton :ingredient="ingredient" @error="addError = $event" />
+            <ShoppingListButton
+              :ingredient="ingredient"
+              :recipe-id="recipe.id"
+              :busy="busyId === ingredient.id"
+              @add="addToList(ingredient)"
+              @remove="removeFromList(ingredient)"
+            />
+          </div>
         </div>
+        <button
+          v-if="hints.get(ingredient.id)"
+          type="button"
+          class="house-hint"
+          @click="swap(ingredient, hints.get(ingredient.id).alternativeId)"
+        >
+          {{ hintText(hints.get(ingredient.id)) }}
+        </button>
         <!-- Ook zonder kleur te begrijpen: ⇄ wisselt, ↺ zet het origineel terug. -->
         <ul
           v-if="ingredient.original || ingredient.others.length"
@@ -200,6 +239,27 @@ function swap(ingredient, alternativeId) {
 .line {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* Huisje en lijstknop naast elkaar, nooit onder elkaar. */
+.row-buttons {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+/* Klein en amber, zoals het huisje: een tip, geen hoofdzaak. */
+.house-hint {
+  min-height: 0;
+  margin: 0 0 var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-house-text);
+  background: var(--color-house-soft);
+  border-color: transparent;
+  border-radius: var(--radius-full);
 }
 
 /* Gewisseld: de regel zelf in de accentkleur, zodat je ziet dat hij afwijkt. */

@@ -52,6 +52,11 @@ Rails.application.routes.draw do
       end
     end
 
+    # "Verwijder alles van dit recept": DELETE on the list itself, with ?recipe_id= (or
+    # ?source_label= for a deleted recipe) saying which lines. Query, not body: a DELETE
+    # with a body is not reliably passed on.
+    delete "shopping_list_items", to: "shopping_list_items#destroy_recipe"
+
     resources :standard_items, only: %i[ index create update destroy ] do
       # POST, not DELETE: a DELETE request with a body is not reliably passed on.
       post :bulk_destroy, on: :collection

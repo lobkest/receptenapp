@@ -1,12 +1,14 @@
 <script setup>
-import { onMounted, ref, useTemplateRef, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
+import ShoppingListRecipes from '@/components/ShoppingListRecipes.vue'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
+import { groupByRecipe, removeRecipeQuestion } from '@/utils/shoppingListRecipes'
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
@@ -50,7 +52,29 @@ onMounted(async () => {
   loading.value = false
 })
 
+// "Groepeer per recept": de stand staat in de URL (?groep=recept), niet in localStorage.
+// Zo blijft hij na herladen staan en kun je de link delen; de knop Terug van de browser
+// springt er niet doorheen (replace in plaats van push).
+const route = useRoute()
+const router = useRouter()
+const grouped = computed(() => route.query.groep === 'recept')
+
+function setGrouped(on) {
+  router.replace({ query: { ...route.query, groep: on ? 'recept' : undefined } })
+}
+
+// Uit: één sectie zonder kop, dus precies de gewone lijst. Aan: een sectie per recept en
+// daarna "Los / standaardlijst"; binnen een sectie de gewone volgorde.
+const sections = computed(() =>
+  grouped.value ? groupByRecipe(list.items) : [{ key: 'alles', title: null, items: list.items }],
+)
+
 const confirmDialog = useTemplateRef('confirmDialog')
+
+async function removeRecipe(recipe) {
+  const sure = await confirmDialog.value.ask(removeRecipeQuestion(recipe))
+  if (sure) attempt(() => list.removeRecipe(recipe))
+}
 
 async function clearAll() {
   const sure = await confirmDialog.value.ask({
@@ -89,48 +113,55 @@ async function clearAll() {
   </p>
 
   <template v-else-if="list.items.length">
-    <ul class="items card">
-      <li
-        v-for="item in list.items"
-        :key="item.id"
-        :data-id="item.id"
-        :class="{ checked: item.checked }"
-      >
-        <label>
-          <input
-            type="checkbox"
-            :checked="item.checked"
-            @change="attempt(() => list.toggle(item.id))"
-          />
-          <span class="line">{{ shoppingListLine(item) }}</span>
-        </label>
-        <span v-if="shoppingListSource(item)" class="sources"
-          >uit: {{ shoppingListSource(item) }}</span
+    <button v-if="grouped" type="button" class="ungroup" @click="setGrouped(false)">
+      Groepering uit
+    </button>
+
+    <section v-for="section in sections" :key="section.key" class="section">
+      <h2 v-if="section.title" class="section-title">{{ section.title }}</h2>
+      <ul class="items card">
+        <li
+          v-for="item in section.items"
+          :key="item.id"
+          :data-id="item.id"
+          :class="{ checked: item.checked }"
         >
-        <div class="line-actions">
-          <!-- Alleen bij iets van de standaardlijst: één minder ("melk ×2" → "melk"). -->
-          <button
-            v-if="item.standard_count > 0"
-            type="button"
-            class="minus"
-            :disabled="list.offline"
-            :aria-label="`Eén ${item.name} minder`"
-            @click="attempt(() => list.removeStandard(item.id))"
+          <label>
+            <input
+              type="checkbox"
+              :checked="item.checked"
+              @change="attempt(() => list.toggle(item.id))"
+            />
+            <span class="line">{{ shoppingListLine(item) }}</span>
+          </label>
+          <span v-if="shoppingListSource(item)" class="sources"
+            >uit: {{ shoppingListSource(item) }}</span
           >
-            −
-          </button>
-          <button
-            type="button"
-            class="remove"
-            :disabled="list.offline"
-            :aria-label="`${item.name} verwijderen`"
-            @click="attempt(() => list.remove(item.id))"
-          >
-            ✕
-          </button>
-        </div>
-      </li>
-    </ul>
+          <div class="line-actions">
+            <!-- Alleen bij iets van de standaardlijst: één minder ("melk ×2" → "melk"). -->
+            <button
+              v-if="item.standard_count > 0"
+              type="button"
+              class="minus"
+              :disabled="list.offline"
+              :aria-label="`Eén ${item.name} minder`"
+              @click="attempt(() => list.removeStandard(item.id))"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              class="remove"
+              :disabled="list.offline"
+              :aria-label="`${item.name} verwijderen`"
+              @click="attempt(() => list.remove(item.id))"
+            >
+              ✕
+            </button>
+          </div>
+        </li>
+      </ul>
+    </section>
 
     <div class="actions">
       <button
@@ -145,12 +176,40 @@ async function clearAll() {
         Alles wissen
       </button>
     </div>
+
+    <ShoppingListRecipes
+      v-if="list.recipesOnList.length"
+      :recipes="list.recipesOnList"
+      :grouped="grouped"
+      :offline="list.offline"
+      @update:grouped="setGrouped"
+      @remove="removeRecipe"
+    />
   </template>
 
   <ConfirmDialog ref="confirmDialog" />
 </template>
 
 <style scoped>
+/* Klein en rechts: alleen voor wie de groepering weer uit wil zonder te scrollen. */
+.ungroup {
+  display: block;
+  min-height: 0;
+  margin: 0 0 var(--space-2) auto;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.section + .section {
+  margin-top: var(--space-4);
+}
+
+.section-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
 .items {
   margin: 0;
   padding: 0 var(--space-4);

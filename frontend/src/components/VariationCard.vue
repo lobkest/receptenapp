@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import HouseButton from '@/components/HouseButton.vue'
 import ShoppingListButton from '@/components/ShoppingListButton.vue'
 import { formatQuantity, scaleQuantity } from '@/utils/quantity'
 
@@ -18,7 +19,15 @@ const props = defineProps({
 })
 
 // add-ingredient en remove-ingredient: (variatie, toevoeging met geschaalde hoeveelheid).
-const emit = defineEmits(['add-to-list', 'edit', 'delete', 'add-ingredient', 'remove-ingredient'])
+// error: het huisje kon niet worden omgezet (melding).
+const emit = defineEmits([
+  'add-to-list',
+  'edit',
+  'delete',
+  'add-ingredient',
+  'remove-ingredient',
+  'error',
+])
 
 const removals = computed(() => props.variation.changes.filter((c) => c.kind === 'remove'))
 
@@ -45,14 +54,16 @@ function additionText(addition) {
       </li>
       <li v-for="addition in additions" :key="addition.id" class="change added">
         <span>+ {{ additionText(addition) }}</span>
-        <ShoppingListButton
-          v-if="recipeId != null"
-          :ingredient="addition"
-          :recipe-id="recipeId"
-          :busy="busy"
-          @add="emit('add-ingredient', variation, addition)"
-          @remove="emit('remove-ingredient', variation, addition)"
-        />
+        <span v-if="recipeId != null" class="addition-buttons">
+          <HouseButton :ingredient="addition" @error="emit('error', $event)" />
+          <ShoppingListButton
+            :ingredient="addition"
+            :recipe-id="recipeId"
+            :busy="busy"
+            @add="emit('add-ingredient', variation, addition)"
+            @remove="emit('remove-ingredient', variation, addition)"
+          />
+        </span>
       </li>
     </ul>
 
@@ -133,6 +144,15 @@ h3 {
   gap: var(--space-1);
   align-items: flex-start;
   margin-bottom: var(--space-2);
+}
+
+/* Huisje en lijstknop naast elkaar onder de tekst; past "in huis" + "✓ op lijst" niet in
+   de smalle kaart, dan de lijstknop eronder (de knoppen zelf breken nooit af). */
+.addition-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
 }
 
 .removed {

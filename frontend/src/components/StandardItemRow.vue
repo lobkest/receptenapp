@@ -1,31 +1,39 @@
 <script setup>
+import HouseButton from '@/components/HouseButton.vue'
+
 // Eén item op de standaardlijst: de naam met drie icoonknoppen (op lijst, bewerken,
 // verwijderen), of in de selectiemodus een vinkje over de hele regel. Wat een knop doet,
 // regelt StandardItemsView via de events.
 // Staat het item al (open) op de boodschappenlijst (onList), dan is [+] "✓ op lijst"; die
 // blijft klikbaar en zet er dan één bij ("melk ×2").
+// Ervoor het huisje (HouseButton): in huis of niet, een tik zet het om. In de selectiemodus
+// alleen een label "in huis" (inHouse): dat slaat "Op lijst (n)" over.
 defineProps({
   item: { type: Object, required: true },
   selecting: { type: Boolean, default: false },
   onList: { type: Boolean, default: false },
+  inHouse: { type: Boolean, default: false },
 })
 
 // De gekozen item-id's in de selectiemodus (v-model:selected).
 const selected = defineModel('selected', { type: Array, default: () => [] })
 
-const emit = defineEmits(['add', 'edit', 'remove'])
+// error: het huisje kon niet worden omgezet (melding bovenaan de pagina).
+const emit = defineEmits(['add', 'edit', 'remove', 'error'])
 </script>
 
 <template>
   <label v-if="selecting" class="row select">
     <input v-model="selected" type="checkbox" :value="item.id" />
     <span class="line">{{ item.name }}</span>
+    <span v-if="inHouse" class="in-house-tag">in huis</span>
     <span v-if="onList" class="on-list-tag">✓ op lijst</span>
   </label>
 
   <div v-else class="row">
     <span class="line">{{ item.name }}</span>
     <div class="item-actions">
+      <HouseButton class="house" :ingredient="item" @error="emit('error', $event)" />
       <button
         v-if="onList"
         type="button"
@@ -148,5 +156,18 @@ const emit = defineEmits(['add', 'edit', 'remove'])
 
 .remove {
   color: var(--color-danger);
+}
+
+/* Het huisje in de rij icoonknoppen: verticaal gecentreerd, met wat lucht naar [+]. */
+.house {
+  align-self: center;
+  margin-right: var(--space-1);
+}
+
+.in-house-tag {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-house-text);
 }
 </style>

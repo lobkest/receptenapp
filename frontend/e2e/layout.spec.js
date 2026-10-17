@@ -43,6 +43,9 @@ test.beforeAll(async ({ playwright }) => {
 test.beforeEach(async () => {
   const cleared = await api.delete('/api/shopping_list_items/clear_all')
   expect(cleared.status()).toBe(204)
+  // Afvinken zet iets in huis, en wat in huis is slaat "Alles op lijst" over: begin
+  // daarom met de standaardvoorraad.
+  expect((await api.post('/api/pantry/reset')).status()).toBe(200)
 })
 
 // De database zelf wordt leeggemaakt in e2e/global-teardown.js.

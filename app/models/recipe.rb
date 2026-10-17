@@ -146,8 +146,10 @@ class Recipe < ApplicationRecord
   # (only: [ row id ]) puts on the shopping list, scaled to servings. Attributes for
   # ShoppingListItem (see ShoppingListAddition). swaps: { row id => alternative } for the
   # rows swapped on the recipe page; an optional row stays optional when swapped.
-  def shopping_list_items(servings:, only: nil, swaps: {})
+  # skip: row ids to leave out (in the house).
+  def shopping_list_items(servings:, only: nil, swaps: {}, skip: [])
     rows = only ? recipe_ingredients.select { |row| only.include?(row.id) } : recipe_ingredients.reject(&:optional)
+    rows = rows.reject { |row| skip.include?(row.id) }
 
     ShoppingListItem.lines_for(rows.map { |row| row.shopping_line(swaps[row.id]) },
       factor: Rational(servings, self.servings), source_label: title, recipe_id: id)

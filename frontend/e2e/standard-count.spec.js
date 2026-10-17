@@ -62,6 +62,9 @@ test.beforeAll(async ({ playwright }) => {
 
 test.beforeEach(async () => {
   expect((await api.delete('/api/shopping_list_items/clear_all')).status()).toBe(204)
+  // Afvinken zet iets in huis, en wat in huis is slaat "Alles op lijst" over: begin
+  // daarom met de standaardvoorraad.
+  expect((await api.post('/api/pantry/reset')).status()).toBe(200)
 })
 
 test.afterAll(async () => {

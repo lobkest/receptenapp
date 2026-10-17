@@ -204,6 +204,14 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
     assert_equal [ @recipe.id ], response.parsed_body.pluck("recipe_id").uniq
   end
 
+  test "Variatie op lijst leaves out base rows and additions that are in the house" do
+    post add_to_shopping_list_api_recipe_variation_url(@recipe, @spek), as: :json,
+      params: { skip_ingredient_ids: [ @bloem.id ], skip_addition_ids: [ variation_changes(:spek_met_spek).id ] }
+
+    assert_response :created
+    assert_equal [ "ei" ], response.parsed_body.pluck("name")
+  end
+
   test "Variatie op lijst uses the recipe's servings by default and refuses odd servings" do
     post add_to_shopping_list_api_recipe_variation_url(@recipe, @spek), as: :json
 

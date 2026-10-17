@@ -111,13 +111,15 @@ class RecipeVariation < ApplicationRecord
   # swaps: rows of the base recipe swapped for an alternative; a removed row stays removed.
   # The added ingredients have no alternatives, and get their ingredient by name
   # (ShoppingListItem links it).
-  def shopping_list_items(servings:, only: nil, swaps: {})
+  # skip: rows of the base recipe to leave out, skip_additions: added ones (both: in the house).
+  def shopping_list_items(servings:, only: nil, swaps: {}, skip: [], skip_additions: [])
     raise ArgumentError, "a variation always goes on the list as a whole" if only
 
-    removed = removed_ingredient_ids
+    removed = removed_ingredient_ids + skip
     rows = recipe.recipe_ingredients.reject { |row| row.optional || removed.include?(row.id) }
       .map { |row| row.shopping_line(swaps[row.id]) }
-    rows += additions.map { |addition| [ addition.name, addition.quantity, addition.unit ] }
+    rows += additions.reject { |addition| skip_additions.include?(addition.id) }
+      .map { |addition| [ addition.name, addition.quantity, addition.unit ] }
 
     ShoppingListItem.lines_for(rows, factor: Rational(servings, recipe.servings),
       source_label: "#{recipe.title} (variatie: #{name})", recipe_id: recipe.id)

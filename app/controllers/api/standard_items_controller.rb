@@ -55,7 +55,7 @@ class Api::StandardItemsController < ApplicationController
       StandardItem.where(id: ids).order(:name).map { |item| ShoppingListItem.add_standard!(item.name) }
     end
 
-    render json: lines.map { |line| ShoppingListItemSerializer.item(line) }
+    render json: ShoppingListItemSerializer.items(lines)
   end
 
   private

@@ -73,6 +73,24 @@ class ShoppingListItem < ApplicationRecord
     decrement!(:standard_count, touch: true)
   end
 
+  # "Verwijder" in "Recepten op je lijst": remove_recipe_part! on every open line of one
+  # recipe, all or none. The recipe by recipe_id, or, after it was deleted (recipe_id is then
+  # NULL), by the source_label its lines kept. Ticked-off lines stay.
+  # Returns [ ids of the removed lines, the lines that stayed as standard lines ].
+  def self.remove_recipe!(recipe_id: nil, source_label: nil)
+    lines = recipe_id ? unchecked.where(recipe_id: recipe_id) : of_deleted_recipe(source_label).unchecked
+    transaction do
+      results = lines.order(:id).lock.map { |line| [ line.id, line.remove_recipe_part! ] }
+      removed, kept = results.partition { |_id, line| line.nil? }
+      [ removed.map(&:first), kept.map(&:last) ]
+    end
+  end
+
+  # The lines of a recipe that is gone: no recipe_id any more, but the recipe's source_label.
+  def self.of_deleted_recipe(source_label)
+    where(recipe_id: nil, source_label: source_label.to_s.squish).where.not(source_label: STANDARD_SOURCE)
+  end
+
   # "✓ op lijst" on a recipe takes the recipe part off. Was the line also added from the
   # standard list, it stays as a standard line (same count); otherwise it is removed
   # (returns nil).

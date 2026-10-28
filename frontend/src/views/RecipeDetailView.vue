@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import LinkedText from '@/components/LinkedText.vue'
 import RecipeDetailActions from '@/components/RecipeDetailActions.vue'
 import RecipeDetailIngredients from '@/components/RecipeDetailIngredients.vue'
 import RecipeDetailServings from '@/components/RecipeDetailServings.vue'
@@ -144,7 +145,9 @@ watch(
       Op basis van eigen ingrediëntgegevens; controleer etiketten.
     </p>
     <RecipeDetailServings v-model="servings" :original="recipe.servings" />
-    <p v-if="recipe.description" class="description">{{ recipe.description }}</p>
+    <p v-if="recipe.description" class="description">
+      <LinkedText :text="recipe.description" />
+    </p>
 
     <!-- Oudere recepten hebben geen ingrediënten of stappen; dan vervalt het kopje. -->
     <RecipeDetailIngredients
@@ -183,6 +186,8 @@ watch(
   font-size: var(--text-lg);
   color: var(--color-text-muted);
   white-space: pre-line;
+  /* Een lange link breekt af in plaats van de pagina breder te maken. */
+  overflow-wrap: anywhere;
 }
 
 .category-label {

@@ -22,7 +22,8 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
 
       assert_equal 1, lines.size
       assert_equal({ "name" => "kaas", "quantity" => nil, "unit" => nil, "source_label" => "standaard",
-        "recipe_id" => nil, "checked" => false, "standard_count" => 1, "recipe_title" => nil, "recipe_visible" => false },
+        "recipe_id" => nil, "checked" => false, "standard_count" => 1, "recipe_title" => nil, "recipe_visible" => false,
+        "category" => "zuivel" },
         lines.first.except("id", "ingredient_id"))
     end
   end
@@ -138,6 +139,6 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal({ "id" => line.id, "name" => "bloem", "quantity" => nil, "unit" => nil, "source_label" => "standaard",
       "recipe_id" => nil, "standard_count" => 1 },
-      response.parsed_body["item"].except("ingredient_id", "checked", "recipe_title", "recipe_visible"))
+      response.parsed_body["item"].except("ingredient_id", "checked", "recipe_title", "recipe_visible", "category"))
   end
 end

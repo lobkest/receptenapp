@@ -96,7 +96,8 @@ async function openStandard(page) {
 
 async function openShoppingList(page) {
   await page.goto('/boodschappen')
-  await expect(page.locator('.items')).toBeVisible()
+  // Per categorie een eigen .items; de eerste is genoeg.
+  await expect(page.locator('.items').first()).toBeVisible()
 }
 
 function shoppingRow(page, text) {
@@ -287,11 +288,20 @@ test('screenshots: standaardlijst (mix ✓ en [+]) en boodschappenlijst (×2, +1
 
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText([
+    // Per categorie: zuivel, daarna overig.
     '200 ml melk +1',
-    '125 g bloem',
     'kaas ×2',
+    '125 g bloem',
     'wc-papier',
   ])
+  await expect(page.locator('.category-title')).toHaveText(['zuivel', 'overig'])
+  // "uit: …" staat naast de naam (afgekapt als het niet past), dus elke rij is één regel
+  // hoog: het aanraakvak van 40 px plus wat ruimte.
+  for (const height of await page
+    .locator('.items li')
+    .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))) {
+    expect(height).toBeLessThan(46)
+  }
   expect(await noHorizontalScroll()).toBe(true)
   await page.screenshot({
     path: 'e2e/screenshots/boodschappen-teller.png',

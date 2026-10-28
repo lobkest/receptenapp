@@ -52,6 +52,30 @@ describe('RecipeDetailView', () => {
     expect(actions.find('a.versions').exists()).toBe(false)
   })
 
+  it('maakt links in de beschrijving klikbaar, in een nieuw tabblad', async () => {
+    mockFetch(() =>
+      jsonResponse({ ...SOUP, description: 'Van https://example.com/soep.\nLekker.' }),
+    )
+    const { wrapper } = await mountAt('/recepten/5')
+
+    const description = wrapper.find('.description')
+    expect(description.text()).toBe('Van https://example.com/soep.\nLekker.')
+    const link = description.find('a')
+    expect(link.attributes('href')).toBe('https://example.com/soep')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    expect(link.text()).toBe('https://example.com/soep')
+  })
+
+  it('maakt geen HTML van een beschrijving met tags', async () => {
+    mockFetch(() => jsonResponse({ ...SOUP, description: '<b>vet</b> <a href="x">nep</a>' }))
+    const { wrapper } = await mountAt('/recepten/5')
+
+    expect(wrapper.find('.description b').exists()).toBe(false)
+    expect(wrapper.find('.description a').exists()).toBe(false)
+    expect(wrapper.find('.description').text()).toBe('<b>vet</b> <a href="x">nep</a>')
+  })
+
   describe('automatische tags', () => {
     const WOK = {
       ...SOUP,

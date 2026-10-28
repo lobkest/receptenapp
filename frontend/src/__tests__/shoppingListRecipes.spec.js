@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   LOOSE_TITLE,
+  categorySections,
   groupByRecipe,
   recipeKeyOf,
   recipesOnList,
@@ -156,5 +157,28 @@ describe('removeRecipeQuestion', () => {
     expect(removeRecipeQuestion({ title: 'x', openCount: 1, keptCount: 1 }).title).toBe(
       "'x' van de lijst halen?",
     )
+  })
+})
+
+describe('categorySections', () => {
+  it('zonder categorieën: één sectie zonder kop, in de volgorde van de lijst', () => {
+    const items = [line(1), line(2)]
+    expect(categorySections(items)).toEqual([{ key: 'alles', title: null, items }])
+  })
+
+  it('een sectie per categorie op alfabet, "overig" als laatste, binnen een sectie de lijstvolgorde', () => {
+    const items = [
+      line(1, { category: 'zuivel' }),
+      line(2),
+      line(3, { category: 'bakken' }),
+      line(4, { category: 'zuivel' }),
+    ]
+    expect(
+      categorySections(items).map(({ title, items: lines }) => [title, lines.map((i) => i.id)]),
+    ).toEqual([
+      ['bakken', [3]],
+      ['zuivel', [1, 4]],
+      ['overig', [2]],
+    ])
   })
 })

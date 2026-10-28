@@ -140,6 +140,18 @@ async function openShoppingList(page, path = '/boodschappen') {
   await expect(page.locator('.items').first()).toBeVisible()
 }
 
+// De regels van de boodschappenlijst op alfabet. De lijst staat per categorie van de
+// standaardlijst, en welke standaarditems een categorie hebben hangt af van de specs die
+// eerder draaiden; daarom vergelijken we hier zonder volgorde.
+async function sortedLines(page) {
+  const texts = await page.locator('.items .line').allTextContents()
+  return sorted(texts.map((text) => text.trim()))
+}
+
+function sorted(texts) {
+  return texts.toSorted((a, b) => a.localeCompare(b, 'nl'))
+}
+
 test('a+b+c) het vakje toont beide recepten; groeperen staat in de URL en blijft na herladen', async ({
   page,
 }) => {
@@ -179,15 +191,19 @@ test('a+b+c) het vakje toont beide recepten; groeperen staat in de URL en blijft
   await page.locator('.ungroup').click()
   await expect(page).toHaveURL(/\/boodschappen$/)
   await expect(sectionTitles(page)).toHaveCount(0)
-  await expect(page.locator('.items .line')).toHaveText([
-    '250 g orzo',
-    '100 g feta',
-    '200 ml melk',
-    '300 g courgette',
-    '300 g kip',
-    '200 g rijst',
-  ])
-  await expect(page.locator('.items li').nth(1)).toHaveClass(/checked/)
+  await expect
+    .poll(() => sortedLines(page))
+    .toEqual(
+      sorted([
+        '250 g orzo',
+        '100 g feta',
+        '200 ml melk',
+        '300 g courgette',
+        '300 g kip',
+        '200 g rijst',
+      ]),
+    )
+  await expect(page.locator('.items li', { hasText: '100 g feta' })).toHaveClass(/checked/)
 })
 
 test('d+f) verwijder recept A: alleen de open regels weg; daarna op het recept weer "+ lijst"', async ({
@@ -224,7 +240,7 @@ test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page
   const errors = collectErrors(page)
   await fillList({ standardMelk: true })
   await openShoppingList(page)
-  await expect(page.locator('.items .line').nth(2)).toHaveText('200 ml melk +1')
+  await expect(page.locator('.items .line', { hasText: /^200 ml melk \+1$/ })).toHaveCount(1)
 
   await boxRow(page, 'Groep-orzo').locator('.remove-recipe').click()
   const dialog = page.locator('dialog')
@@ -235,12 +251,9 @@ test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page
   await checkLayout(page, errors, 'boodschappen-recept-verwijderen')
   await dialog.getByRole('button', { name: 'Verwijderen' }).click()
 
-  await expect(page.locator('.items .line')).toHaveText([
-    '100 g feta',
-    'melk',
-    '300 g kip',
-    '200 g rijst',
-  ])
+  await expect
+    .poll(() => sortedLines(page))
+    .toEqual(sorted(['100 g feta', 'melk', '300 g kip', '200 g rijst']))
   const melk = (await shoppingList()).find((item) => item.name === 'melk')
   expect(melk).toMatchObject({
     recipe_id: null,

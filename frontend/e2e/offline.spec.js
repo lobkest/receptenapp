@@ -87,6 +87,12 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   const page = await context.newPage()
   const errors = collectErrors(page)
   const checkboxes = page.locator('.items input[type="checkbox"]')
+  // Op naam, niet op plaats: de lijst staat per categorie van de standaardlijst, en die
+  // hangt af van eerdere specs (melk kan in "zuivel" bovenaan staan).
+  const row = (name) => page.locator('.items li').filter({ hasText: name })
+  const box = (name) => row(name).locator('input[type="checkbox"]')
+  const sortedLines = async () =>
+    (await page.locator('.items .line').allTextContents()).map((t) => t.trim()).sort()
   const patches = []
   page.on('request', (r) => {
     if (r.method() === 'PATCH') patches.push(JSON.parse(r.postData()).shopping_list_item)
@@ -95,7 +101,7 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   // Online openen: de lijst komt van de server en wordt opgeslagen. De service worker
   // installeert zich en bewaart de app zelf.
   await page.goto('/boodschappen')
-  await expect(page.locator('.items .line')).toHaveText(['250 g bloem', '500 ml melk', 'wc-papier'])
+  await expect.poll(sortedLines).toEqual(['250 g bloem', '500 ml melk', 'wc-papier'])
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
   await expect(page.locator('.offline-notice')).toHaveCount(0)
   await expect(page.locator('.clear-all')).toBeEnabled()
@@ -108,14 +114,14 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   await expect(page.locator('.offline-notice')).toContainText(
     /^Offline kopie van \d\d:\d\d, Offline/,
   )
-  await expect(page.locator('.items .line')).toHaveText(['250 g bloem', '500 ml melk', 'wc-papier'])
+  await expect.poll(sortedLines).toEqual(['250 g bloem', '500 ml melk', 'wc-papier'])
 
   // Afvinken werkt; verwijderen en wissen niet.
-  await checkboxes.nth(0).check()
-  await checkboxes.nth(1).check()
-  await checkboxes.nth(0).uncheck()
-  await expect(page.locator('.items li').nth(1)).toHaveClass(/checked/)
-  await expect(page.locator('.items li').nth(0)).not.toHaveClass(/checked/)
+  await box('bloem').check()
+  await box('melk').check()
+  await box('bloem').uncheck()
+  await expect(row('melk')).toHaveClass(/checked/)
+  await expect(row('bloem')).not.toHaveClass(/checked/)
   await expect(page.locator('.shopping-link')).toContainText('Boodschappen (2)')
   await expect(page.locator('.offline-notice')).toContainText(
     '2 wijzigingen nog niet gesynchroniseerd',
@@ -131,8 +137,8 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   expect(await checkedInDatabase()).toEqual({ bloem: false, melk: false, 'wc-papier': false })
   await page.reload()
   await expect(checkboxes).toHaveCount(3)
-  await expect(checkboxes.nth(1)).toBeChecked()
-  await expect(checkboxes.nth(0)).not.toBeChecked()
+  await expect(box('melk')).toBeChecked()
+  await expect(box('bloem')).not.toBeChecked()
 
   // Weer online: de wachtrij gaat naar de server, samengevoegd per regel.
   await context.setOffline(false)

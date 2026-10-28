@@ -79,6 +79,40 @@ describe('ShoppingListView', () => {
     expect(getRequests(server.fetch)).toHaveLength(1)
   })
 
+  it('groepeert per categorie van de standaardlijst, met "overig" als laatste', async () => {
+    server = fakeServer({
+      shopping: [
+        {
+          id: 1,
+          name: 'bloem',
+          quantity: 300,
+          unit: 'g',
+          source_label: 'Wafels',
+          category: 'bakken',
+        },
+        { id: 2, name: 'zout', source_label: 'Pannenkoeken' },
+        { id: 3, name: 'melk', source_label: 'standaard', standard_count: 1, category: 'zuivel' },
+        {
+          id: 4,
+          name: 'bakpoeder',
+          source_label: 'standaard',
+          standard_count: 1,
+          category: 'bakken',
+        },
+      ],
+    })
+    ;({ wrapper } = await mountApp())
+
+    expect(wrapper.findAll('.category-title').map((h) => h.text())).toEqual([
+      'bakken',
+      'zuivel',
+      'overig',
+    ])
+    expect(lines(wrapper)).toEqual(['300 g bloem', 'bakpoeder', 'melk', 'zout'])
+    // "uit: …" staat in dezelfde rij als de naam.
+    expect(wrapper.find('.items li .text .sources').text()).toBe('uit: Wafels')
+  })
+
   it('zegt niet meer dat de lijst alleen in deze browser staat', async () => {
     ;({ wrapper } = await mountApp())
 

@@ -19,8 +19,26 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
       "id" => @bloem.id, "name" => "bloem", "quantity" => 250, "unit" => "g",
       "source_label" => "Pannenkoeken", "recipe_id" => recipes(:pannenkoeken).id,
       "ingredient_id" => ingredients(:bloem).id, "checked" => false, "standard_count" => 0,
-      "recipe_title" => "Pannenkoeken", "recipe_visible" => true
+      "recipe_title" => "Pannenkoeken", "recipe_visible" => true, "category" => nil
     }, response.parsed_body.find { |item| item["id"] == @bloem.id })
+  end
+
+  test "index sends the category of the standard item with the same name" do
+    StandardItem.create!(name: "bloem", category: "bakken")
+
+    get api_shopping_list_items_url, as: :json
+
+    categories = response.parsed_body.to_h { |item| [ item["name"], item["category"] ] }
+    assert_equal "bakken", categories["bloem"]
+    assert_equal "zuivel", categories["melk"]
+    assert_nil categories["zout"]
+  end
+
+  test "a new line gets the category of its standard item" do
+    post api_shopping_list_items_url, params: { shopping_list_item: { name: " Kaas " } }, as: :json
+
+    assert_response :created
+    assert_equal "zuivel", response.parsed_body["category"]
   end
 
   test "index sends a decimal quantity as a number" do

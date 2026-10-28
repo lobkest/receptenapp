@@ -8,7 +8,7 @@ import ShoppingListRecipes from '@/components/ShoppingListRecipes.vue'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
-import { groupByRecipe, removeRecipeQuestion } from '@/utils/shoppingListRecipes'
+import { categorySections, groupByRecipe, removeRecipeQuestion } from '@/utils/shoppingListRecipes'
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
@@ -63,10 +63,11 @@ function setGrouped(on) {
   router.replace({ query: { ...route.query, groep: on ? 'recept' : undefined } })
 }
 
-// Uit: één sectie zonder kop, dus precies de gewone lijst. Aan: een sectie per recept en
-// daarna "Los / standaardlijst"; binnen een sectie de gewone volgorde.
+// Gewoon: een sectie per categorie van de standaardlijst ("bakken", "zuivel"), zoals de
+// afdelingen in de winkel, en "overig" als laatste. Per recept: een sectie per recept en
+// daarna "Los / standaardlijst". Binnen een sectie de gewone volgorde.
 const sections = computed(() =>
-  grouped.value ? groupByRecipe(list.items) : [{ key: 'alles', title: null, items: list.items }],
+  grouped.value ? groupByRecipe(list.items) : categorySections(list.items),
 )
 
 const confirmDialog = useTemplateRef('confirmDialog')
@@ -118,7 +119,9 @@ async function clearAll() {
     </button>
 
     <section v-for="section in sections" :key="section.key" class="section">
-      <h2 v-if="section.title" class="section-title">{{ section.title }}</h2>
+      <h2 v-if="section.title" :class="section.category ? 'category-title' : 'section-title'">
+        {{ section.title }}
+      </h2>
       <ul class="items card">
         <li
           v-for="item in section.items"
@@ -132,11 +135,18 @@ async function clearAll() {
               :checked="item.checked"
               @change="attempt(() => list.toggle(item.id))"
             />
-            <span class="line">{{ shoppingListLine(item) }}</span>
+            <!-- "uit: …" direct achter de regel, niet eronder: dat scheelt een regel hoogte.
+                 Te lang? Dan kapt hij af met "…"; de volledige herkomst staat in de tooltip. -->
+            <span class="text">
+              <span class="line">{{ shoppingListLine(item) }}</span>
+              <span
+                v-if="shoppingListSource(item)"
+                class="sources"
+                :title="`uit: ${shoppingListSource(item)}`"
+                >uit: {{ shoppingListSource(item) }}</span
+              >
+            </span>
           </label>
-          <span v-if="shoppingListSource(item)" class="sources"
-            >uit: {{ shoppingListSource(item) }}</span
-          >
           <div class="line-actions">
             <!-- Alleen bij iets van de standaardlijst: één minder ("melk ×2" → "melk"). -->
             <button
@@ -210,6 +220,16 @@ async function clearAll() {
   color: var(--color-text-muted);
 }
 
+/* Categorie als klein kopje, zoals op de standaardlijst: een afdeling in de winkel. */
+.category-title {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .items {
   margin: 0;
   padding: 0 var(--space-4);
@@ -221,7 +241,7 @@ async function clearAll() {
   grid-template-columns: 1fr auto;
   align-items: center;
   column-gap: var(--space-2);
-  padding: var(--space-2) 0;
+  padding: 2px 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -236,7 +256,8 @@ async function clearAll() {
   align-items: center;
   min-height: var(--tap);
   font-weight: 400;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
+  line-height: 1.3;
   cursor: pointer;
 }
 
@@ -244,19 +265,35 @@ async function clearAll() {
   flex-shrink: 0;
 }
 
+/* Naam en herkomst op één regel. De naam krimpt niet (die moet je kunnen lezen); de
+   herkomst krijgt wat overblijft en kapt af met "…". */
+.text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.items label {
+  min-width: 0;
+}
+
+.line {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
 .sources {
-  /* Onder de knoppen door: een lange receptnaam past dan nog op één regel. */
-  grid-column: 1 / -1;
-  /* Zelfde inspringing als de tekst naast het vinkje. */
-  padding-left: calc(1.5rem + var(--space-3));
-  font-size: var(--text-sm);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .line-actions {
   display: flex;
-  grid-row: 1;
-  grid-column: 2;
 }
 
 .remove,

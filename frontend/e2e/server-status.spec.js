@@ -126,8 +126,16 @@ async function checkLayout(page, errors, name) {
   expect(errors, 'geen console-errors').toEqual([])
 }
 
-function lines(page) {
-  return page.locator('.items .line')
+// De regels van de boodschappenlijst op alfabet. De lijst staat per categorie van de
+// standaardlijst, en welke standaarditems een categorie hebben hangt af van de specs die
+// eerder draaiden; daarom vergelijken we hier zonder volgorde.
+async function sortedLines(page) {
+  const texts = await page.locator('.items .line').allTextContents()
+  return sorted(texts.map((text) => text.trim()))
+}
+
+function sorted(texts) {
+  return texts.toSorted((a, b) => a.localeCompare(b, 'nl'))
 }
 
 async function checkedInDatabase() {
@@ -142,7 +150,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
 
   // Eerst één keer online: de lijst wordt lokaal bewaard, met tijdstip.
   await page.goto('/boodschappen')
-  await expect(lines(page)).toHaveText(['500 ml melk', 'eieren'])
+  await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.offline-notice')).toHaveCount(0)
 
   // De server slaapt: geen antwoord op /up of /api.
@@ -157,7 +165,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
   await expect(page.locator('.offline-notice')).toHaveText(
     /^Offline kopie van \d\d:\d\d, bijwerken…/,
   )
-  await expect(lines(page)).toHaveText(['500 ml melk', 'eieren'])
+  await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.server-waiting')).toHaveCount(0)
   await checkLayout(page, errors, 'a-boodschappen-kopie')
 
@@ -166,7 +174,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
     data: { shopping_list_items: [{ name: 'brood', source_label: 'standaard' }] },
   })
   await wakeUp()
-  await expect(lines(page)).toHaveText(['500 ml melk', 'eieren', 'brood'])
+  await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren', 'brood']))
   await expect(page.locator('.offline-notice')).toHaveCount(0)
 
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
@@ -181,12 +189,12 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   const errors = collectErrors(page)
 
   await page.goto('/boodschappen')
-  await expect(lines(page)).toHaveText(['500 ml melk', 'eieren'])
+  await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
 
   // (b) De API is onbereikbaar: de offline kopie, en afvinken gaat in de wachtrij.
   const restore = await cutServer(page)
   await page.reload()
-  await expect(lines(page)).toHaveText(['500 ml melk', 'eieren'])
+  await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   const notice = page.locator('.offline-notice')
   await expect(notice).toContainText(/^Offline kopie van \d\d:\d\d, bijwerken…/)
   await expect(notice).toContainText('Afvinken kan gewoon')

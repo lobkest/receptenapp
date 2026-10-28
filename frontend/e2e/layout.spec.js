@@ -627,6 +627,11 @@ test('boodschappen: gedeeld tussen twee telefoons', async ({ browser }) => {
   const phoneA = await newPhone(browser)
   const phoneB = await newPhone(browser)
   const checkboxes = (page) => page.locator('.items input[type="checkbox"]')
+  // Op naam, niet op plaats: de lijst staat per categorie van de standaardlijst, en die
+  // hangt af van eerdere specs (melk kan in "zuivel" bovenaan staan).
+  const row = (page, name) => page.locator('.items li').filter({ hasText: name })
+  const sortedLines = async (page) =>
+    (await page.locator('.items .line').allTextContents()).map((t) => t.trim()).sort()
 
   // A zet een recept op de lijst en opent de lijst.
   await phoneA.page.goto(`/recepten/${recipeIds[2]}`)
@@ -639,27 +644,23 @@ test('boodschappen: gedeeld tussen twee telefoons', async ({ browser }) => {
   // B ziet dezelfde lijst (na herladen) en vinkt de bloem af.
   await phoneB.page.goto('/boodschappen')
   await phoneB.page.reload()
-  await expect(phoneB.page.locator('.items .line')).toHaveText([
-    '250 g bloem',
-    '500 ml melk',
-    'zout',
-  ])
+  await expect.poll(() => sortedLines(phoneB.page)).toEqual(['250 g bloem', '500 ml melk', 'zout'])
   await expect(phoneB.page.locator('.items .sources').first()).toHaveText(
     'uit: Erwtensoep met roggebrood',
   )
   const saved = phoneB.page.waitForResponse(
     (r) => r.url().includes('/api/shopping_list_items/') && r.request().method() === 'PATCH',
   )
-  await checkboxes(phoneB.page).first().check()
+  await row(phoneB.page, 'bloem').locator('input').check()
   expect((await saved).status()).toBe(200)
   await expect(phoneB.page.locator('.shopping-link')).toContainText('Boodschappen (2)')
   await checkLayout(phoneB.page, phoneB.errors, 'boodschappen-telefoon-b')
 
   // A heeft nog de oude stand; na terugkeren naar de app is de bloem afgevinkt.
-  await expect(checkboxes(phoneA.page).first()).not.toBeChecked()
+  await expect(row(phoneA.page, 'bloem').locator('input')).not.toBeChecked()
   await switchBackTo(phoneA.page)
-  await expect(checkboxes(phoneA.page).first()).toBeChecked()
-  await expect(phoneA.page.locator('.items li').first()).toHaveClass(/checked/)
+  await expect(row(phoneA.page, 'bloem').locator('input')).toBeChecked()
+  await expect(row(phoneA.page, 'bloem')).toHaveClass(/checked/)
   await expect(phoneA.page.locator('.shopping-link')).toContainText('Boodschappen (2)')
   await checkLayout(phoneA.page, phoneA.errors, 'boodschappen-telefoon-a')
 

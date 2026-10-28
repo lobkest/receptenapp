@@ -152,8 +152,9 @@ test('import: Pasta wortel saus, geschaald naar 8 porties en alles op de lijst',
   await page.goto('/boodschappen')
   const items = page.locator('.items li')
   await expect(items).toHaveCount(9)
-  await expect(page.locator('.items')).toContainText('1.600 g gepelde tomaten')
-  await expect(page.locator('.items')).toContainText('gehaktkruiden')
-  await expect(page.locator('.items')).not.toContainText(/NaN|undefined|\b0 /)
+  // Per categorie kan de lijst over meer dan één .items staan.
+  await expect(items.filter({ hasText: '1.600 g gepelde tomaten' })).toHaveCount(1)
+  await expect(items.filter({ hasText: 'gehaktkruiden' })).toHaveCount(1)
+  await expect(items.filter({ hasText: /NaN|undefined|\b0 / })).toHaveCount(0)
   await checkLayout(page, errors, 'import-boodschappen-pasta-wortel-saus')
 })

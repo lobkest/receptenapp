@@ -1,3 +1,4 @@
+import { groupByCategory } from '@/utils/grouping'
 import { STANDARD_SOURCE } from '@/utils/shoppingListLine'
 
 // "Recepten op je lijst" en "Groepeer per recept" op de boodschappenlijst. Alles wordt
@@ -81,6 +82,22 @@ export function groupByRecipe(items) {
   const loose = items.filter((item) => recipeKeyOf(item) == null)
   if (loose.length) sections.push({ key: 'los', title: LOOSE_TITLE, items: loose })
   return sections
+}
+
+// De gewone weergave: een sectie per categorie (category komt van de server: die van het
+// standaarditem met dezelfde naam), op alfabet, en "overig" als laatste. Heeft geen enkele
+// regel een categorie (of een oude opgeslagen kopie zonder), dan één sectie zonder kop:
+// precies de lijst zoals hij was.
+export const NO_CATEGORY_TITLE = 'overig'
+
+export function categorySections(items) {
+  if (!items.some((item) => item.category)) return [{ key: 'alles', title: null, items }]
+  return groupByCategory(items, (item) => item.category || null).map(({ category, items }) => ({
+    key: `categorie-${category ?? ''}`,
+    title: category ?? NO_CATEGORY_TITLE,
+    category: true,
+    items,
+  }))
 }
 
 function itemsText(count) {

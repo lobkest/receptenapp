@@ -47,13 +47,22 @@ describe('RecipeCard', () => {
     expect(mountCard({ tags: [] }).find('.tags').exists()).toBe(false)
   })
 
-  it('toont maximaal vijf tags plus "+n" voor de rest', () => {
+  it('toont maximaal zes tags plus "+n" voor de rest', () => {
     const wrapper = mountCard({
-      tags: ['snel', { name: 'zoet' }, 'ontbijt', { name: 'hartig' }, 'oven', 'winter', 'feest'],
+      tags: [
+        'snel',
+        { name: 'zoet' },
+        'ontbijt',
+        { name: 'hartig' },
+        'oven',
+        'winter',
+        'feest',
+        'bbq',
+      ],
     })
 
     const tags = wrapper.findAll('.tag').map((tag) => tag.text())
-    expect(tags).toEqual(['snel', 'zoet', 'ontbijt', 'hartig', 'oven', '+2'])
+    expect(tags).toEqual(['snel', 'zoet', 'ontbijt', 'hartig', 'oven', 'winter', '+2'])
   })
 
   it('vijf tags met de automatische eerst, waarvan één met hint, passen zonder "+n"', () => {

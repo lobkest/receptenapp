@@ -198,12 +198,13 @@ test('vlees uitvinken bij kip op het bewerkscherm verandert het label op het rec
   expect(errors).toEqual([])
 })
 
-test('kaarten: een met vijf tags (één met hint) naast een zonder tags', async ({ page }) => {
+test('kaarten: een met zes tags (één met hint) naast een zonder tags', async ({ page }) => {
   // Ei is dierlijk: alleen veganistisch vraagt om de tofu. Schnitzel met kaas past bij geen
-  // enkele automatische tag (vlees, gluten, lactose).
+  // enkele automatische tag (vlees, gluten, lactose, en noten in de pindasaus).
   await giveTraits(api, 'ei', ['dierlijk'])
   await giveTraits(api, 'kipschnitzel', ['vlees', 'dierlijk', 'gluten'])
   await giveTraits(api, 'kaas', ['dierlijk', 'lactose'])
+  await giveTraits(api, 'pindasaus', ['noten'])
   const recipe = (title, tags, rows) => ({
     title,
     servings: 2,
@@ -236,6 +237,7 @@ test('kaarten: een met vijf tags (één met hint) naast een zonder tags', async 
       [
         { ingredient_name: 'kipschnitzel', quantity: 2, unit: 'stuks' },
         { ingredient_name: 'kaas', quantity: 50, unit: 'g' },
+        { ingredient_name: 'pindasaus', quantity: 2, unit: 'el' },
       ],
     ),
   ]) {

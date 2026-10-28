@@ -8,7 +8,8 @@ import { RAILS_URL } from './env.js'
 let api
 // Bewust niet op volgorde aangemaakt; [titel, sectie, tags]. Tags die geen andere test
 // gebruikt, anders duiken deze recepten op in hun tagfilters. Elk recept krijgt ook
-// de vier automatische tags (vegetarisch, ...), die tellen op de kaart mee.
+// de automatische tags (vegetarisch, ...; bloem heeft hier geen kenmerken, dus alle
+// vijf), die tellen op de kaart mee.
 const DATA = [
   ['Yoghurt met granola', 'Ontbijt', ['zondag', 'licht', 'lauw']],
   ['Boterham met kaas', 'Ontbijt', []],
@@ -71,7 +72,7 @@ test('receptenoverzicht: kaarten per sectie op hoogte, gelijke naast elkaar', as
     'Havermout',
     'Yoghurt met granola',
   ])
-  // 6 en 7 tags tonen allebei 5 tags plus "+N": even hoog, dus op titel.
+  // 11 en 12 tags tonen allebei 6 tags plus "+N": even hoog, dus op titel.
   await expect(section('Diner').locator('h3')).toHaveText([
     'Lasagne',
     'Stamppot',

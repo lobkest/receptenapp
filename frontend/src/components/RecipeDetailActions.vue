@@ -3,14 +3,20 @@ import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { requestDeletion } from '@/api/recipes'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useAdminStore } from '@/stores/admin'
 import { useRecipesStore } from '@/stores/recipes'
+import { recipeText } from '@/utils/recipeText'
+import { shareText } from '@/utils/share'
 
-// Onder het recept: bewerken en verwijderen (aanvragen) voor iedereen, versies alleen
-// voor de beheerder.
+// Onder het recept: bewerken, delen en verwijderen (aanvragen) voor iedereen, versies
+// alleen voor de beheerder.
 const props = defineProps({
-  // { id, title }
+  // Het recept zoals de API het stuurt; voor delen is alles nodig, niet alleen { id, title }.
   recipe: { type: Object, required: true },
+  // Het gekozen aantal porties en de gewisselde ingrediënten: je deelt wat je ziet.
+  servings: { type: Number, default: null },
+  swaps: { type: Object, default: () => ({}) },
 })
 
 const router = useRouter()
@@ -23,6 +29,31 @@ const { askWithInput } = useConfirmDialog()
 // beslist of het definitief weg gaat of terugkomt.
 const deleting = ref(false)
 const deleteError = ref(null)
+
+// Delen als tekst, zonder link naar de app (utils/recipeText.js). Het deelmenu laat zelf
+// zien dat het gelukt is; alleen bij kopiëren een melding.
+const sharing = ref(false)
+const shareError = ref(null)
+const { message: shareMessage, show: showShareMessage, hide: hideShareMessage } = useTimedMessage()
+
+async function share() {
+  sharing.value = true
+  shareError.value = null
+  hideShareMessage()
+  try {
+    const text = recipeText(props.recipe, {
+      servings: props.servings ?? props.recipe.servings,
+      swaps: props.swaps,
+    })
+    if ((await shareText(props.recipe.title, text)) === 'copied') {
+      showShareMessage('Recept gekopieerd. Plak het waar je wilt.')
+    }
+  } catch (e) {
+    shareError.value = e.message
+  } finally {
+    sharing.value = false
+  }
+}
 
 async function askDeletion() {
   const title = props.recipe.title
@@ -53,6 +84,7 @@ async function askDeletion() {
     <RouterLink :to="{ name: 'recipe-edit', params: { id: recipe.id } }" class="btn edit">
       Bewerken
     </RouterLink>
+    <button type="button" class="btn share" :disabled="sharing" @click="share">Delen</button>
     <RouterLink
       v-if="admin.isLoggedIn"
       :to="{ name: 'admin-recipe-versions', params: { id: recipe.id } }"
@@ -63,6 +95,10 @@ async function askDeletion() {
     <button type="button" class="btn-danger delete" :disabled="deleting" @click="askDeletion">
       Verwijderen
     </button>
+    <p v-if="shareMessage" class="share-message notice notice-success" role="status">
+      {{ shareMessage }}
+    </p>
+    <p v-if="shareError" class="error" role="alert">{{ shareError }}</p>
     <p v-if="deleteError" class="error" role="alert">{{ deleteError }}</p>
   </div>
 </template>
@@ -76,5 +112,11 @@ async function askDeletion() {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+
+/* De melding onder de knoppen, niet ertussen. */
+.share-message {
+  flex-basis: 100%;
+  margin: 0;
 }
 </style>

@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 dist-e2e
+dist-e2e-update
 coverage
 *.local
 

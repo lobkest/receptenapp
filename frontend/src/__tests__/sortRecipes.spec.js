@@ -27,6 +27,7 @@ describe('visibleTagChipCount', () => {
   it('telt automatische tags mee', () => {
     expect(visibleTagChipCount(recipe('a', 1, 2))).toBe(3)
     expect(visibleTagChipCount(recipe('a', 4, 3))).toBe(MAX_CARD_TAGS + 1)
+    expect(visibleTagChipCount(recipe('a', 1, 5))).toBe(MAX_CARD_TAGS)
   })
 
   it('kan zonder tags-velden', () => {

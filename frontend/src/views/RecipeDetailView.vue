@@ -172,7 +172,7 @@ watch(
       :servings="servings"
       :swaps="swaps"
     />
-    <RecipeDetailActions :recipe="recipe" />
+    <RecipeDetailActions :recipe="recipe" :servings="servings" :swaps="swaps" />
   </article>
 
   <ConfirmDialog ref="confirmDialog" />

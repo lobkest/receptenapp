@@ -76,6 +76,11 @@ export default defineConfig({
         // kopie in localStorage, met tijdstip (src/offline/). version.json hoort niet in
         // de precache (globPatterns): die is alleen voor Rails.
         cleanupOutdatedCaches: true,
+        // Een nieuwe service worker wordt meteen actief, in plaats van te wachten tot alle
+        // tabbladen van de app dicht zijn. Moet er expliciet staan: zonder dit zet
+        // vite-plugin-pwa 2 skipWaiting alleen achter een bericht dat registerSW() bij
+        // autoUpdate niet stuurt, en bleef de nieuwe versie eeuwig op "waiting" staan.
+        skipWaiting: true,
         // Een nieuwe service worker neemt open tabbladen meteen over, niet pas na herladen.
         clientsClaim: true,
       },

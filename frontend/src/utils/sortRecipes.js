@@ -1,7 +1,8 @@
 import { automaticTagLabels } from '@/utils/automaticTags'
 
-// Hoeveel tags een receptkaart laat zien; de rest wordt één "+N"-chip.
-export const MAX_CARD_TAGS = 5
+// Hoeveel tags een receptkaart laat zien; de rest wordt één "+N"-chip. Zes: de vijf
+// automatische tags (vegetarisch, ...) plus minstens één die iemand zelf koos.
+export const MAX_CARD_TAGS = 6
 
 // Een tag kan een kale string zijn ("snel") of een object ({ name: "snel" }).
 function tagName(tag) {

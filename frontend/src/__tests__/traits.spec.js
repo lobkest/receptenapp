@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toggleTrait, traitConsequence } from '../utils/traits'
+import { automaticTagList, toggleTrait, traitConsequence } from '../utils/traits'
 
 const TRAITS = [
   { name: 'vlees', excluded_by: ['vegetarisch'] },
@@ -7,6 +7,7 @@ const TRAITS = [
   { name: 'dierlijk', excluded_by: ['veganistisch'] },
   { name: 'gluten', excluded_by: ['glutenvrij'] },
   { name: 'lactose', excluded_by: ['lactosevrij'] },
+  { name: 'noten', excluded_by: ['notenvrij'] },
 ]
 
 describe('traitConsequence', () => {
@@ -31,5 +32,18 @@ describe('toggleTrait', () => {
   it('zet aan en uit, in de vaste volgorde', () => {
     expect(toggleTrait(['dierlijk'], 'vlees', TRAITS)).toEqual(['vlees', 'dierlijk'])
     expect(toggleTrait(['vlees', 'dierlijk'], 'vlees', TRAITS)).toEqual(['dierlijk'])
+  })
+})
+
+describe('automaticTagList', () => {
+  it('noemt elke tag één keer, in de volgorde van de kenmerken', () => {
+    expect(automaticTagList(TRAITS)).toBe(
+      'vegetarisch, veganistisch, glutenvrij, lactosevrij en notenvrij',
+    )
+  })
+
+  it('één tag of geen', () => {
+    expect(automaticTagList(TRAITS.slice(0, 2))).toBe('vegetarisch')
+    expect(automaticTagList([])).toBe('')
   })
 })

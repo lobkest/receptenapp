@@ -1,4 +1,4 @@
-# The same rules as migration AddAutomaticTags.
+# The same rules as migrations AddAutomaticTags and AddNutsTag.
 vegetarisch_vlees:
   tag: vegetarisch
   trait: vlees
@@ -18,3 +18,7 @@ glutenvrij_gluten:
 lactosevrij_lactose:
   tag: lactosevrij
   trait: lactose
+
+notenvrij_noten:
+  tag: notenvrij
+  trait: noten

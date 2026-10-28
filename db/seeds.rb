@@ -9,14 +9,15 @@
   Category.find_named(name) || Category.create!(name: name, position: position)
 end
 
-# The traits and the automatic tags, the same as migration AddAutomaticTags. An existing
-# tag with the same name is reused.
-%w[ vlees vis dierlijk gluten lactose ].each { |name| Trait.find_or_create_by!(name: name) }
+# The traits and the automatic tags, the same as migrations AddAutomaticTags and
+# AddNutsTag. An existing tag with the same name is reused.
+%w[ vlees vis dierlijk gluten lactose noten ].each { |name| Trait.find_or_create_by!(name: name) }
 {
   "vegetarisch" => %w[ vlees vis ],
   "veganistisch" => %w[ dierlijk ],
   "glutenvrij" => %w[ gluten ],
-  "lactosevrij" => %w[ lactose ]
+  "lactosevrij" => %w[ lactose ],
+  "notenvrij" => %w[ noten ]
 }.each do |tag_name, trait_names|
   tag = Tag.named(tag_name)
   Trait.where(name: trait_names).find_each { |trait| TagExclusion.find_or_create_by!(tag: tag, trait: trait) }

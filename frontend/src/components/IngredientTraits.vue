@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useTraitSaver } from '@/composables/useTraitSaver'
-import { toggleTrait, traitConsequence } from '@/utils/traits'
+import { automaticTagList, toggleTrait, traitConsequence } from '@/utils/traits'
 
 // De kenmerken van een ingrediënt (vlees, gluten, ...) op het bewerkscherm. Los van het
 // NEVO-formulier: elk vinkje wordt meteen opgeslagen (PATCH .../traits), zonder
@@ -37,6 +37,7 @@ watch(
 )
 
 const consequence = computed(() => traitConsequence(traitNames.value, props.traits))
+const tagList = computed(() => automaticTagList(props.traits))
 
 async function saveTraits(fields, done) {
   traitError.value = null
@@ -70,8 +71,10 @@ function markTraitsChecked() {
       <span v-else class="trait-badge unchecked">nog te controleren</span>
     </div>
     <p class="muted small">
-      Hieruit volgen de automatische tags van recepten: vegetarisch, veganistisch, glutenvrij en
-      lactosevrij. Een vinkje wordt meteen opgeslagen.
+      <template v-if="tagList"
+        >Hieruit volgen de automatische tags van recepten: {{ tagList }}.</template
+      >
+      Een vinkje wordt meteen opgeslagen.
     </p>
     <div class="trait-options" role="group" aria-label="Kenmerken">
       <label v-for="trait in traits" :key="trait.name" class="trait-option">

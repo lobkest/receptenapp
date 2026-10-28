@@ -14,7 +14,7 @@ import { categorySections, groupByRecipe, removeRecipeQuestion } from '@/utils/s
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
 // of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
 // opgeslagen kopie; dan kun je alleen afvinken.
-// Bij openen staat de offline kopie er meteen, met "Offline kopie van 14:05, bijwerken…"
+// Bij openen staat de offline kopie er meteen, met "Offline kopie van 28 okt om 14:05, bijwerken…"
 // erboven; zodra de verse lijst binnen is (list.fresh), verdwijnt die melding.
 const list = useShoppingListStore()
 const server = useServerStatusStore()

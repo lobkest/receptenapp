@@ -44,7 +44,7 @@ class RecipeTagEvaluatorTest < ActiveSupport::TestCase
     assert_equal [ [ row.alternatives.first.id, "tofu" ] ], swap.alternatives.map { |option| [ option.id, option.name ] }
     # Without the swap nothing else is needed: the other tags are plain "ja", except
     # veganistisch, which needs the same swap (kip is dierlijk).
-    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "ja", "veganistisch" => "met_wissel", "vegetarisch" => "met_wissel" },
+    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "ja", "notenvrij" => "ja", "veganistisch" => "met_wissel", "vegetarisch" => "met_wissel" },
       statuses(recipe))
   end
 
@@ -79,7 +79,18 @@ class RecipeTagEvaluatorTest < ActiveSupport::TestCase
   test "veganistisch fails on feta, vegetarisch does not" do
     recipe = recipe_with({ ingredient_name: "feta" }, { ingredient_name: "rijst" })
 
-    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "nee", "veganistisch" => "nee", "vegetarisch" => "ja" }, statuses(recipe))
+    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "nee", "notenvrij" => "ja", "veganistisch" => "nee", "vegetarisch" => "ja" }, statuses(recipe))
+  end
+
+  test "pindakaas makes a recipe not notenvrij; a swap for zonnebloempitpasta makes it met_wissel" do
+    ingredient("pindakaas", :noten)
+    ingredient("zonnebloempitpasta")
+    recipe = recipe_with({ ingredient_name: "pindakaas", alternatives_attributes: [ { ingredient_name: "zonnebloempitpasta" } ] },
+      { ingredient_name: "rijst" })
+
+    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "ja", "notenvrij" => "met_wissel", "veganistisch" => "ja", "vegetarisch" => "ja" },
+      statuses(recipe))
+    assert_equal [ "pindakaas" ], result(recipe_with({ ingredient_name: "pindakaas" }), "notenvrij").blockers
   end
 
   test "a variation with + kip loses vegetarisch; one without the kip gains it" do
@@ -97,16 +108,16 @@ class RecipeTagEvaluatorTest < ActiveSupport::TestCase
   end
 
   test "an ingredient without traits counts as ok; a recipe without ingredients gets none" do
-    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "ja", "veganistisch" => "ja", "vegetarisch" => "ja" },
+    assert_equal({ "glutenvrij" => "ja", "lactosevrij" => "ja", "notenvrij" => "ja", "veganistisch" => "ja", "vegetarisch" => "ja" },
       statuses(recipe_with({ ingredient_name: "iets nieuws" })))
-    assert_equal({ "glutenvrij" => "nee", "lactosevrij" => "nee", "veganistisch" => "nee", "vegetarisch" => "nee" },
+    assert_equal({ "glutenvrij" => "nee", "lactosevrij" => "nee", "notenvrij" => "nee", "veganistisch" => "nee", "vegetarisch" => "nee" },
       statuses(recipes(:stamppot)))
   end
 
-  test "disclaimer for the tags about gluten and lactose" do
+  test "disclaimer for the tags about gluten, lactose and noten" do
     results = RecipeTagEvaluator.load.for_recipe(recipe_with({ ingredient_name: "rijst" })).to_h { |r| [ r.name, r.disclaimer ] }
 
-    assert_equal({ "glutenvrij" => true, "lactosevrij" => true, "veganistisch" => false, "vegetarisch" => false }, results)
+    assert_equal({ "glutenvrij" => true, "lactosevrij" => true, "notenvrij" => true, "veganistisch" => false, "vegetarisch" => false }, results)
   end
 
   private

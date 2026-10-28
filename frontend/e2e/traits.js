@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test'
 import { ADMIN_TOKEN } from './env.js'
 
-// Kenmerken (vlees, vis, dierlijk, gluten, lactose) geven aan een testingrediënt, zodat de
+// Kenmerken (vlees, vis, dierlijk, gluten, lactose, noten) geven aan een testingrediënt, zodat de
 // automatische tags (vegetarisch, ...) iets zinnigs laten zien. Een nieuw ingrediënt
 // heeft geen kenmerken en telt dan overal als "past".
 //

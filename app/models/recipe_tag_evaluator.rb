@@ -1,5 +1,5 @@
 # Works out the automatic tags (Tag.automatic: vegetarisch, veganistisch, glutenvrij,
-# lactosevrij) of a recipe or a variation from the traits of its ingredients.
+# lactosevrij, notenvrij) of a recipe or a variation from the traits of its ingredients.
 #
 #   evaluator = RecipeTagEvaluator.load
 #   evaluator.for_recipe(recipe)   # => [ Result(tag: vegetarisch, status: "met_wissel", ...), ... ]
@@ -22,7 +22,7 @@
 # twice. Load the recipes with PRELOAD (or Recipe.with_details) to avoid one query per row.
 class RecipeTagEvaluator
   # Our own data, not a label: these tags get "controleer etiketten" on the recipe page.
-  DISCLAIMER_TRAITS = %w[ gluten lactose ].freeze
+  DISCLAIMER_TRAITS = %w[ gluten lactose noten ].freeze
 
   PRELOAD = { recipe_ingredients: [ { ingredient: :ingredient_traits }, { alternatives: { ingredient: :ingredient_traits } } ] }.freeze
 

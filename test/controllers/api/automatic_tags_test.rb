@@ -27,7 +27,7 @@ class Api::AutomaticTagsTest < ActionDispatch::IntegrationTest
       "swaps" => [ { "recipe_ingredient_id" => row.id, "ingredient" => "kip",
                      "alternatives" => [ { "id" => row.alternatives.first.id, "name" => "tofu" } ] } ],
       "without" => [] }, vegetarisch)
-    assert_equal %w[ glutenvrij lactosevrij veganistisch vegetarisch ], body["automatic_tags"].pluck("name")
+    assert_equal %w[ glutenvrij lactosevrij notenvrij veganistisch vegetarisch ], body["automatic_tags"].pluck("name")
     assert body["automatic_tags"].find { |tag| tag["name"] == "glutenvrij" }["disclaimer"]
   end
 
@@ -120,7 +120,7 @@ class Api::AutomaticTagsTest < ActionDispatch::IntegrationTest
   test "GET /api/traits lists the traits in order, with the tags each one rules out" do
     get api_traits_url, as: :json
 
-    assert_equal %w[ vlees vis dierlijk gluten lactose ], response.parsed_body.pluck("name")
+    assert_equal %w[ vlees vis dierlijk gluten lactose noten ], response.parsed_body.pluck("name")
     assert_equal [ "vegetarisch" ], response.parsed_body.first["excluded_by"]
     assert_equal [ "veganistisch" ], response.parsed_body.find { |trait| trait["name"] == "dierlijk" }["excluded_by"]
   end

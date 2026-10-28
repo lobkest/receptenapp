@@ -178,8 +178,12 @@ describe('offline-module', () => {
     })
   })
 
-  it('schrijft het tijdstip als HH:MM', () => {
-    expect(formatSavedAt(new Date(2026, 9, 16, 9, 5).getTime())).toBe('09:05')
-    expect(formatSavedAt(new Date(2026, 9, 16, 14, 30).getTime())).toBe('14:30')
+  it('schrijft datum en tijdstip, het jaartal alleen als het niet dit jaar is', () => {
+    const now = new Date(2026, 9, 28, 12, 0).getTime()
+    expect(formatSavedAt(new Date(2026, 9, 16, 9, 5).getTime(), now)).toBe('16 okt om 09:05')
+    expect(formatSavedAt(new Date(2026, 2, 3, 14, 30).getTime(), now)).toBe('3 mrt om 14:30')
+    expect(formatSavedAt(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe(
+      '31 dec 2025 om 23:59',
+    )
   })
 })

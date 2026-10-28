@@ -33,7 +33,7 @@ module RecipeSerializer
   #   without: [ { recipe_ingredient_id: 14, ingredient: "spekjes", alternative_ids: [] } ] }
   # swaps: rows that need one of these alternatives ("met tofu i.p.v. kip"); without:
   # optional rows that are left out ("zonder spekjes"), or swapped for an ok alternative.
-  # disclaimer: based on our own ingredient data for gluten or lactose.
+  # disclaimer: based on our own ingredient data for gluten, lactose or noten.
   def automatic_tag(result)
     {
       "name" => result.name,

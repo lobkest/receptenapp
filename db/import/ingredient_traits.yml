@@ -7,12 +7,12 @@
 #   name: { traits: [ traits ], twijfel: "why" }      a doubt, named apart in the report
 #
 # Traits: vlees, vis (also shellfish), dierlijk (anything from an animal: also egg, milk,
-# honey), gluten, lactose. An empty list: none of them.
+# honey), gluten, lactose, noten (also pinda's). An empty list: none of them.
 # Ingredients that are not in here get no suggestion; give them their traits in the app.
 
 aardappel: []
 aardbei: []
-amandelmeel: []
+amandelmeel: [ noten ]
 appel: []
 aubergine: []
 avocado: []
@@ -58,7 +58,7 @@ gezouten boter: [ dierlijk, lactose ]
 gist: []
 gnocchi: [ gluten ]
 granaatappelpitjes: []
-granola: { traits: [ gluten ], twijfel: "haver bevat gluten tenzij glutenvrij; soms met honing (dierlijk)" }
+granola: { traits: [ gluten, noten ], twijfel: "haver bevat gluten tenzij glutenvrij; soms met honing (dierlijk); meestal met noten" }
 griekse yoghurt: [ dierlijk, lactose ]
 groentemix: []
 hamburger: { traits: [ vlees, dierlijk ], twijfel: "vleesburger aangenomen, geen vegaburger" }
@@ -84,7 +84,7 @@ limoen: []
 mango: []
 mayonaise met yoghurt: [ dierlijk, lactose ]
 mozzarella: [ dierlijk, lactose ]
-noten: []
+noten: [ noten ]
 oestersaus: { traits: [ vis, dierlijk, gluten ], twijfel: "oesterextract (schelpdier) en vaak tarwe; er bestaat ook vegetarische oestersaus" }
 olijfolie: []
 orecchiette: [ gluten ]
@@ -96,10 +96,10 @@ parmaham: [ vlees, dierlijk ]
 pasta: [ gluten ]
 pecorino: { traits: [ dierlijk, lactose ], twijfel: "lang gerijpt, dus weinig lactose; dierlijk stremsel (strikt niet vegetarisch)" }
 peper: []
-pesto: { traits: [ dierlijk, lactose ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
+pesto: { traits: [ dierlijk, lactose, noten ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
 peterselie: []
-pinda's: []
-pindakaas: []
+pinda's: [ noten ]
+pindakaas: [ noten ]
 pitabroodje: [ gluten ]
 platte pasta: [ gluten ]
 pokesaus: { traits: [ gluten ], twijfel: "op basis van sojasaus (tarwe); soms met mayonaise (ei) of vis" }
@@ -108,7 +108,7 @@ quinoa: []
 rijst: []
 rijstnoedels: []
 risottorijst: []
-rode pesto: { traits: [ dierlijk, lactose ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
+rode pesto: { traits: [ dierlijk, lactose, noten ], twijfel: "met Parmezaan of pecorino: dierlijk stremsel (strikt niet vegetarisch), weinig lactose" }
 rode ui: []
 roomkaas: [ dierlijk, lactose ]
 rozemarijn: []

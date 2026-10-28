@@ -163,7 +163,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
 
   await page.goto('/boodschappen')
   await expect(page.locator('.offline-notice')).toHaveText(
-    /^Offline kopie van \d\d:\d\d, bijwerken…/,
+    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
   )
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.server-waiting')).toHaveCount(0)
@@ -196,7 +196,9 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await page.reload()
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   const notice = page.locator('.offline-notice')
-  await expect(notice).toContainText(/^Offline kopie van \d\d:\d\d, bijwerken…/)
+  await expect(notice).toContainText(
+    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
+  )
   await expect(notice).toContainText('Afvinken kan gewoon')
   await page.locator('.items input[type="checkbox"]').first().check()
   await expect(notice).toContainText('1 wijziging nog niet gesynchroniseerd')
@@ -205,7 +207,9 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
 
   // Echt offline (navigator.onLine false): "Offline" in plaats van "bijwerken…".
   await context.setOffline(true)
-  await expect(notice).toContainText(/^Offline kopie van \d\d:\d\d, Offline/)
+  await expect(notice).toContainText(
+    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, Offline/,
+  )
   await page.locator('.items input[type="checkbox"]').nth(1).check()
   await expect(notice).toContainText('2 wijzigingen nog niet gesynchroniseerd')
   await checkLayout(page, errors, 'b-boodschappen-offline')

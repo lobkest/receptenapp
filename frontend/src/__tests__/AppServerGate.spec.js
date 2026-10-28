@@ -205,7 +205,9 @@ describe('App: wachten op de server', () => {
     wrapper = await mountApp('/boodschappen')
 
     expect(wrapper.find('.server-waiting').exists()).toBe(false)
-    expect(wrapper.find('.offline-notice').text()).toMatch(/^Offline kopie van 09:41, bijwerken…/)
+    expect(wrapper.find('.offline-notice').text()).toMatch(
+      /^Offline kopie van 16 okt( 2026)? om 09:41, bijwerken…/,
+    )
     expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['oude melk'])
 
     wakeUp()

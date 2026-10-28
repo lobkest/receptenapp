@@ -246,7 +246,7 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
     'winter',
   ])
   // Mozzarella is dierlijk en bevat lactose: de Caprese wordt automatisch vegetarisch en
-  // glutenvrij, maar niet veganistisch of lactosevrij.
+  // glutenvrij (en notenvrij), maar niet veganistisch of lactosevrij.
   await giveTraits(api, 'mozzarella', ['dierlijk', 'lactose'])
   const errors = collectErrors(page)
 
@@ -291,7 +291,13 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   await page.goto('/')
   const card = page.locator('.recipe-card', { hasText: 'Caprese' })
   // Eerst de automatische tags, dan de zelfgekozen (de kaart toont er maximaal vijf).
-  await expect(card.locator('.tag')).toHaveText(['glutenvrij', 'vegetarisch', 'vega', 'zomer'])
+  await expect(card.locator('.tag')).toHaveText([
+    'glutenvrij',
+    'notenvrij',
+    'vegetarisch',
+    'vega',
+    'zomer',
+  ])
 
   const row = page.locator('.tag-chips')
   const { rowScrolls } = await row.evaluate((el) => ({

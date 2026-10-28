@@ -22,7 +22,15 @@ export function watchConnectivity({ onOnline = () => {}, onOffline = () => {} })
   }
 }
 
-// "14:05": het tijdstip van een snapshot, voor de offline-melding.
-export function formatSavedAt(savedAt) {
-  return new Date(savedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+
+// "28 okt om 14:05": wanneer een snapshot van de server kwam, voor de offline-melding. Met
+// datum, want een kopie van gisteren is iets anders dan een van vanochtend. Het jaartal
+// alleen als het niet dit jaar is ("3 dec 2025 om 09:41"). De maanden staan hier zelf,
+// zodat het in elke browser hetzelfde is (toLocaleDateString geeft soms "okt.").
+export function formatSavedAt(savedAt, now = Date.now()) {
+  const date = new Date(savedAt)
+  const time = date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  const year = date.getFullYear() === new Date(now).getFullYear() ? '' : ` ${date.getFullYear()}`
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}${year} om ${time}`
 }

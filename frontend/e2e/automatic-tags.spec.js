@@ -74,6 +74,7 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   await expect(card.locator('.tag')).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistischmet tofu i.p.v. kip',
     'vegetarischmet tofu i.p.v. kip',
   ])
@@ -91,6 +92,7 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   await expect(recipeTags(page)).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistisch · met tofu i.p.v. kip',
     'vegetarisch · met tofu i.p.v. kip',
   ])
@@ -105,6 +107,7 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   await expect(recipeTags(page)).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistisch',
     'vegetarisch',
   ])
@@ -112,6 +115,7 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   await expect(recipeTags(page)).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistisch',
     'vegetarisch',
   ])
@@ -177,6 +181,7 @@ test('vlees uitvinken bij kip op het bewerkscherm verandert het label op het rec
   await expect(recipeTags(page)).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistisch · met tofu i.p.v. kip',
     'vegetarisch',
   ])
@@ -248,6 +253,7 @@ test('kaarten: een met vijf tags (één met hint) naast een zonder tags', async 
   await expect(roerei.locator('.tag')).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistischmet tofu i.p.v. ei',
     'vegetarisch',
     'snel',

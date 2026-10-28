@@ -84,12 +84,13 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
   await expect(page.locator('.recipe-tags .tag')).toHaveText([
     'glutenvrij',
     'lactosevrij',
+    'notenvrij',
     'veganistisch',
     'vegetarisch',
     'snel',
     'vega',
   ])
-  // Glutenvrij en lactosevrij komen uit onze eigen gegevens: een kanttekening.
+  // Glutenvrij, lactosevrij en notenvrij komen uit onze eigen gegevens: een kanttekening.
   await expect(page.locator('.tag-disclaimer')).toHaveText(
     'Op basis van eigen ingrediëntgegevens; controleer etiketten.',
   )

@@ -1,4 +1,4 @@
-# The same five as migration AddAutomaticTags.
+# The same six as migrations AddAutomaticTags and AddNutsTag.
 vlees:
   name: vlees
 
@@ -13,3 +13,6 @@ gluten:
 
 lactose:
   name: lactose
+
+noten:
+  name: noten

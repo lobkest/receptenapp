@@ -1,4 +1,4 @@
-// Automatische tags (vegetarisch, veganistisch, glutenvrij, lactosevrij): de server rekent
+// Automatische tags (vegetarisch, veganistisch, glutenvrij, lactosevrij, notenvrij): de server rekent
 // ze uit de kenmerken van de ingrediënten (RecipeTagEvaluator). Een recept heeft er alleen
 // de tags die gelden, elk zo:
 //
@@ -37,7 +37,7 @@ export function allTagNames(recipe) {
   return [...(recipe.tags ?? []), ...(recipe.automatic_tags ?? []).map((tag) => tag.name)]
 }
 
-// Bij glutenvrij en lactosevrij: "controleer etiketten".
+// Bij glutenvrij, lactosevrij en notenvrij: "controleer etiketten".
 export function needsDisclaimer(recipe) {
   return (recipe.automatic_tags ?? []).some((tag) => tag.disclaimer)
 }

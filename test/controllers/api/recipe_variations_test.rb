@@ -34,7 +34,7 @@ class Api::RecipeVariationsTest < ActionDispatch::IntegrationTest
                          { "kind" => "remove", "tag" => "vega" },
                          { "kind" => "remove", "tag" => "vegetarisch", "automatic" => true } ]
     }, variations.first.except("nutrition", "automatic_tags")) # nutrition: see NutritionTest
-    assert_equal [ "lactosevrij" ], variations.first["automatic_tags"].pluck("name")
+    assert_equal %w[ lactosevrij notenvrij ], variations.first["automatic_tags"].pluck("name")
   end
 
   test "the recipe detail needs no extra queries for more variations" do

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { ADMIN_TOKEN, RAILS_URL, useOwnIp } from './env.js'
+import { checkLayout, collectErrors, ingredientId } from './helpers.js'
 
 // Dubbele ingrediënten: "Bedoel je: …?" in het receptformulier, en samenvoegen op het
 // bewerkscherm met de beheercode. Screenshots in e2e/screenshots/.
@@ -23,11 +24,6 @@ async function createRecipe(title, ingredientName) {
   return created.json()
 }
 
-async function ingredientId(name) {
-  const list = await (await api.get('/api/ingredients')).json()
-  return list.find((ingredient) => ingredient.name === name)?.id
-}
-
 test.beforeAll(async ({ playwright }) => {
   api = await playwright.request.newContext({ baseURL: RAILS_URL })
   await createRecipe('Samenvoegtest ovenschotel', 'zoete aardappel')
@@ -38,25 +34,6 @@ test.beforeAll(async ({ playwright }) => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name, { fullPage = true } = {}) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  await page.screenshot({ path: `e2e/screenshots/${name}.png`, fullPage, animations: 'disabled' })
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 test('receptformulier: "Bedoel je" bij een bijna-dubbele naam, tikken neemt hem over', async ({
   page,
@@ -80,8 +57,8 @@ test('receptformulier: "Bedoel je" bij een bijna-dubbele naam, tikken neemt hem 
 test('samenvoegen: kiezen, beheercode in het venster, daarna op het doel', async ({ page }) => {
   await useOwnIp(page, 30)
   const errors = collectErrors(page)
-  const sourceId = await ingredientId('trostomaten')
-  const targetId = await ingredientId('trostomaat')
+  const sourceId = await ingredientId(api, 'trostomaten')
+  const targetId = await ingredientId(api, 'trostomaat')
   await page.goto(`/ingredienten/${sourceId}`)
 
   await page.getByRole('button', { name: 'Samenvoegen met…' }).click()
@@ -103,7 +80,7 @@ test('samenvoegen: kiezen, beheercode in het venster, daarna op het doel', async
   await page.evaluate(() => window.scrollTo(0, 0))
   await checkLayout(page, errors, 'samenvoegen-klaar', { fullPage: false })
 
-  expect(await ingredientId('trostomaten')).toBeUndefined()
+  expect(await ingredientId(api, 'trostomaten')).toBeUndefined()
   const recipes = await (await api.get('/api/recipes')).json()
   const salade = recipes.find((recipe) => recipe.title === 'Samenvoegtest salade')
   const detail = await (await api.get(`/api/recipes/${salade.id}`)).json()

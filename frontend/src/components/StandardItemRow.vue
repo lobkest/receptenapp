@@ -6,7 +6,8 @@ import HouseButton from '@/components/HouseButton.vue'
 // regelt StandardItemsView via de events.
 // Staat het item al (open) op de boodschappenlijst (onList), dan is [+] "✓ op lijst"; die
 // blijft klikbaar en zet er dan één bij ("melk ×2").
-// Ervoor het huisje (HouseButton): in huis of niet, een tik zet het om. In de selectiemodus
+// Ervoor het huisje (HouseButton, compact): bij elk item, ook zonder ingrediënt (de eerste
+// tik maakt dat aan); een tik zet het om. In de selectiemodus
 // alleen een label "in huis" (inHouse): dat slaat "Op lijst (n)" over.
 defineProps({
   item: { type: Object, required: true },
@@ -33,7 +34,13 @@ const emit = defineEmits(['add', 'edit', 'remove', 'error'])
   <div v-else class="row">
     <span class="line">{{ item.name }}</span>
     <div class="item-actions">
-      <HouseButton class="house" :ingredient="item" @error="emit('error', $event)" />
+      <HouseButton
+        class="house"
+        :ingredient="item"
+        compact
+        create-missing
+        @error="emit('error', $event)"
+      />
       <button
         v-if="onList"
         type="button"

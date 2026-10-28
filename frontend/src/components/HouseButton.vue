@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useHouseStatus } from '@/composables/useHouseStatus'
 import { usePantryStore } from '@/stores/pantry'
+import { normalizeName } from '@/stores/shoppingList'
 
 // Het huisje naast de lijstknop (receptpagina, variaties, standaardlijst):
 //   in huis      → "🏠 in huis", gevuld amber
@@ -9,9 +10,14 @@ import { usePantryStore } from '@/stores/pantry'
 //   geen bestaand ingrediënt (of voorraad nog niet geladen) → niets
 // Een tik zet het in de voorraad of haalt het eruit (ook basisvoorraad), zonder vraag:
 // nog een tik zet het terug. Het icoon is dat van "In huis" in het menu.
+//
+// Op de standaardlijst (compact): alleen het icoon, aan = gevuld groen, en ook een huisje
+// bij een naam zonder ingrediënt (createMissing); de eerste tik maakt dat ingrediënt aan.
 const props = defineProps({
   // { ingredient_id, name }; zonder ingredient_id telt de naam.
   ingredient: { type: Object, required: true },
+  compact: { type: Boolean, default: false },
+  createMissing: { type: Boolean, default: false },
 })
 
 // Een mislukte tik (netwerk, server): de pagina toont de melding.
@@ -19,7 +25,14 @@ const emit = defineEmits(['error'])
 
 const pantry = usePantryStore()
 const { statusOf } = useHouseStatus()
-const status = computed(() => statusOf(props.ingredient))
+const status = computed(() => {
+  const known = statusOf(props.ingredient)
+  if (known || !props.createMissing || !pantry.presentIds) return known
+  return { ingredientId: null, inHouse: false }
+})
+const busy = computed(() =>
+  pantry.busy.has(status.value?.ingredientId ?? normalizeName(props.ingredient.name)),
+)
 
 async function toggle() {
   const { ingredientId, inHouse } = status.value
@@ -36,14 +49,14 @@ async function toggle() {
     v-if="status"
     type="button"
     class="house-button"
-    :class="{ 'in-house': status.inHouse }"
+    :class="{ 'in-house': status.inHouse, compact }"
     :aria-pressed="status.inHouse"
     :aria-label="
       status.inHouse
         ? `${ingredient.name} is in huis; tik om uit de voorraad te halen`
         : `${ingredient.name} is niet in huis; tik om in de voorraad te zetten`
     "
-    :disabled="pantry.busy.has(status.ingredientId)"
+    :disabled="busy"
     @click="toggle"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -51,7 +64,7 @@ async function toggle() {
       <path d="M5 10v10h14V10" />
       <path d="M10 20v-5h4v5" />
     </svg>
-    <span v-if="status.inHouse" class="house-text">in huis</span>
+    <span v-if="status.inHouse && !compact" class="house-text">in huis</span>
   </button>
 </template>
 
@@ -86,6 +99,28 @@ async function toggle() {
   color: var(--color-house-text);
   background: var(--color-house-soft);
   border-color: var(--color-house-border);
+}
+
+/* Compact (standaardlijst): een vierkant tikvlak met alleen het icoon, zodat de naam ruimte
+   houdt. Aan = lichtgroen gevuld met groene rand: naast de donkergroene "✓ op lijst"-pil
+   blijven ze uit elkaar te houden. */
+.compact {
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.compact svg {
+  width: 18px;
+  height: 18px;
+}
+
+.compact.in-house,
+.compact.in-house:hover:not(:disabled) {
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
 }
 
 /* Even uitgeschakeld tijdens het opslaan, maar niet half doorzichtig: dat flikkert. */

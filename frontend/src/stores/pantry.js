@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/pantry'
 import { presentIngredientIds } from '@/utils/inHouse'
+import { normalizeName } from '@/stores/shoppingList'
 
 // Telt elke loadRecipes(): alleen het antwoord op de laatste telt (snel filters aantikken).
 let latestRecipes = 0
@@ -20,7 +21,8 @@ export const usePantryStore = defineStore('pantry', {
     groups: [],
     // Het tagfilter van de laatste loadRecipes().
     tags: [],
-    // Een ingrediënt dat nu wordt opgeslagen (id), zodat je niet twee keer tikt.
+    // Een ingrediënt dat nu wordt opgeslagen (id, of de naam als er nog geen id is), zodat
+    // je niet twee keer tikt.
     busy: new Set(),
   }),
 
@@ -87,18 +89,26 @@ export const usePantryStore = defineStore('pantry', {
     // recepten van "In huis" opnieuw te laden (die pagina doet dat zelf bij openen).
     // Optimistisch: het huisje verandert meteen; weigert de server, dan zetten we de oude
     // voorraad terug en gooien we de fout door voor de melding.
+    // Zonder ingredientId (standaarditem dat nog geen ingrediënt is) gaat het op naam: de
+    // server maakt het ingrediënt dan aan. Niet optimistisch, want het id is er nog niet;
+    // busy is dan de naam.
     async toggleInHouse(ingredientId, name, present) {
-      if (this.busy.has(ingredientId) || !this.pantry) return
-      this.busy.add(ingredientId)
+      const key = ingredientId ?? normalizeName(name)
+      if (this.busy.has(key) || !this.pantry) return
+      this.busy.add(key)
       const before = this.pantry
-      this.pantry = withPresence(before, { id: ingredientId, name }, present)
+      if (ingredientId != null)
+        this.pantry = withPresence(before, { id: ingredientId, name }, present)
       try {
-        this.pantry = await api.setInHouse(ingredientId, present)
+        this.pantry =
+          ingredientId != null
+            ? await api.setInHouse(ingredientId, present)
+            : await api.setInHouseByName(name, present)
       } catch (e) {
         this.pantry = before
         throw e
       } finally {
-        this.busy.delete(ingredientId)
+        this.busy.delete(key)
       }
     },
 

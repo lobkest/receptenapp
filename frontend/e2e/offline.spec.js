@@ -1,5 +1,6 @@
 import { test, expect, devices } from '@playwright/test'
 import { PWA_URL, RAILS_URL } from './env.js'
+import { checkedInDatabase, checkLayout, collectErrors } from './helpers.js'
 
 // De boodschappenlijst offline, zoals in de winkel zonder bereik: op de gebouwde app
 // (met service worker), op een geëmuleerde iPhone. De database is de testdatabase.
@@ -18,39 +19,6 @@ test.beforeEach(async () => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-// Verzamelt console-errors en onafgevangen fouten van de pagina.
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  expect(innerWidth, 'niet uitgezoomd').toBe(page.viewportSize().width)
-
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
-
-// De stand in de database, per naam.
-async function checkedInDatabase() {
-  const response = await api.get('/api/shopping_list_items')
-  const items = await response.json()
-  return Object.fromEntries(items.map((item) => [item.name, item.checked]))
-}
 
 test('pwa: manifest en service worker staan in de root', async ({ request }) => {
   const manifest = await request.get(`${PWA_URL}/manifest.webmanifest`)
@@ -134,7 +102,7 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
 
   // Nog niets op de server, en na nog een keer herladen staan de vinkjes er nog.
   expect(patches).toEqual([])
-  expect(await checkedInDatabase()).toEqual({ bloem: false, melk: false, 'wc-papier': false })
+  expect(await checkedInDatabase(api)).toEqual({ bloem: false, melk: false, 'wc-papier': false })
   await page.reload()
   await expect(checkboxes).toHaveCount(3)
   await expect(box('melk')).toBeChecked()
@@ -142,7 +110,9 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
 
   // Weer online: de wachtrij gaat naar de server, samengevoegd per regel.
   await context.setOffline(false)
-  await expect.poll(checkedInDatabase).toEqual({ bloem: false, melk: true, 'wc-papier': false })
+  await expect
+    .poll(() => checkedInDatabase(api))
+    .toEqual({ bloem: false, melk: true, 'wc-papier': false })
   await expect(page.locator('.offline-notice')).toHaveCount(0)
   await expect(page.locator('.clear-all')).toBeEnabled()
   // Twee requests, niet drie: melk aan, en voor bloem alleen de laatste stand (uit).

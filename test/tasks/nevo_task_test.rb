@@ -3,18 +3,10 @@ require "rake"
 
 # bin/rails nevo:import and nevo:auto_link, with the mini fixture and the real link file.
 class NevoTaskTest < ActiveSupport::TestCase
+  include TaskTestHelper
+
   setup do
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "nevo:import" }
-  end
-
-  def run_task(name, **env)
-    env = env.transform_keys(&:to_s)
-    old = env.keys.index_with { |key| ENV[key] }
-    env.each { |key, value| ENV[key] = value }
-    Rake::Task[name].reenable
-    capture_io { Rake::Task[name].invoke }.first
-  ensure
-    old.each { |key, value| ENV[key] = value }
   end
 
   test "nevo:import twice: the second time nothing new" do

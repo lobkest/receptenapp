@@ -1,6 +1,7 @@
 import { test, expect, devices } from '@playwright/test'
 import { ADMIN_TOKEN, APP_URL, RAILS_URL, useOwnIp } from './env.js'
 import { giveTraits } from './traits.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // Controleert per hoofdpagina op een iPhone-scherm: geen console-errors, niets
 // breder dan het scherm, en een screenshot in e2e/screenshots/ om zelf te bekijken.
@@ -52,34 +53,6 @@ test.beforeEach(async () => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-// Verzamelt console-errors en onafgevangen fouten van de pagina.
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  // Is iets te breed, dan zoomt een telefoon uit en groeit innerWidth mee; dan zou de
-  // regel hierboven niets zien. Daarom ook: de pagina is precies schermbreed.
-  expect(innerWidth, 'niet uitgezoomd').toBe(page.viewportSize().width)
-
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 test('recepten: grid met twee kolommen', async ({ page }) => {
   const errors = collectErrors(page)

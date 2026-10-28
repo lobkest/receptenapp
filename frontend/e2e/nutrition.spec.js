@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { checkLayout, collectErrors, ingredientId } from './helpers.js'
 
 // Voedingswaarde: NEVO-producten importeren (de zelfverzonnen minifixture, geen echte
 // NEVO-data), een ingrediënt koppelen op het bewerkscherm, en het blok onderaan de
@@ -19,13 +20,8 @@ function rails(...args) {
   })
 }
 
-async function ingredientId(name) {
-  const list = await (await api.get('/api/ingredients')).json()
-  return list.find((ingredient) => ingredient.name === name).id
-}
-
 async function link(name, code, fields = {}) {
-  const id = await ingredientId(name)
+  const id = await ingredientId(api, name)
   const ingredient = await (await api.get(`/api/ingredients/${id}`)).json()
   const [food] = await (await api.get(`/api/nevo_foods?q=${code}`)).json()
   const updated = await api.patch(`/api/ingredients/${id}`, {
@@ -74,7 +70,7 @@ test.beforeAll(async ({ playwright }) => {
   // Zoals na nevo:auto_link: gekoppeld, maar nog te controleren.
   await link('rode biet uit pot', 'Testbiet')
   // Peper zonder hoeveelheid: verwaarloosbaar, dus 0 in plaats van "niet meegeteld".
-  const peper = await (await api.get(`/api/ingredients/${await ingredientId('peper')}`)).json()
+  const peper = await (await api.get(`/api/ingredients/${await ingredientId(api, 'peper')}`)).json()
   const negligible = await api.patch(`/api/ingredients/${peper.id}`, {
     data: { ingredient: { lock_version: peper.lock_version, negligible: true } },
   })
@@ -85,31 +81,6 @@ test.beforeAll(async ({ playwright }) => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors, en een screenshot (hele pagina).
-async function checkLayout(page, errors, name, { scrollTop = true } = {}) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (scrollTop) await page.evaluate(() => window.scrollTo(0, 0))
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ page }) => {
   const errors = collectErrors(page)
@@ -128,7 +99,7 @@ test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ pag
   await expect(page.locator('.ingredient-list .name', { hasText: 'testolie' })).toBeVisible()
   await expect(page.locator('.ingredient-list .name', { hasText: 'bieten' })).toHaveCount(0)
   await page.getByRole('button', { name: /^Alle/ }).click()
-  await checkLayout(page, errors, 'ingredienten')
+  await checkLayout(page, errors, 'ingredienten', { scrollTop: true })
 
   // Koppelen: de suggesties komen van de naam; kiezen, omrekening invullen, opslaan.
   await page.locator('.ingredient-list a', { hasText: 'testolie' }).click()
@@ -140,7 +111,7 @@ test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ pag
   await expect(page.locator('.chosen .food-name')).toHaveText('Testolie')
   await expect(page.locator('.hint')).toHaveText('Nodig voor ml, tl en el')
   await page.getByLabel('Gram per ml').fill('0,92')
-  await checkLayout(page, errors, 'ingredient-koppelen')
+  await checkLayout(page, errors, 'ingredient-koppelen', { scrollTop: true })
 
   await page.getByRole('button', { name: 'Opslaan' }).click()
   await expect(page.getByRole('status')).toHaveText('Opgeslagen.')
@@ -150,10 +121,10 @@ test('ingrediëntenpagina: filter en koppelen op het bewerkscherm', async ({ pag
 
 test('te controleren: "Klopt" bevestigt de automatische koppeling', async ({ page }) => {
   const errors = collectErrors(page)
-  await page.goto(`/ingredienten/${await ingredientId('bieten')}`)
+  await page.goto(`/ingredienten/${await ingredientId(api, 'bieten')}`)
 
   await expect(page.locator('.review')).toContainText('automatisch gekoppeld')
-  await checkLayout(page, errors, 'ingredient-te-controleren')
+  await checkLayout(page, errors, 'ingredient-te-controleren', { scrollTop: true })
   await page.getByRole('button', { name: 'Klopt' }).click()
   await expect(page.getByRole('status')).toHaveText('Gecontroleerd.')
   await expect(page.locator('.review')).toHaveCount(0)
@@ -167,7 +138,7 @@ test('receptpagina: voedingswaarde onderaan, dicht en open', async ({ page }) =>
   await expect(block).toBeVisible()
   await expect(block).not.toHaveAttribute('open', '')
   await expect(block.locator('table')).toBeHidden()
-  await checkLayout(page, errors, 'recept-voedingswaarde-dicht')
+  await checkLayout(page, errors, 'recept-voedingswaarde-dicht', { scrollTop: true })
 
   await block.locator('summary').first().click()
   // 300 g bieten (129 kcal) + 200 g erwten (280) + 2 el olie = 27,6 g (248,4): 657,4 kcal
@@ -187,7 +158,7 @@ test('receptpagina: voedingswaarde onderaan, dicht en open', async ({ page }) =>
     'Dit is een schatting en niet medisch betrouwbaar.',
   )
   await block.scrollIntoViewIfNeeded()
-  await checkLayout(page, errors, 'recept-voedingswaarde-open', { scrollTop: false })
+  await checkLayout(page, errors, 'recept-voedingswaarde-open')
 
   // Per ingrediënt: dicht, dan grootste kcal bovenaan, niet-meegeteld grijs met link.
   const perIngredient = block.locator('details.per-ingredient')
@@ -219,7 +190,7 @@ test('receptpagina: voedingswaarde onderaan, dicht en open', async ({ page }) =>
     /\/ingredienten\/\d+$/,
   )
   await perIngredient.scrollIntoViewIfNeeded()
-  await checkLayout(page, errors, 'recept-voedingswaarde-per-ingredient', { scrollTop: false })
+  await checkLayout(page, errors, 'recept-voedingswaarde-per-ingredient')
 
   // Een alternatief kiezen: 250 g rode biet (107,5 kcal) i.p.v. 200 g erwten (280 kcal).
   await page.getByRole('button', { name: 'Wissel voor rode biet uit pot' }).click()
@@ -230,7 +201,7 @@ test('receptpagina: voedingswaarde onderaan, dicht en open', async ({ page }) =>
   ).toHaveText('rode biet uit pot (i.p.v. erwten uit blik)')
   await expect(block.locator('.unknown')).toHaveCount(0)
   await block.scrollIntoViewIfNeeded()
-  await checkLayout(page, errors, 'recept-voedingswaarde-alternatief', { scrollTop: false })
+  await checkLayout(page, errors, 'recept-voedingswaarde-alternatief')
   await page.getByRole('button', { name: 'Terug naar erwten uit blik' }).click()
   await expect(energy).toHaveText(/± 330 kcal\s*± 660 kcal/)
 

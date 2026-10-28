@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 // "In huis" op de receptpagina: het huisje per ingrediënt, aan/uit tikken, overslaan bij
 // "Alles op lijst" en "Variatie op lijst", en de wissel-hint.
@@ -99,13 +97,7 @@ async function mountAt(path) {
     }
     return jsonResponse([])
   })
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [pinia, router] } })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path)
 }
 
 function row(wrapper, id) {

@@ -91,11 +91,4 @@ class Api::RecipeIngredientSearchTest < ActionDispatch::IntegrationTest
       Recipe.create!(title: title, servings: 2, steps_attributes: [ { body: "Koken." } ],
         recipe_ingredients_attributes: rows, **attributes)
     end
-
-    def count_queries(&block)
-      count = 0
-      counter = ->(*, payload) { count += 1 unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-      ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
-      count
-    end
 end

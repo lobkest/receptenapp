@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ADMIN_TOKEN, RAILS_URL, useOwnIp } from './env.js'
 import { giveTraits } from './traits.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // Variaties op een recept, op een iPhone-scherm: toevoegen op de receptpagina, de kaart,
 // het recept bewerken (de variatie blijft kloppen), "Variatie op lijst", een
@@ -43,32 +44,6 @@ test.beforeEach(async () => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors; met een naam ook een screenshot.
-async function checkLayout(page, errors, name = null) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (name) {
-    await page.screenshot({
-      path: `e2e/screenshots/${name}.png`,
-      fullPage: true,
-      animations: 'disabled',
-    })
-  }
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 function card(page, name) {
   return page.locator('.variation-card', { has: page.getByRole('heading', { name, exact: true }) })

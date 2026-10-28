@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
 import { deleteRecipe, giveTraits } from './traits.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // Automatische tags op een iPhone-scherm: uitgerekend uit de kenmerken van de ingrediënten.
 // Kip (vlees, dierlijk) met tofu als alternatief: vegetarisch "met tofu i.p.v. kip"; na de
@@ -38,28 +39,6 @@ test.afterAll(async () => {
   await giveTraits(api, 'kip', ['vlees', 'dierlijk'])
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors; met een naam ook een screenshot.
-async function checkLayout(page, errors, name = null, { fullPage = true } = {}) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (name) {
-    await page.screenshot({ path: `e2e/screenshots/${name}.png`, fullPage, animations: 'disabled' })
-  }
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 function recipeTags(page) {
   return page.locator('.recipe-tags .tag')

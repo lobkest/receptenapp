@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 const CONFLICT = 'Dit recept is intussen door iemand anders gewijzigd. Herlaad en probeer opnieuw.'
 
@@ -37,12 +35,7 @@ function fakeApi(patchResponse = (body) => jsonResponse({ ...PANCAKES, ...body.r
 }
 
 async function mountAt(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path)
 }
 
 function patchBody(fetch) {

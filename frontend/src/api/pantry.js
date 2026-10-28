@@ -27,6 +27,15 @@ export function setInHouse(ingredientId, present) {
   })
 }
 
+// Hetzelfde op naam, voor een standaarditem zonder ingrediënt: "in huis" maakt het
+// ingrediënt aan als het er nog niet is.
+export function setInHouseByName(name, present) {
+  return request('/api/pantry/ingredients', {
+    method: 'PATCH',
+    body: JSON.stringify({ pantry_item: { name, present } }),
+  })
+}
+
 // "Terug naar standaard": alleen de basis in huis.
 export function resetPantry() {
   return request('/api/pantry/reset', { method: 'POST' })

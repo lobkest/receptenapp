@@ -1,6 +1,7 @@
 import { test, expect, devices } from '@playwright/test'
 import { PWA_URL, RAILS_URL } from './env.js'
 import { deleteRecipe } from './traits.js'
+import { checkLayout, collectErrors, ingredientId, setInHouse } from './helpers.js'
 
 // "In huis" op een iPhone-scherm: voorraad aanpassen, recepten die verschuiven tussen
 // "Mist 1" en "Alles in huis", "Ontbrekende op lijst", en afstrepen op de
@@ -23,21 +24,9 @@ const SOUP = {
   ],
 }
 
-async function ingredientId(name) {
-  const ingredients = await (await api.get('/api/ingredients')).json()
-  return ingredients.find((ingredient) => ingredient.name === name).id
-}
-
 async function setStaple(name, staple) {
-  const response = await api.patch(`/api/ingredients/${await ingredientId(name)}/staple`, {
+  const response = await api.patch(`/api/ingredients/${await ingredientId(api, name)}/staple`, {
     data: { ingredient: { staple } },
-  })
-  expect(response.status(), await response.text()).toBe(200)
-}
-
-async function setInHouse(name, present) {
-  const response = await api.patch(`/api/pantry/ingredients/${await ingredientId(name)}`, {
-    data: { pantry_item: { present } },
   })
   expect(response.status(), await response.text()).toBe(200)
 }
@@ -58,7 +47,7 @@ test.beforeAll(async ({ playwright }) => {
 test.beforeEach(async () => {
   expect((await api.post('/api/pantry/reset')).status()).toBe(200)
   expect((await api.delete('/api/shopping_list_items/clear_all')).status()).toBe(204)
-  await setInHouse('ui', true)
+  await setInHouse(api, 'ui', true)
 })
 
 test.afterAll(async () => {
@@ -68,32 +57,6 @@ test.afterAll(async () => {
   await deleteRecipe(api, recipeId)
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors; met een naam ook een screenshot.
-async function checkLayout(page, errors, name = null) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (name) {
-    await page.screenshot({
-      path: `e2e/screenshots/${name}.png`,
-      fullPage: true,
-      animations: 'disabled',
-    })
-  }
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 function group(page, title) {
   return page.locator('.match-group', { has: page.locator('.group-title', { hasText: title }) })
@@ -211,7 +174,7 @@ test('offline afstrepen: na de verbinding komt het via de wachtrij alsnog in hui
 test('bewerkscherm: de schakelaar Basis, los van het NEVO-formulier', async ({ page }) => {
   const errors = collectErrors(page)
 
-  await page.goto(`/ingredienten/${await ingredientId('tomaat')}`)
+  await page.goto(`/ingredienten/${await ingredientId(api, 'tomaat')}`)
   const toggle = page.getByRole('checkbox', { name: /Basis/ })
   await expect(toggle).not.toBeChecked()
   await toggle.check()

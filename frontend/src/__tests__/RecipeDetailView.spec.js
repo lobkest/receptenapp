@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { useShoppingListStore } from '../stores/shoppingList'
 import { jsonResponse, mockFetch as mockServer } from './helpers'
+import { mountRoute } from './mount'
 
 // De receptpagina haalt bij openen ook de boodschappenlijst op (voor "✓ op lijst"). Die is
 // hier leeg, tenzij een test hem zelf beantwoordt.
@@ -20,16 +18,7 @@ const SOUP = { id: 5, title: 'Tomatensoep', description: 'Lekker.', servings: 4 
 
 // attach: aan het document hangen, nodig om te kunnen controleren waar de focus staat.
 async function mountAt(path, { attach = false } = {}) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, {
-    global: { plugins: [pinia, router] },
-    attachTo: attach ? document.body : undefined,
-  })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path, { attach })
 }
 
 describe('RecipeDetailView', () => {

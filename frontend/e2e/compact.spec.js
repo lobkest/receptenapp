@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { collectErrors } from './helpers.js'
 
 // Compacte layout zonder kopbalk, op een iPhone 13/14 (390×844) mét notch: Chromium
 // krijgt dezelfde veilige zones als de echte telefoon (47 px statusbalk, 34 px
@@ -57,15 +58,6 @@ test.afterAll(async () => {
   for (const id of standardIds) await api.delete(`/api/standard_items/${id}`)
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
 
 // Geen horizontale scroll, geen kopbalk, de h1 onder de statusbalk, en de laatste inhoud
 // (de link "Beheer" onderaan) niet achter de menubalk. Daarna een screenshot.

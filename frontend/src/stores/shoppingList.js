@@ -53,10 +53,9 @@ function sameIngredient(item, ingredient) {
   return normalizeName(item.name) === normalizeName(ingredient.name)
 }
 
-// Waar een regel vandaan komt, voor "✓ via …": de standaardlijst, een (ander) recept, of
-// zelf getypt op de boodschappenlijst.
+// Waar een regel vandaan komt, klein onder "✓ op lijst": "standaard", een (ander)
+// recept, of "lijst" (zelf getypt op de boodschappenlijst).
 function sourceOf(item) {
-  if (item.recipe_id == null && item.source_label === 'standaard') return 'standaardlijst'
   return item.source_label ?? 'lijst'
 }
 

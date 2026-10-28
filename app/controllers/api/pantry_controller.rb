@@ -4,7 +4,7 @@
 # basisvoorraad is set per ingredient (PATCH /api/ingredients/1/staple).
 class Api::PantryController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ update_ingredient reset ]
+  limit_public_writes only: %i[ update_ingredient update_ingredient_by_name reset ]
 
   # Quick picks under the search field: the ingredients most used in recipes.
   MAX_SUGGESTIONS = 12
@@ -32,6 +32,22 @@ class Api::PantryController < ApplicationController
     raise ActionController::ParameterMissing, :present unless fields.key?(:present)
 
     PantryItem.set!(Ingredient.find(params[:ingredient_id]), boolean_param(fields[:present]))
+    render_pantry
+  end
+
+  # PATCH /api/pantry/ingredients  { "pantry_item": { "name": "wc-papier", "present": true } }
+  # The same by name, for the house on a standard item (those have no ingredient_id).
+  # Putting it in the house makes the ingredient when there is none yet; taking out a name
+  # without an ingredient changes nothing (it was not in the house).
+  def update_ingredient_by_name
+    fields = params.expect(pantry_item: [ :name, :present ])
+    raise ActionController::ParameterMissing, :present unless fields.key?(:present)
+
+    present = boolean_param(fields[:present])
+    name = Ingredient.normalize_value_for(:name, fields[:name].to_s)
+    ingredient = Ingredient.find_by(name: name)
+    ingredient ||= Ingredient.create_or_find_by!(name: name) if present
+    PantryItem.set!(ingredient, present) if ingredient
     render_pantry
   end
 

@@ -3,6 +3,7 @@ import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AdminView from '../views/AdminView.vue'
 import { jsonResponse, mockFetch, authHeaderOf } from './helpers'
+import { buttonWithText } from './mount'
 
 const CODE = 'geheime-code-123'
 
@@ -60,10 +61,6 @@ function mountView() {
     attachTo: document.body,
     global: { stubs: { RouterLink: RouterLinkStub } },
   })
-}
-
-function buttonWithText(wrapper, text) {
-  return wrapper.findAll('button').find((b) => b.text() === text)
 }
 
 function cardOf(wrapper, title) {

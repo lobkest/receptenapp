@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 // Ingrediënt wisselen op de receptpagina: chips, de wissel in de URL, en "op lijst".
 const WOK = {
@@ -65,13 +63,7 @@ async function mountAt(path) {
     if (url === '/api/recipes/7') return jsonResponse(structuredClone(WOK))
     return jsonResponse([])
   })
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [pinia, router] } })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path)
 }
 
 function lines(wrapper) {

@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes, requireAdmin } from '../router'
+import { flushPromises } from '@vue/test-utils'
+import { requireAdmin } from '../router'
 import { jsonResponse, mockFetch, authHeaderOf } from './helpers'
+import { mountRoute } from './mount'
 
 const CODE = 'geheim'
 
@@ -48,13 +47,7 @@ function fakeAdminApi() {
 }
 
 async function mountAt(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  router.beforeEach(requireAdmin)
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] }, attachTo: document.body })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path, { attach: true, beforeEach: requireAdmin })
 }
 
 function cards(wrapper) {

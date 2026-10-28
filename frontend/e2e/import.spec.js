@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { test, expect } from '@playwright/test'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // De rake-imports (lib/tasks/import.rake) met de echte bestanden in db/import/, tegen de
 // testdatabase, en hoe het resultaat eruitziet op een iPhone: de standaardlijst, het
@@ -37,29 +38,6 @@ test.afterAll(() => {
      Recipe.where(title: titles).find_each(&:destroy!)`,
   )
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 test('import: standaardlijst per categorie', async ({ page }) => {
   const errors = collectErrors(page)

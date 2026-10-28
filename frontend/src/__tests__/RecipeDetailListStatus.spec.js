@@ -1,9 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 // Op de receptpagina: "+ lijst", "✓ op lijst" of "✓ via …" per ingrediënt, afgeleid uit
 // de boodschappenlijst (de store), niet uit eigen state van de knop.
@@ -82,10 +80,15 @@ function serve(shopping) {
     if (url === '/api/recipes/7') return jsonResponse(structuredClone(WOK))
     if (url === '/api/tags') return jsonResponse([])
     if (url === '/api/recipes/7/add_to_shopping_list') {
+      // Eén regel: de gevraagde (ingredient_ids), anders kip.
+      const rowId = JSON.parse(options.body).ingredient_ids?.[0] ?? 1
+      const row = WOK.ingredients.find((ingredient) => ingredient.id === rowId)
       const line = {
         id: 500,
-        name: 'kip',
-        ingredient_id: 20,
+        name: row.name,
+        quantity: row.quantity,
+        unit: row.unit,
+        ingredient_id: row.ingredient_id,
         recipe_id: 7,
         source_label: 'Wok',
         checked: false,
@@ -99,11 +102,7 @@ function serve(shopping) {
 }
 
 async function mountAt(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
+  const { wrapper } = await mountRoute(path)
   return wrapper
 }
 
@@ -111,12 +110,16 @@ function rowButton(wrapper, rowId) {
   return wrapper.find(`.ingredients li[data-id="${rowId}"] .list-button`)
 }
 
+function viaOf(wrapper, rowId) {
+  return wrapper.find(`.ingredients li[data-id="${rowId}"] .via`)
+}
+
 describe('RecipeDetailView: wat al op de boodschappenlijst staat', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('toont per ingrediënt "+ lijst", "✓ op lijst" of "✓ via …"', async () => {
+  it('toont per ingrediënt "+ lijst", "✓ op lijst" of "✓ op lijst" met herkomst', async () => {
     serve([
       {
         id: 1,
@@ -140,8 +143,34 @@ describe('RecipeDetailView: wat al op de boodschappenlijst staat', () => {
     expect(rowButton(wrapper, 1).text()).toBe('+ lijst')
     expect(rowButton(wrapper, 2).text()).toBe('✓ op lijst')
     expect(rowButton(wrapper, 2).attributes('disabled')).toBeUndefined()
-    expect(rowButton(wrapper, 5).text()).toBe('✓ via standaardlijst')
-    expect(rowButton(wrapper, 5).attributes('disabled')).toBeDefined()
+    expect(viaOf(wrapper, 5).find('.via-check').text()).toBe('✓ op lijst')
+    expect(viaOf(wrapper, 5).find('.via-source').text()).toBe('via standaard')
+    expect(viaOf(wrapper, 5).element.tagName).toBe('SPAN')
+  })
+
+  it('via iets anders: de "+" zet er een eigen regel van dit recept bij, ✓ haalt alleen die weg', async () => {
+    const { shoppingDb } = serve([
+      {
+        id: 2,
+        name: 'ui',
+        ingredient_id: null,
+        recipe_id: null,
+        source_label: 'standaard',
+        checked: false,
+      },
+    ])
+    const wrapper = await mountAt('/recepten/7')
+
+    await wrapper.find('.ingredients li[data-id="5"] .add-own').trigger('click')
+    await flushPromises()
+    const own = shoppingDb.find((i) => i.recipe_id === 7)
+    expect([own.name, own.quantity, own.unit, own.source_label]).toEqual(['ui', 1, 'stuks', 'Wok'])
+    expect(rowButton(wrapper, 5).text()).toBe('✓ op lijst')
+
+    await rowButton(wrapper, 5).trigger('click')
+    await flushPromises()
+    expect(shoppingDb.map((i) => [i.name, i.source_label])).toEqual([['ui', 'standaard']])
+    expect(viaOf(wrapper, 5).exists()).toBe(true)
   })
 
   it('"+ lijst" wordt meteen "✓ op lijst", en een tik daarop haalt het weer weg', async () => {
@@ -176,7 +205,7 @@ describe('RecipeDetailView: wat al op de boodschappenlijst staat', () => {
     await wrapper.find('button[aria-label="Wissel voor tofu"]').trigger('click')
     await flushPromises()
 
-    expect(rowButton(wrapper, 1).text()).toBe('✓ via Curry')
+    expect(viaOf(wrapper, 1).find('.via-source').text()).toBe('via Curry')
   })
 
   it('een toevoeging van een variatie heeft dezelfde knop', async () => {

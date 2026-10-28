@@ -1,13 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
-import App from '../App.vue'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse } from './helpers'
 import { clearMemoryStorage } from '../offline/storage'
 import { saveSnapshot } from '../offline'
 import { resetServerStatus } from '../stores/serverStatus'
+import { mountRoute } from './mount'
 
 const RECIPES = [{ id: 1, title: 'Pannenkoeken', tags: ['glutenvrij'], category_id: null }]
 const ITEMS = [{ id: 1, name: 'melk', quantity: null, unit: null, checked: false }]
@@ -47,11 +44,7 @@ function sleepingServer() {
 }
 
 async function mountApp(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(App, { global: { plugins: [router] } })
-  await flushPromises()
+  const { wrapper } = await mountRoute(path, { app: true })
   return wrapper
 }
 

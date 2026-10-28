@@ -6,7 +6,9 @@ import { useShoppingListStore } from '@/stores/shoppingList'
 // Wat hij toont komt uit de boodschappenlijst-store, niet uit eigen state:
 //   niet op de lijst         → "+ lijst"            (emit add)
 //   op de lijst via dit recept → "✓ op lijst"       (emit remove: haalt die regels weg)
-//   alleen via iets anders   → "✓ via standaardlijst" / "✓ via <recept>", niet klikbaar
+//   alleen via iets anders   → "✓ op lijst" met de herkomst klein eronder ("standaard",
+//                              "<recept>"), niet klikbaar; ernaast een kleine "+" die toch
+//                              een eigen regel van dit recept toevoegt (emit add)
 const props = defineProps({
   // { ingredient_id, name }; ingredient_id mag ontbreken, dan telt de naam.
   ingredient: { type: Object, required: true },
@@ -46,17 +48,23 @@ const state = computed(() => {
   >
     ✓ op lijst
   </button>
-  <!-- Staat er via iets anders op: dat haal je daar weg, niet hier. -->
-  <button
-    v-else
-    type="button"
-    class="list-button via"
-    disabled
-    :title="`Op je boodschappenlijst via ${status.via}`"
-    :aria-label="`${ingredient.name} staat op je boodschappenlijst via ${status.via}`"
-  >
-    <span class="via-text">✓ via {{ status.via }}</span>
-  </button>
+  <!-- Staat er via iets anders op: dat haal je daar weg, niet hier. De "+" zet er een eigen
+       regel van dit recept bij; daarna is het "✓ op lijst" van dit recept. -->
+  <span v-else class="via-group">
+    <span class="via" :title="`Op je boodschappenlijst via ${status.via}`">
+      <span class="via-check">✓ op lijst</span>
+      <span class="via-source"><span class="visually-hidden">via </span>{{ status.via }}</span>
+    </span>
+    <button
+      type="button"
+      class="add-own"
+      :disabled="busy"
+      :aria-label="`${ingredient.name} ook voor dit recept op boodschappenlijst`"
+      @click="emit('add')"
+    >
+      +
+    </button>
+  </span>
 </template>
 
 <style scoped>
@@ -79,23 +87,64 @@ const state = computed(() => {
   border-color: var(--color-brand);
 }
 
-/* Licht groen en niet klikbaar; niet half doorzichtig zoals andere uitgeschakelde knoppen,
-   want het is informatie. Hooguit 60% van de regel: een lange receptnaam wordt afgekapt
-   (de volledige naam staat in title en aria-label). */
-.via,
-.via:disabled {
-  max-width: 60%;
-  font-weight: 600;
-  color: var(--color-success-text);
-  cursor: default;
-  background: var(--color-success-soft);
-  border-color: transparent;
-  opacity: 1;
+.via-group {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  align-items: center;
 }
 
-.via-text {
+/* Licht groen en niet klikbaar: informatie, geen knop. "✓ op lijst" altijd heel; de
+   herkomst klein eronder, een lange receptnaam afgekapt (de volledige naam staat in title
+   en aria-label). */
+.via {
+  display: inline-flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.via-check {
+  white-space: nowrap;
+}
+
+.via-source {
+  max-width: 6.5rem;
   overflow: hidden;
+  font-size: var(--text-xs);
+  font-weight: 400;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Klein vierkant: "nog één van dit recept". */
+.add-own {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--color-accent-text);
+  border-color: var(--color-border);
+}
+
+/* Voor de schermlezer: "✓ op lijst via standaard". */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

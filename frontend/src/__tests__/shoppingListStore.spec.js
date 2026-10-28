@@ -606,7 +606,7 @@ describe('boodschappenlijst-store', () => {
         line({ id: 2, name: 'bloem', source_label: null }),
       ])
 
-      expect(list.listStatus(MELK_ROW, 1).via).toBe('standaardlijst')
+      expect(list.listStatus(MELK_ROW, 1).via).toBe('standaard')
       expect(list.listStatus(BLOEM_ROW, 1).via).toBe('lijst')
     })
 
@@ -680,7 +680,7 @@ describe('boodschappenlijst-store', () => {
       ]
       expect(shoppingDb).toEqual(expected)
       expect(list.items).toEqual(expected)
-      expect(list.listStatus(MELK_ROW, 1)).toMatchObject({ own: [], via: 'standaardlijst' })
+      expect(list.listStatus(MELK_ROW, 1)).toMatchObject({ own: [], via: 'standaard' })
     })
   })
 

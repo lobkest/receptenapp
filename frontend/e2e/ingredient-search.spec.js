@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
 import { deleteRecipe } from './traits.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // "Met ingrediënt…" op het receptentabblad, op een iPhone-scherm: zoeken en kiezen,
 // de platte lijst in de volgorde van de server, de hints op de kaart, openen met de
@@ -76,31 +77,6 @@ test.afterAll(async () => {
   for (const id of recipeIds) await deleteRecipe(api, id)
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name = null) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (name) {
-    await page.screenshot({
-      path: `e2e/screenshots/${name}.png`,
-      fullPage: true,
-      animations: 'disabled',
-    })
-  }
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 const card = (page, title) => page.locator('.recipe-card', { hasText: title })
 

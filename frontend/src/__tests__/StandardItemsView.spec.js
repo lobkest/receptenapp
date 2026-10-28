@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
-import App from '../App.vue'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { fakeServer, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
+import { buttonWithText, listLines, mountRoute } from './mount'
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -16,23 +13,7 @@ const ITEMS = [
 // Monteert de hele App, zodat ook het menu echt werkt.
 // attachTo: anders kan de focus in jsdom niet naar een knop.
 async function mountApp() {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push('/standaard')
-  const wrapper = mount(App, {
-    global: { plugins: [router] },
-    attachTo: document.body,
-  })
-  await flushPromises()
-  return { wrapper, router }
-}
-
-function buttonWithText(wrapper, text) {
-  return wrapper.findAll('button').find((b) => b.text() === text)
-}
-
-function lines(wrapper) {
-  return wrapper.findAll('.items .line').map((l) => l.text())
+  return mountRoute('/standaard', { app: true, attach: true })
 }
 
 function rowOf(wrapper, name) {
@@ -78,7 +59,7 @@ describe('StandardItemsView', () => {
     expect(wrapper.text()).not.toContain('beheercode')
     expect(wrapper.find('.login-needed').exists()).toBe(false)
     expect(wrapper.find('.add-card').exists()).toBe(true)
-    expect(lines(wrapper)).toHaveLength(4)
+    expect(listLines(wrapper)).toHaveLength(4)
     const urls = server.fetch.mock.calls.map(([url]) => url)
     expect(urls).toContain('/api/standard_items')
     expect(urls.some((url) => url.includes('/admin/'))).toBe(false)
@@ -100,7 +81,7 @@ describe('StandardItemsView', () => {
       'zuivel',
       'overig',
     ])
-    expect(lines(wrapper)).toEqual(['banaan', 'kaas', 'melk', 'wc-papier'])
+    expect(listLines(wrapper)).toEqual(['banaan', 'kaas', 'melk', 'wc-papier'])
     expect(
       rowOf(wrapper, 'melk')
         .findAll('button')
@@ -195,14 +176,14 @@ describe('StandardItemsView', () => {
 
     await dialog(wrapper).find('.cancel').trigger('click')
     await flushPromises()
-    expect(lines(wrapper)).toContain('banaan')
+    expect(listLines(wrapper)).toContain('banaan')
     expect(server.db).toHaveLength(4)
 
     await rowOf(wrapper, 'banaan').find('.remove').trigger('click')
     await flushPromises()
     await dialog(wrapper).find('.confirm').trigger('click')
     await flushPromises()
-    expect(lines(wrapper)).not.toContain('banaan')
+    expect(listLines(wrapper)).not.toContain('banaan')
     expect(server.db.map((i) => i.name)).not.toContain('banaan')
   })
 
@@ -350,7 +331,7 @@ describe('StandardItemsView', () => {
       const posts = server.fetch.mock.calls.filter(([, o]) => o.method === 'POST')
       expect(posts.map(([url]) => url)).toEqual(['/api/standard_items/bulk_destroy'])
       expect(JSON.parse(posts[0][1].body).ids.sort()).toEqual([1, 2, 3])
-      expect(lines(wrapper)).toEqual(['wc-papier'])
+      expect(listLines(wrapper)).toEqual(['wc-papier'])
       expect(wrapper.find('[role="status"]').text()).toContain('3 items verwijderd.')
       // Na verwijderen is er niets op de boodschappenlijst gezet: geen link erheen.
       expect(wrapper.find('[role="status"] a').exists()).toBe(false)

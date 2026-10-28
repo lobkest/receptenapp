@@ -3,6 +3,8 @@ require "rake"
 
 # bin/rails ingredients:cleanup with the real decisions file (db/import/ingredient_cleanup.yml).
 class IngredientsTaskTest < ActiveSupport::TestCase
+  include TaskTestHelper
+
   setup do
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "ingredients:cleanup" }
     # A made-up product for every NEVO code in the file (no real NEVO data in the repo).
@@ -13,13 +15,7 @@ class IngredientsTaskTest < ActiveSupport::TestCase
   end
 
   def run_task(**env)
-    env = env.transform_keys(&:to_s)
-    old = env.keys.index_with { |key| ENV[key] }
-    env.each { |key, value| ENV[key] = value }
-    Rake::Task["ingredients:cleanup"].reenable
-    capture_io { Rake::Task["ingredients:cleanup"].invoke }.first
-  ensure
-    old.each { |key, value| ENV[key] = value }
+    super("ingredients:cleanup", **env)
   end
 
   test "the real file: dry run writes nothing, says which database, and runs twice without errors" do

@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 // "Delen" op de receptpagina: het recept als tekst via het deelmenu, of anders naar het
 // klembord. Zie src/utils/recipeText.js voor de tekst zelf.
@@ -28,11 +26,7 @@ const WOK = {
 
 async function mountAt(path) {
   mockFetch((method, url) => (url === '/api/recipes/5' ? jsonResponse(WOK) : jsonResponse([])))
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
+  const { wrapper } = await mountRoute(path)
   return wrapper
 }
 

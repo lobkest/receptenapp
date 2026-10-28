@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
 import RecipeCard from '../components/RecipeCard.vue'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 // "Met ingrediënt…" op het receptenoverzicht.
 
@@ -78,11 +77,7 @@ function fakeApi({ found = FOUND } = {}) {
 }
 
 async function mountAt(path = '/') {
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path, { freshPinia: false })
 }
 
 const titles = (wrapper) => wrapper.findAll('.recipe-grid h3').map((h) => h.text())

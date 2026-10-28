@@ -3,18 +3,10 @@ require "rake"
 
 # The rake tasks themselves, with the real files in db/import/.
 class ImportTaskTest < ActiveSupport::TestCase
+  include TaskTestHelper
+
   setup do
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "import:recipes" }
-  end
-
-  def run_task(name, **env)
-    env = env.transform_keys(&:to_s)
-    old = env.keys.index_with { |key| ENV[key] }
-    env.each { |key, value| ENV[key] = value }
-    Rake::Task[name].reenable
-    capture_io { Rake::Task[name].invoke }.first
-  ensure
-    old.each { |key, value| ENV[key] = value }
   end
 
   test "standaardlijst: dry-run schrijft niets, daarna echt, daarna niets dubbel" do

@@ -191,11 +191,4 @@ class Api::RecipeAlternativesTest < ActionDispatch::IntegrationTest
       patch api_recipe_url(@recipe), as: :json,
         params: { recipe: { lock_version: @recipe.reload.lock_version, **attributes } }
     end
-
-    def count_queries(&block)
-      count = 0
-      counter = ->(*, payload) { count += 1 unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-      ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
-      count
-    end
 end

@@ -35,6 +35,8 @@ Rails.application.routes.draw do
       get :recipes
       post :reset
       patch "ingredients/:ingredient_id", action: :update_ingredient, as: :ingredient
+      # By name, for a standard item without an ingredient (makes the ingredient if needed).
+      patch :ingredients, action: :update_ingredient_by_name
     end
     resources :nevo_foods, only: :index
     # Which frontend build belongs to this server; see lib/app_version.rb.

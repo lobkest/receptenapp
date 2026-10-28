@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // Categorieën: kiezen in het formulier (ook een nieuwe), secties op het receptentabblad,
 // filteren met de chips, en een bestaand recept zonder categorie dat onder "Overig" staat
@@ -36,32 +37,6 @@ test.beforeAll(async ({ playwright }) => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors, en een screenshot (hele pagina).
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  expect(innerWidth, 'niet uitgezoomd').toBe(page.viewportSize().width)
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 const sectionTitles = (page) => page.locator('.category-section h2')
 const section = (page, name) =>
@@ -188,7 +163,7 @@ test('een bestaand recept zonder categorie staat onder "Overig", en krijgt er vi
     section(page, 'Overig').locator('.title', { hasText: 'Oude stamppot' }),
   ).toBeVisible()
   await expect(categoryChip(page, 'Alles')).toHaveAttribute('aria-pressed', 'true')
-  await checkLayout(page, errors, 'recepten-categorieen')
+  await checkLayout(page, errors, 'recepten-categorieen', { scrollTop: true })
 
   // Indelen: bewerken en Lunch kiezen.
   await page.goto(`/recepten/${id}/bewerken`)
@@ -220,7 +195,7 @@ test('chips: één categorie tegelijk, samen met de tags', async ({ page }) => {
     'Spek met ei',
     'Havermout met appel',
   ])
-  await checkLayout(page, errors, 'recepten-categorie-ontbijt')
+  await checkLayout(page, errors, 'recepten-categorie-ontbijt', { scrollTop: true })
 
   // Plus de tag vega: alleen wat aan allebei voldoet.
   await page

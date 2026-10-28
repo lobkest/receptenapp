@@ -62,6 +62,36 @@ class Api::PantryControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  test "update_ingredient_by_name: an existing ingredient, matched like its name is saved" do
+    patch ingredients_api_pantry_url, params: { pantry_item: { name: "  EI ", present: true } }, as: :json
+    assert_response :ok
+    assert PantryItem.find_by(ingredient: @ei).present
+
+    patch ingredients_api_pantry_url, params: { pantry_item: { name: "ei", present: false } }, as: :json
+    refute PantryItem.exists?(ingredient: @ei)
+  end
+
+  test "update_ingredient_by_name: in the house makes the ingredient, out makes nothing" do
+    assert_difference -> { Ingredient.count }, 1 do
+      patch ingredients_api_pantry_url, params: { pantry_item: { name: "wc-papier", present: true } }, as: :json
+    end
+    assert_response :ok
+    assert_includes response.parsed_body["in_house"].pluck("name"), "wc-papier"
+
+    assert_no_difference -> { Ingredient.count } do
+      patch ingredients_api_pantry_url, params: { pantry_item: { name: "afwasmiddel", present: false } }, as: :json
+    end
+    assert_response :ok
+  end
+
+  test "update_ingredient_by_name: without a name 422, without present 400" do
+    patch ingredients_api_pantry_url, params: { pantry_item: { name: " ", present: true } }, as: :json
+    assert_response :unprocessable_content
+
+    patch ingredients_api_pantry_url, params: { pantry_item: { name: "ei" } }, as: :json
+    assert_response :bad_request
+  end
+
   test "reset: back to the default, only the staples in the house" do
     PantryItem.set!(@ei, true)
     PantryItem.set!(@zout, false)
@@ -184,12 +214,5 @@ class Api::PantryControllerTest < ActionDispatch::IntegrationTest
       rows.last[:alternatives_attributes] = [ { ingredient_name: alternative } ] if alternative
       Recipe.create!(title: title, servings: 2, steps_attributes: [ { body: "Koken." } ],
         recipe_ingredients_attributes: rows, **attributes)
-    end
-
-    def count_queries(&block)
-      count = 0
-      counter = ->(*, payload) { count += 1 unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
-      ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
-      count
     end
 end

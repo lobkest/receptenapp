@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 const RECIPES = [
   { id: 1, title: 'Pannenkoeken', servings: 4, tags: ['vega', 'zoet'] },
@@ -32,11 +31,7 @@ function fakeApi({ recipes = RECIPES, tags = TAGS, categories = [] } = {}) {
 
 // Een echte router in het geheugen: het filter staat in de URL-query.
 async function mountAt(path = '/') {
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path, { freshPinia: false })
 }
 
 function titles(wrapper) {

@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test'
 import { PWA_URL, RAILS_URL } from './env.js'
 import { deleteRecipe } from './traits.js'
+import {
+  checkedInDatabase,
+  checkLayout,
+  collectErrors,
+  isServerRequest,
+  sorted,
+  sortedLines,
+} from './helpers.js'
 
 // Een slapende of onbereikbare server, op iPhone- én desktopformaat (playwright.config.js):
 // (a) traag: laadmelding op Recepten, de bewaarde lijst op Boodschappen;
@@ -11,6 +19,11 @@ import { deleteRecipe } from './traits.js'
 // Op de gebouwde app (zoals productie, zonder Vite-HMR die bij offline gaat herladen), maar
 // zonder service worker: zo vangt page.route() elk verzoek zeker zelf op.
 // Screenshots in e2e/screenshots/serverstatus-<project>-*.png.
+
+// Screenshots per project (iphone en desktop), want beide draaien deze spec.
+function shot(name) {
+  return `serverstatus-${test.info().project.name}-${name}`
+}
 
 test.use({ baseURL: PWA_URL, serviceWorkers: 'block' })
 
@@ -76,12 +89,6 @@ test.beforeEach(async () => {
   expect(created.status()).toBe(201)
 })
 
-// Alleen de API en de health check, niet /src/api/... of de assets.
-function isServerRequest(url) {
-  const { pathname } = new URL(url)
-  return pathname === '/up' || pathname.startsWith('/api/')
-}
-
 // Een slapende server: elk verzoek blijft hangen tot wakeUp().
 async function sleepServer(page) {
   const held = []
@@ -100,53 +107,10 @@ async function cutServer(page) {
   return () => page.unroute(isServerRequest, handler)
 }
 
-// Console-errors, behalve de mislukte requests die we hier zelf veroorzaken.
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
-      errors.push(message.text())
-    }
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  await page.screenshot({
-    path: `e2e/screenshots/serverstatus-${test.info().project.name}-${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
-}
-
-// De regels van de boodschappenlijst op alfabet. De lijst staat per categorie van de
-// standaardlijst, en welke standaarditems een categorie hebben hangt af van de specs die
-// eerder draaiden; daarom vergelijken we hier zonder volgorde.
-async function sortedLines(page) {
-  const texts = await page.locator('.items .line').allTextContents()
-  return sorted(texts.map((text) => text.trim()))
-}
-
-function sorted(texts) {
-  return texts.toSorted((a, b) => a.localeCompare(b, 'nl'))
-}
-
-async function checkedInDatabase() {
-  const items = await (await api.get('/api/shopping_list_items')).json()
-  return Object.fromEntries(items.map((item) => [item.name, item.checked]))
-}
-
 test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen', async ({
   page,
 }) => {
-  const errors = collectErrors(page)
+  const errors = collectErrors(page, { ignoreFailedLoads: true })
 
   // Eerst één keer online: de lijst wordt lokaal bewaard, met tijdstip.
   await page.goto('/boodschappen')
@@ -159,7 +123,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
   await expect(page.locator('.server-waiting')).toHaveText(WAKING)
   await expect(page.locator('.recipe-card')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Recepten' })).toHaveCount(0)
-  await checkLayout(page, errors, 'a-recepten-wakker-worden')
+  await checkLayout(page, errors, shot('a-recepten-wakker-worden'))
 
   await page.goto('/boodschappen')
   await expect(page.locator('.offline-notice')).toHaveText(
@@ -167,7 +131,7 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
   )
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.server-waiting')).toHaveCount(0)
-  await checkLayout(page, errors, 'a-boodschappen-kopie')
+  await checkLayout(page, errors, shot('a-boodschappen-kopie'))
 
   // Wakker: de verse lijst vervangt de kopie, en Recepten laat de recepten zien.
   await api.post('/api/shopping_list_items', {
@@ -186,7 +150,7 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   page,
   context,
 }) => {
-  const errors = collectErrors(page)
+  const errors = collectErrors(page, { ignoreFailedLoads: true })
 
   await page.goto('/boodschappen')
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
@@ -203,7 +167,7 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await page.locator('.items input[type="checkbox"]').first().check()
   await expect(notice).toContainText('1 wijziging nog niet gesynchroniseerd')
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await checkLayout(page, errors, 'b-boodschappen-api-onbereikbaar')
+  await checkLayout(page, errors, shot('b-boodschappen-api-onbereikbaar'))
 
   // Echt offline (navigator.onLine false): "Offline" in plaats van "bijwerken…".
   await context.setOffline(true)
@@ -212,19 +176,19 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   )
   await page.locator('.items input[type="checkbox"]').nth(1).check()
   await expect(notice).toContainText('2 wijzigingen nog niet gesynchroniseerd')
-  await checkLayout(page, errors, 'b-boodschappen-offline')
+  await checkLayout(page, errors, shot('b-boodschappen-offline'))
 
   // Recepten toont offline geen oude data.
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
   await expect(page.locator('.server-waiting')).toContainText('Offline')
   await expect(page.locator('.recipe-card')).toHaveCount(0)
-  await checkLayout(page, errors, 'b-recepten-offline')
+  await checkLayout(page, errors, shot('b-recepten-offline'))
 
   // (c) Weer verbinding en de server bereikbaar: de wachtrij gaat naar de server en de
   // recepten komen, met hun automatische tags.
   await restore()
   await context.setOffline(false)
-  await expect.poll(checkedInDatabase).toEqual({ melk: true, eieren: true })
+  await expect.poll(() => checkedInDatabase(api)).toEqual({ melk: true, eieren: true })
 
   const rice = page.locator('.recipe-card', { hasText: RICE })
   const bread = page.locator('.recipe-card', { hasText: BREAD })
@@ -237,7 +201,7 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await expect(rice).toBeVisible()
   await expect(bread).toHaveCount(0)
   await expect(page.locator('.no-results')).toHaveCount(0)
-  await checkLayout(page, errors, 'c-recepten-filter-glutenvrij')
+  await checkLayout(page, errors, shot('c-recepten-filter-glutenvrij'))
 
   await page
     .locator('nav')
@@ -247,7 +211,7 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
 })
 
 test('nieuwere versie op de server: de pagina herlaadt één keer', async ({ page }) => {
-  const errors = collectErrors(page)
+  const errors = collectErrors(page, { ignoreFailedLoads: true })
   // Rails stuurt in de testomgeving geen versie mee; hier doen we alsof er intussen een
   // nieuwe deploy staat.
   await page.route(

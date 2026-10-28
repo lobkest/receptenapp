@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { checkLayout, collectErrors } from './helpers.js'
 
 // Ingrediënt wisselen op een iPhone-scherm: chips onder een ingrediënt, de wissel in de
 // URL (ook na herladen), "Alles op lijst" met het alternatief, en een alternatief
@@ -49,32 +50,6 @@ test.beforeEach(async () => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-// Niets breder dan het scherm, geen console-errors; met een naam ook een screenshot.
-async function checkLayout(page, errors, name = null) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  if (name) {
-    await page.screenshot({
-      path: `e2e/screenshots/${name}.png`,
-      fullPage: true,
-      animations: 'disabled',
-    })
-  }
-  expect(errors, 'geen console-errors').toEqual([])
-}
 
 // Net als elders in de app (compact.spec.js): elke knop minstens 40 px hoog.
 async function checkTapTargets(page, selector) {

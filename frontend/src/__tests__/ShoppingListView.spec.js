@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
-import App from '../App.vue'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
 import { clearMemoryStorage } from '../offline/storage'
+import { buttonWithText, listLines, mountRoute } from './mount'
 
 const ITEMS = [
   { id: 1, name: 'bloem', quantity: 300, unit: 'g', source_label: 'Wafels' },
@@ -15,20 +12,7 @@ const ITEMS = [
 
 // Monteert de hele App, zodat we ook het menu (met het aantal) en het verversen testen.
 async function mountApp(path = '/boodschappen') {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(App, { global: { plugins: [router] } })
-  await flushPromises()
-  return { wrapper, router }
-}
-
-function buttonWithText(wrapper, text) {
-  return wrapper.findAll('button').find((b) => b.text() === text)
-}
-
-function lines(wrapper) {
-  return wrapper.findAll('.items .line').map((l) => l.text())
+  return mountRoute(path, { app: true })
 }
 
 function getRequests(fetch) {
@@ -70,7 +54,7 @@ describe('ShoppingListView', () => {
   it('toont regels van de server met hoeveelheid en herkomst, met één request bij het openen', async () => {
     ;({ wrapper } = await mountApp())
 
-    expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
+    expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     expect(wrapper.findAll('.items .sources').map((s) => s.text())).toEqual([
       'uit: Wafels',
       'uit: Pannenkoeken',
@@ -108,7 +92,7 @@ describe('ShoppingListView', () => {
       'zuivel',
       'overig',
     ])
-    expect(lines(wrapper)).toEqual(['300 g bloem', 'bakpoeder', 'melk', 'zout'])
+    expect(listLines(wrapper)).toEqual(['300 g bloem', 'bakpoeder', 'melk', 'zout'])
     // "uit: …" staat in dezelfde rij als de naam.
     expect(wrapper.find('.items li .text .sources').text()).toBe('uit: Wafels')
   })
@@ -153,7 +137,7 @@ describe('ShoppingListView', () => {
       await flushPromises()
 
       expect(getRequests(server.fetch)).toHaveLength(2)
-      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier', 'kaas'])
+      expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier', 'kaas'])
       expect(wrapper.findAll('.items li')[0].classes()).toContain('checked')
       expect(wrapper.find('.shopping-link').text()).toBe('Boodschappen (3)')
     })
@@ -168,7 +152,7 @@ describe('ShoppingListView', () => {
       await router.push('/boodschappen')
       await flushPromises()
 
-      expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+      expect(listLines(wrapper)).toEqual(['zout', 'wc-papier'])
     })
 
     it('stopt met luisteren als de App weg is', async () => {
@@ -219,7 +203,7 @@ describe('ShoppingListView', () => {
       await flushPromises()
 
       expect(wrapper.find('[role="alert"]').text()).toBe('Deze regel bestaat niet meer.')
-      expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+      expect(listLines(wrapper)).toEqual(['zout', 'wc-papier'])
     })
   })
 
@@ -229,7 +213,7 @@ describe('ShoppingListView', () => {
     await wrapper.find('.items .remove').trigger('click')
     await flushPromises()
 
-    expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    expect(listLines(wrapper)).toEqual(['zout', 'wc-papier'])
     expect(server.shoppingDb.map((i) => i.name)).toEqual(['zout', 'wc-papier'])
   })
 
@@ -244,7 +228,7 @@ describe('ShoppingListView', () => {
     await flushPromises()
 
     expect(confirm).not.toHaveBeenCalled()
-    expect(lines(wrapper)).toEqual(['zout', 'wc-papier'])
+    expect(listLines(wrapper)).toEqual(['zout', 'wc-papier'])
     expect(server.shoppingDb).toHaveLength(2)
   })
 
@@ -312,7 +296,7 @@ describe('ShoppingListView', () => {
       expect(wrapper.find('.offline-notice').text()).toMatch(
         /^Offline kopie van 16 okt om 09:41, Offline/,
       )
-      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
+      expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
       for (const button of wrapper.findAll('.items .remove')) {
         expect(button.attributes('disabled')).toBeDefined()
@@ -392,7 +376,7 @@ describe('ShoppingListView', () => {
       expect(wrapper.find('.offline-notice').text()).toMatch(
         /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
       )
-      expect(lines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
+      expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     })
 
     it('stopt met luisteren naar online als de App weg is', async () => {
@@ -433,7 +417,7 @@ describe('ShoppingListView', () => {
     it('toont "×2" en "+1", en de −-knop alleen bij iets van de standaardlijst', async () => {
       ;({ wrapper } = await mountApp())
 
-      expect(lines(wrapper)).toEqual(['melk ×2', '200 g bloem +1', 'zout'])
+      expect(listLines(wrapper)).toEqual(['melk ×2', '200 g bloem +1', 'zout'])
       expect(rowOf(wrapper, 2).find('.sources').text()).toBe('uit: Wafels, standaard')
       expect(rowOf(wrapper, 1).find('.minus').exists()).toBe(true)
       expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(true)
@@ -446,7 +430,7 @@ describe('ShoppingListView', () => {
 
       await rowOf(wrapper, 1).find('.minus').trigger('click')
       await flushPromises()
-      expect(lines(wrapper)[0]).toBe('melk')
+      expect(listLines(wrapper)[0]).toBe('melk')
 
       await rowOf(wrapper, 1).find('.minus').trigger('click')
       await flushPromises()
@@ -454,7 +438,7 @@ describe('ShoppingListView', () => {
 
       await rowOf(wrapper, 2).find('.minus').trigger('click')
       await flushPromises()
-      expect(lines(wrapper)).toEqual(['200 g bloem', 'zout'])
+      expect(listLines(wrapper)).toEqual(['200 g bloem', 'zout'])
       expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(false)
     })
 

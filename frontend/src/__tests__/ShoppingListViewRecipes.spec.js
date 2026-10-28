@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
-import App from '../App.vue'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { fakeServer } from './helpers'
 import { clearMemoryStorage } from '../offline/storage'
+import { listLines, mountRoute } from './mount'
 
 // "Recepten op je lijst" en "Groepeer per recept" op de boodschappenlijst.
 
@@ -22,16 +19,7 @@ const ITEMS = [
 ]
 
 async function mountApp(path = '/boodschappen') {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(App, { global: { plugins: [router] } })
-  await flushPromises()
-  return { wrapper, router }
-}
-
-function lines(wrapper) {
-  return wrapper.findAll('.items .line').map((l) => l.text())
+  return mountRoute(path, { app: true })
 }
 
 function boxRows(wrapper) {
@@ -70,7 +58,7 @@ describe('Recepten op je lijst', () => {
     server = fakeServer({ shopping: [ITEMS[3]] })
     ;({ wrapper } = await mountApp())
 
-    expect(lines(wrapper)).toEqual(['wc-papier'])
+    expect(listLines(wrapper)).toEqual(['wc-papier'])
     expect(wrapper.find('.list-recipes').exists()).toBe(false)
   })
 
@@ -85,7 +73,7 @@ describe('Recepten op je lijst', () => {
   it('groeperen zet ?groep=recept in de URL en toont secties; "Groepering uit" zet het terug', async () => {
     let router
     ;({ wrapper, router } = await mountApp())
-    const before = lines(wrapper)
+    const before = listLines(wrapper)
     expect(wrapper.find('.section-title').exists()).toBe(false)
     expect(wrapper.find('.ungroup').exists()).toBe(false)
 
@@ -106,7 +94,7 @@ describe('Recepten op je lijst', () => {
     await wrapper.find('.ungroup').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({})
-    expect(lines(wrapper)).toEqual(before)
+    expect(listLines(wrapper)).toEqual(before)
     expect(wrapper.find('.section-title').exists()).toBe(false)
   })
 
@@ -134,7 +122,7 @@ describe('Recepten op je lijst', () => {
     const deletes = server.fetch.mock.calls.filter(([, o]) => o.method === 'DELETE')
     expect(deletes.map(([url]) => url)).toEqual(['/api/shopping_list_items?recipe_id=1'])
     // Afgevinkte feta blijft; melk blijft als standaardregel; de wok blijft.
-    expect(lines(wrapper)).toEqual(['300 g kip', 'melk', 'wc-papier', 'feta'])
+    expect(listLines(wrapper)).toEqual(['300 g kip', 'melk', 'wc-papier', 'feta'])
     expect(boxRows(wrapper)).toEqual([['Wok met kip', '1 item']])
   })
 
@@ -147,7 +135,7 @@ describe('Recepten op je lijst', () => {
     await flushPromises()
 
     expect(server.fetch.mock.calls.filter(([, o]) => o.method === 'DELETE')).toEqual([])
-    expect(lines(wrapper)).toHaveLength(6)
+    expect(listLines(wrapper)).toHaveLength(6)
   })
 
   it('een verwijderd recept gaat op zijn naam', async () => {

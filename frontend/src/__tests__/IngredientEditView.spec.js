@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 const EGG_FOOD = {
   id: 71,
@@ -75,11 +76,7 @@ function fakeApi(
 }
 
 async function mountAt(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] } })
-  await flushPromises()
+  const { wrapper } = await mountRoute(path)
   return wrapper
 }
 

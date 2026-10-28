@@ -1,5 +1,14 @@
 import { test, expect, devices } from '@playwright/test'
 import { PWA_URL, RAILS_URL } from './env.js'
+import {
+  checkLayout,
+  collectErrors,
+  openShoppingList,
+  postRecipe,
+  shoppingList,
+  sorted,
+  sortedLines,
+} from './helpers.js'
 
 // "Recepten op je lijst" onderaan de boodschappenlijst: per recept het aantal open regels,
 // "Groepeer per recept" (in de URL: ?groep=recept) en "Verwijder" voor alles van één recept.
@@ -34,16 +43,10 @@ const WOK = {
   ],
 }
 
-async function createRecipe(recipe) {
-  const response = await api.post('/api/recipes', { data: { recipe } })
-  expect(response.status(), await response.text()).toBe(201)
-  return response.json()
-}
-
 test.beforeAll(async ({ playwright }) => {
   api = await playwright.request.newContext({ baseURL: RAILS_URL })
-  orzo = await createRecipe(ORZO)
-  wok = await createRecipe(WOK)
+  orzo = await postRecipe(api, ORZO)
+  wok = await postRecipe(api, WOK)
 
   // melk op de standaardlijst; bestaat hij al (uit een andere test), dan die.
   const existing = await (await api.get('/api/standard_items')).json()
@@ -69,10 +72,6 @@ test.afterAll(async () => {
   await api.dispose()
 })
 
-async function shoppingList() {
-  return (await api.get('/api/shopping_list_items')).json()
-}
-
 // Beide recepten helemaal op de lijst (eerst orzo, dan wok), feta afgevinkt. Met
 // standardMelk ook melk van de standaardlijst: "200 ml melk +1" bij de orzo.
 async function fillList({ standardMelk = false } = {}) {
@@ -80,7 +79,7 @@ async function fillList({ standardMelk = false } = {}) {
     const response = await api.post(`/api/recipes/${recipe.id}/add_to_shopping_list`)
     expect(response.status(), await response.text()).toBe(201)
   }
-  const feta = (await shoppingList()).find((item) => item.name === 'feta')
+  const feta = (await shoppingList(api)).find((item) => item.name === 'feta')
   const patched = await api.patch(`/api/shopping_list_items/${feta.id}`, {
     data: { shopping_list_item: { checked: true } },
   })
@@ -91,29 +90,6 @@ async function fillList({ standardMelk = false } = {}) {
     })
     expect(added.status(), await added.text()).toBe(200)
   }
-}
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
-async function checkLayout(page, errors, name) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }))
-  expect(scrollWidth, 'geen horizontale overflow').toBeLessThanOrEqual(innerWidth)
-  await page.screenshot({
-    path: `e2e/screenshots/${name}.png`,
-    fullPage: true,
-    animations: 'disabled',
-  })
-  expect(errors, 'geen console-errors').toEqual([])
 }
 
 function boxRows(page) {
@@ -133,23 +109,6 @@ function sectionLines(page, title) {
     .locator('.section')
     .filter({ has: page.locator('.section-title', { hasText: title }) })
     .locator('.line')
-}
-
-async function openShoppingList(page, path = '/boodschappen') {
-  await page.goto(path)
-  await expect(page.locator('.items').first()).toBeVisible()
-}
-
-// De regels van de boodschappenlijst op alfabet. De lijst staat per categorie van de
-// standaardlijst, en welke standaarditems een categorie hebben hangt af van de specs die
-// eerder draaiden; daarom vergelijken we hier zonder volgorde.
-async function sortedLines(page) {
-  const texts = await page.locator('.items .line').allTextContents()
-  return sorted(texts.map((text) => text.trim()))
-}
-
-function sorted(texts) {
-  return texts.toSorted((a, b) => a.localeCompare(b, 'nl'))
 }
 
 test('a+b+c) het vakje toont beide recepten; groeperen staat in de URL en blijft na herladen', async ({
@@ -222,7 +181,7 @@ test('d+f) verwijder recept A: alleen de open regels weg; daarna op het recept w
 
   await expect(page.locator('.items .line')).toHaveText(['100 g feta', '300 g kip', '200 g rijst'])
   await expect(boxRows(page).locator('.name')).toHaveText(['Groep-wok'])
-  const list = await shoppingList()
+  const list = await shoppingList(api)
   expect(list.map((item) => [item.name, item.checked])).toEqual([
     ['feta', true],
     ['kip', false],
@@ -254,7 +213,7 @@ test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page
   await expect
     .poll(() => sortedLines(page))
     .toEqual(sorted(['100 g feta', 'melk', '300 g kip', '200 g rijst']))
-  const melk = (await shoppingList()).find((item) => item.name === 'melk')
+  const melk = (await shoppingList(api)).find((item) => item.name === 'melk')
   expect(melk).toMatchObject({
     recipe_id: null,
     quantity: null,
@@ -267,9 +226,9 @@ test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page
   await expect(page.locator('.ingredients > ul > li .list-button')).toHaveText([
     '+ lijst',
     '+ lijst',
-    '✓ via standaardlijst',
     '+ lijst',
   ])
+  await expect(page.locator('.ingredients > ul > li .via-source')).toHaveText('via standaard')
 })
 
 test('g) offline: groeperen werkt op de opgeslagen lijst, verwijderen niet', async ({

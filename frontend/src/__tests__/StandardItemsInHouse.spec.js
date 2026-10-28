@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory } from 'vue-router'
-import App from '../App.vue'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { fakeStandardServer, jsonResponse } from './helpers'
+import { buttonWithText, mountRoute } from './mount'
 
-// "In huis" op de standaardlijst: het huisje per item (op naam gematcht), en "Op lijst (n)"
-// in de selectiemodus slaat wat in huis is over.
+// "In huis" op de standaardlijst: het huisje bij elk item (op naam gematcht; zonder
+// ingrediënt maakt de eerste tik dat aan), en "Op lijst (n)" in de selectiemodus slaat wat
+// in huis is over.
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -31,8 +29,9 @@ function mountWithPantry() {
   server = fakeStandardServer(ITEMS)
   pantryRequests = []
   const present = new Set([10, 12])
+  const ingredients = [...INGREDIENTS]
   const pantry = () => ({
-    in_house: INGREDIENTS.filter((i) => i.id !== 12 && present.has(i.id)),
+    in_house: ingredients.filter((i) => i.id !== 12 && present.has(i.id)),
     staples: [{ id: 12, name: 'brood', present: present.has(12) }],
     suggestions: [],
   })
@@ -42,6 +41,15 @@ function mountWithPantry() {
     vi.fn(async (url, options = {}) => {
       if (url === '/api/ingredients') return jsonResponse(INGREDIENTS)
       if (url === '/api/pantry') return jsonResponse(pantry())
+      if (url === '/api/pantry/ingredients') {
+        const { name, present: on } = JSON.parse(options.body).pantry_item
+        pantryRequests.push([name, on])
+        let ingredient = ingredients.find((i) => i.name === name)
+        if (!ingredient && on) ingredients.push((ingredient = { id: 99, name }))
+        if (ingredient && on) present.add(ingredient.id)
+        if (ingredient && !on) present.delete(ingredient.id)
+        return jsonResponse(pantry())
+      }
       const toggle = url.match(/^\/api\/pantry\/ingredients\/(\d+)$/)
       if (toggle) {
         const { present: on } = JSON.parse(options.body).pantry_item
@@ -56,11 +64,7 @@ function mountWithPantry() {
 }
 
 async function mountApp() {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push('/standaard')
-  const wrapper = mount(App, { global: { plugins: [router] }, attachTo: document.body })
-  await flushPromises()
+  const { wrapper } = await mountRoute('/standaard', { app: true, attach: true })
   return wrapper
 }
 
@@ -68,8 +72,8 @@ function rowOf(wrapper, name) {
   return wrapper.findAll('.items li').find((li) => li.find('.line').text() === name)
 }
 
-function buttonWithText(wrapper, text) {
-  return wrapper.findAll('button').find((b) => b.text() === text)
+function houseOf(wrapper, name) {
+  return rowOf(wrapper, name).find('.house-button')
 }
 
 describe('In huis op de standaardlijst', () => {
@@ -86,13 +90,14 @@ describe('In huis op de standaardlijst', () => {
     vi.unstubAllGlobals()
   })
 
-  it('huisje op naam: in huis, basis, niet in huis; zonder ingrediënt geen huisje', async () => {
+  it('huisje bij elk item, alleen een icoon: in huis, basis, niet in huis, geen ingrediënt', async () => {
     wrapper = await mountApp()
 
-    expect(rowOf(wrapper, 'melk').find('.house-button').text()).toBe('in huis')
-    expect(rowOf(wrapper, 'brood').find('.house-button').text()).toBe('in huis')
-    expect(rowOf(wrapper, 'kaas').find('.house-button').text()).toBe('')
-    expect(rowOf(wrapper, 'wc-papier').find('.house-button').exists()).toBe(false)
+    expect(houseOf(wrapper, 'melk').attributes('aria-pressed')).toBe('true')
+    expect(houseOf(wrapper, 'brood').attributes('aria-pressed')).toBe('true')
+    expect(houseOf(wrapper, 'kaas').attributes('aria-pressed')).toBe('false')
+    expect(houseOf(wrapper, 'wc-papier').attributes('aria-pressed')).toBe('false')
+    expect(houseOf(wrapper, 'melk').text()).toBe('')
   })
 
   it('een tik zet het in de voorraad', async () => {
@@ -102,7 +107,24 @@ describe('In huis op de standaardlijst', () => {
     await flushPromises()
 
     expect(pantryRequests).toEqual([[11, true]])
-    expect(rowOf(wrapper, 'kaas').find('.house-button').text()).toBe('in huis')
+    expect(houseOf(wrapper, 'kaas').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('zonder ingrediënt: de eerste tik gaat op naam, daarna op het nieuwe id', async () => {
+    wrapper = await mountApp()
+
+    await houseOf(wrapper, 'wc-papier').trigger('click')
+    await flushPromises()
+    expect(houseOf(wrapper, 'wc-papier').attributes('aria-pressed')).toBe('true')
+
+    await houseOf(wrapper, 'wc-papier').trigger('click')
+    await flushPromises()
+
+    expect(pantryRequests).toEqual([
+      ['wc-papier', true],
+      [99, false],
+    ])
+    expect(houseOf(wrapper, 'wc-papier').attributes('aria-pressed')).toBe('false')
   })
 
   it('selectiemodus: "in huis" als label, en "Op lijst (n)" slaat die over', async () => {

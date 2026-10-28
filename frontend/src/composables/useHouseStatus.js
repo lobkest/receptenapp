@@ -14,7 +14,9 @@ export function useHouseStatus() {
   const ingredients = useIngredientList()
   const lookup = computed(() => ({
     presentIds: pantry.presentIds,
-    idByName: ingredientIdsByName(ingredients.value),
+    // Ook de voorraad zelf: een ingrediënt dat net via het huisje is aangemaakt, staat
+    // nog niet in de lijst van useIngredientList.
+    idByName: ingredientIdsByName([...ingredients.value, ...pantry.inHouse, ...pantry.staples]),
   }))
 
   return { statusOf: (ingredient) => houseStatus(ingredient, lookup.value) }

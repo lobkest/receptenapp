@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { PWA_URL } from './env.js'
+import { collectErrors, isServerRequest } from './helpers.js'
 
 // Elk tabblad dat de server nodig heeft, toont in dezelfde drie toestanden precies dezelfde
 // gedeelde melding (ServerWaiting in App.vue), en verder niets: geen kop, geen chips, geen
@@ -22,23 +23,6 @@ const TABS = [
   ['standaard', '/standaard', 'Standaard'],
   ['ingredienten', '/ingredienten', 'Ingrediënten'],
 ]
-
-function isServerRequest(url) {
-  const { pathname } = new URL(url)
-  return pathname === '/up' || pathname.startsWith('/api/')
-}
-
-// Console-errors, behalve de mislukte requests die we hier zelf veroorzaken.
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
-      errors.push(message.text())
-    }
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
 
 // Alleen de gedeelde melding in beeld; de screenshot van <main> komt terug om te vergelijken.
 async function expectOnlyNotice(page, text, name) {
@@ -75,7 +59,7 @@ test('(a) offline: op elk tabblad alleen de gedeelde melding, daarna haalt In hu
   page,
   context,
 }) => {
-  const errors = collectErrors(page)
+  const errors = collectErrors(page, { ignoreFailedLoads: true })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Recepten' })).toBeVisible()
 
@@ -104,7 +88,7 @@ test('(a) offline: op elk tabblad alleen de gedeelde melding, daarna haalt In hu
 
 test('(b) laden en (c) trage start: op elk tabblad dezelfde laadmelding', async ({ page }) => {
   test.setTimeout(120_000)
-  const errors = collectErrors(page)
+  const errors = collectErrors(page, { ignoreFailedLoads: true })
   // Een trage server (Render cold start): elk antwoord komt pas na 10 seconden.
   await page.route(isServerRequest, async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 10_000))

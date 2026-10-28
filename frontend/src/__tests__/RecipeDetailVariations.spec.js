@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
+import { flushPromises } from '@vue/test-utils'
 import { jsonResponse, mockFetch } from './helpers'
+import { buttonWithText, mountRoute } from './mount'
 
 const CHICKEN = {
   id: 7,
@@ -47,16 +45,8 @@ function fakeApi(recipe = curry(), handlers = {}) {
 }
 
 async function mountAt(path) {
-  setActivePinia(createPinia())
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] }, attachTo: document.body })
-  await flushPromises()
+  const { wrapper } = await mountRoute(path, { attach: true })
   return wrapper
-}
-
-function buttonWithText(root, text) {
-  return root.findAll('button').find((b) => b.text() === text)
 }
 
 describe('RecipeDetailView: tags en variaties', () => {

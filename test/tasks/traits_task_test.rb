@@ -3,6 +3,8 @@ require "rake"
 
 # bin/rails traits:setup, with the real suggestion file (db/import/ingredient_traits.yml).
 class TraitsTaskTest < ActiveSupport::TestCase
+  include TaskTestHelper
+
   setup do
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "traits:setup" }
     @report = Rails.root.join("tmp/test_tag_verschillen_#{Process.pid}.txt")
@@ -23,13 +25,7 @@ class TraitsTaskTest < ActiveSupport::TestCase
   end
 
   def run_task(**env)
-    env = { REPORT: @report.relative_path_from(Rails.root).to_s }.merge(env).transform_keys(&:to_s)
-    old = env.keys.index_with { |key| ENV[key] }
-    env.each { |key, value| ENV[key] = value }
-    Rake::Task["traits:setup"].reenable
-    capture_io { Rake::Task["traits:setup"].invoke }.first
-  ensure
-    old.each { |key, value| ENV[key] = value }
+    super("traits:setup", REPORT: @report.relative_path_from(Rails.root).to_s, **env)
   end
 
   test "DRY_RUN writes the differences but saves nothing" do

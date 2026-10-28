@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { addFromRecipe, collectErrors, ingredientRow, postRecipe, shoppingList } from './helpers.js'
 
 // Op de receptpagina zie je welke ingrediënten al op de boodschappenlijst staan: "+ lijst",
 // "✓ op lijst" (via dit recept, tik haalt weg) of "✓ via …" (andere herkomst, niet
@@ -40,21 +41,6 @@ const CURRY = {
   ],
 }
 
-async function createRecipe(recipe) {
-  const created = await api.post('/api/recipes', { data: { recipe } })
-  expect(created.status(), await created.text()).toBe(201)
-  return created.json()
-}
-
-// rowName: de naam van de regel in het andere recept; zet die regel op de lijst.
-async function addFromRecipe(recipe, rowName) {
-  const row = recipe.ingredients.find((ingredient) => ingredient.name === rowName)
-  const response = await api.post(`/api/recipes/${recipe.id}/add_to_shopping_list`, {
-    data: { ingredient_ids: [row.id] },
-  })
-  expect(response.status(), await response.text()).toBe(201)
-}
-
 // Zoals de standaardlijst dat doet: een vrije regel zonder recept.
 async function addFromStandardList(name) {
   const response = await api.post('/api/shopping_list_items', {
@@ -63,14 +49,10 @@ async function addFromStandardList(name) {
   expect(response.status(), await response.text()).toBe(201)
 }
 
-async function shoppingList() {
-  return (await api.get('/api/shopping_list_items')).json()
-}
-
 test.beforeAll(async ({ playwright }) => {
   api = await playwright.request.newContext({ baseURL: RAILS_URL })
-  stirFry = await createRecipe(STIR_FRY)
-  curry = await createRecipe(CURRY)
+  stirFry = await postRecipe(api, STIR_FRY)
+  curry = await postRecipe(api, CURRY)
   const chicken = stirFry.ingredients.find((row) => row.name === 'kipdijfilet')
   for (const variation of [
     {
@@ -102,21 +84,14 @@ test.afterAll(async () => {
   await api.dispose()
 })
 
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
-
 // De knop naast een ingrediënt, gevonden via de regel waarin de naam staat.
 function listButton(page, name) {
-  return page
-    .locator('.ingredients > ul > li')
-    .filter({ has: page.locator('.line', { hasText: name }) })
-    .locator('.list-button')
+  return ingredientRow(page, name).locator('.list-button')
+}
+
+// "✓ op lijst" met de herkomst eronder: staat er alleen via iets anders op.
+function viaOf(page, name) {
+  return ingredientRow(page, name).locator('.via')
 }
 
 async function openRecipe(page) {
@@ -166,32 +141,45 @@ test('c) tik op "✓ op lijst": weg van de lijst, knop terug naar "+ lijst"', as
   await openRecipe(page)
   await listButton(page, 'knoflook').click()
   await expect(listButton(page, 'knoflook')).toHaveText('✓ op lijst')
-  expect((await shoppingList()).map((item) => item.name)).toEqual(['knoflook'])
+  expect((await shoppingList(api)).map((item) => item.name)).toEqual(['knoflook'])
 
   await listButton(page, 'knoflook').click()
   await expect(listButton(page, 'knoflook')).toHaveText('+ lijst')
   await expect(page.getByRole('status')).toHaveText('knoflook is van je boodschappenlijst gehaald.')
-  expect(await shoppingList()).toEqual([])
+  expect(await shoppingList(api)).toEqual([])
 })
 
-test('d) via een ander recept: "✓ via <recept>", niet klikbaar', async ({ page }) => {
-  await addFromRecipe(curry, 'paksoi')
+test('d) via een ander recept: "✓ op lijst" met herkomst; "+" voegt een eigen regel toe', async ({
+  page,
+}) => {
+  await addFromRecipe(api, curry, 'paksoi')
   await openRecipe(page)
 
-  const button = listButton(page, 'paksoi')
-  await expect(button).toHaveText('✓ via Groene curry')
-  await expect(button).toBeDisabled()
-  // De regel van het andere recept blijft staan.
-  expect((await shoppingList()).map((item) => item.source_label)).toEqual(['Groene curry'])
+  await expect(viaOf(page, 'paksoi').locator('.via-check')).toHaveText('✓ op lijst')
+  await expect(viaOf(page, 'paksoi').locator('.via-source')).toHaveText('via Groene curry')
+  await expect(listButton(page, 'paksoi')).toHaveCount(0)
+
+  // "+": een eigen regel met dit recept als herkomst, daarna "✓ op lijst" van dit recept.
+  await ingredientRow(page, 'paksoi').locator('.add-own').click()
+  await expect(listButton(page, 'paksoi')).toHaveText('✓ op lijst')
+  expect((await shoppingList(api)).map((item) => item.source_label).sort()).toEqual([
+    'Groene curry',
+    'Roerbak met kip',
+  ])
+
+  // ✓ haalt alleen de regel van dit recept weg; die van het andere recept blijft staan.
+  await listButton(page, 'paksoi').click()
+  await expect(viaOf(page, 'paksoi').locator('.via-source')).toHaveText('via Groene curry')
+  expect((await shoppingList(api)).map((item) => item.source_label)).toEqual(['Groene curry'])
 })
 
 test('e) een gewisseld alternatief: de status volgt het getoonde ingrediënt', async ({ page }) => {
-  await addFromRecipe(curry, 'tempeh')
+  await addFromRecipe(api, curry, 'tempeh')
   await openRecipe(page)
   await expect(listButton(page, 'kipdijfilet')).toHaveText('+ lijst')
 
   await page.getByRole('button', { name: 'Wissel voor tempeh' }).click()
-  await expect(listButton(page, 'tempeh')).toHaveText('✓ via Groene curry')
+  await expect(viaOf(page, 'tempeh').locator('.via-source')).toHaveText('via Groene curry')
 
   await page.getByRole('button', { name: 'Terug naar kipdijfilet' }).click()
   await expect(listButton(page, 'kipdijfilet')).toHaveText('+ lijst')
@@ -200,7 +188,7 @@ test('e) een gewisseld alternatief: de status volgt het getoonde ingrediënt', a
 test('"Alles op lijst": daarna overal ✓, ook wat er al stond', async ({ page }) => {
   await addFromStandardList('knoflook')
   await openRecipe(page)
-  await expect(listButton(page, 'knoflook')).toHaveText('✓ via standaardlijst')
+  await expect(viaOf(page, 'knoflook').locator('.via-source')).toHaveText('via standaard')
 
   await page.getByRole('button', { name: 'Alles op lijst' }).click()
   for (const name of ['kipdijfilet', 'mie', 'paksoi', 'sojasaus', 'knoflook']) {
@@ -229,7 +217,7 @@ test('variaties: "+ lijst" per toevoeging, en "Variatie op lijst" zet overal ✓
   await expect(additionButton(page, 'Pittig', 'rode peper')).toHaveText('+ lijst')
   await additionButton(page, 'Pittig', 'rode peper').click()
   await expect(additionButton(page, 'Pittig', 'rode peper')).toHaveText('✓ op lijst')
-  const peper = (await shoppingList()).find((item) => item.name === 'rode peper')
+  const peper = (await shoppingList(api)).find((item) => item.name === 'rode peper')
   expect(peper).toMatchObject({
     quantity: 1,
     unit: 'stuks',
@@ -265,7 +253,7 @@ test('variaties: "+ lijst" per toevoeging, en "Variatie op lijst" zet overal ✓
 test('screenshot: een mix van ✓ en "+ lijst" op een iPhone', async ({ page }) => {
   const errors = collectErrors(page)
   await addFromStandardList('knoflook')
-  await addFromRecipe(curry, 'paksoi')
+  await addFromRecipe(api, curry, 'paksoi')
   await openRecipe(page)
   await listButton(page, 'mie').click()
   await listButton(page, 'kipdijfilet').click()

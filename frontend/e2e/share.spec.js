@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
+import { collectErrors } from './helpers.js'
 
 // "Delen" op de receptpagina op een iPhone-scherm: het recept als tekst, zonder link naar
 // de app. Eén keer met deelmenu (nagebootst: de testbrowser heeft er geen), één keer
@@ -36,15 +37,6 @@ test.beforeAll(async ({ playwright }) => {
 test.afterAll(async () => {
   await api.dispose()
 })
-
-function collectErrors(page) {
-  const errors = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  page.on('pageerror', (error) => errors.push(error.message))
-  return errors
-}
 
 // Met 3 porties en havermelk gewisseld: dat moet in de tekst staan.
 async function openAndPrepare(page) {

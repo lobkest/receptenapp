@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
-import { routes } from '../router'
 import { jsonResponse, mockFetch } from './helpers'
+import { mountRoute } from './mount'
 
 const LUNCH = { id: 2, name: 'Lunch', position: 2 }
 
@@ -129,11 +128,7 @@ function fakeServer() {
 }
 
 async function mountAt(path = '/in-huis') {
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push(path)
-  const wrapper = mount(RouterView, { global: { plugins: [router] }, attachTo: document.body })
-  await flushPromises()
-  return { wrapper, router }
+  return mountRoute(path, { attach: true, freshPinia: false })
 }
 
 // [[titel van de sectie, [recept, mist]]]

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Alle jobs uit .github/workflows/ci.yml lokaal, met dezelfde commando's in dezelfde map.
+# Per job alleen ✅ of ❌; bij ❌ de foutregels uit het logbestand. Draait door na een fout,
+# zodat je alles in één keer ziet. Exitcode 1 als er iets faalde.
+#
+#   bin/ci-local            # npm ci alleen als frontend/package-lock.json gewijzigd is
+#   bin/ci-local --npm-ci   # npm ci altijd, precies zoals CI
+#
+# Logbestanden in $CI_LOG_DIR (standaard tmp/ci-local). Niet hetzelfde als bin/ci: dat is
+# de lokale CI van Rails zelf (config/ci.rb) en draait andere stappen dan GitHub.
+# De e2e-suite zit hier niet in (staat ook niet in CI); die draai je apart.
+set -u
+cd "$(dirname "$0")/.."
+
+LOG_DIR="${CI_LOG_DIR:-tmp/ci-local}"
+mkdir -p "$LOG_DIR"
+FORCE_NPM_CI=false
+[ "${1:-}" = "--npm-ci" ] && FORCE_NPM_CI=true
+
+failed=0
+
+# step <job> <naam> <map> <commando>: draait het commando in die map, log naar een bestand.
+step() {
+  local job="$1" name="$2" dir="$3" command="$4"
+  local log="$LOG_DIR/$name.log"
+  local start=$SECONDS
+  if (cd "$dir" && bash -c "$command") > "$log" 2>&1; then
+    printf '✅ %-14s %-28s %4ss\n' "$job" "$name" $((SECONDS - start))
+  else
+    failed=1
+    printf '❌ %-14s %-28s %4ss  (%s)\n' "$job" "$name" $((SECONDS - start)) "$log"
+    grep -E "error|Error|failed|Failure|FAIL|warn|Warning|✘|::error" "$log" | head -20 | cut -c1-200 | sed 's/^/     /'
+  fi
+}
+
+# npm ci gooit node_modules weg en installeert alles opnieuw: alleen nodig als de lockfile
+# veranderd is (of er nog geen node_modules is).
+npm_install() {
+  if $FORCE_NPM_CI || [ ! -d frontend/node_modules ] ||
+    ! git diff --quiet HEAD -- frontend/package-lock.json ||
+    [ frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ]; then
+    step frontend "npm-ci" frontend "npm ci"
+  else
+    printf '⏭️  %-14s %-28s (lockfile ongewijzigd; --npm-ci om toch te draaien)\n' frontend "npm-ci"
+  fi
+}
+
+step scan_ruby "brakeman" . "bin/brakeman --no-pager"
+step scan_ruby "bundler-audit" . "bin/bundler-audit"
+step lint "rubocop" . "bin/rubocop -f github"
+step test "rails-test" . "RAILS_ENV=test bin/rails db:test:prepare test"
+npm_install
+step frontend "lint" frontend "npx oxlint . && npx eslint . && npx prettier --check ."
+step frontend "unit" frontend "npm run test:unit -- --run"
+step frontend "build" frontend "npm run build"
+
+exit $failed

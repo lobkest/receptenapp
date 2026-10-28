@@ -10,13 +10,14 @@ import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapsho
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Regels worden nooit samengevoegd: twee keer bloem (uit twee
 // recepten) zijn twee regels, elk met eigen herkomst. Behalve vanaf de standaardlijst:
-// staat melk er al op, dan telt de server één op bij standard_count van een bestaande
-// regel ("melk ×2", "melk 200 ml +1"; zie src/utils/shoppingListLine.js).
+// staat melk er al op, dan telt de server één op bij het aantal (count) van een bestaande
+// regel. Het aantal zet je ook zelf met de stepper (setCount); zie
+// src/utils/shoppingListLine.js voor hoe een regel het toont.
 //
 // Offline (in de winkel zonder bereik): de store bewaart na elk contact met de server een
 // kopie in localStorage (snapshot) en toont die bij openen meteen. Afvinken werkt dan nog;
 // dat gaat in een wachtrij en wordt verstuurd zodra er weer verbinding is. Toevoegen,
-// verwijderen en wissen kan offline niet. Zie src/offline/.
+// verwijderen, het aantal veranderen en wissen kan offline niet. Zie src/offline/.
 
 const OFFLINE_KEY = 'shoppingList'
 
@@ -36,6 +37,15 @@ function withQueuedActions(items) {
     checkedById.has(item.id) ? { ...item, checked: checkedById.get(item.id) } : item,
   )
 }
+
+// De stepper: zo lang na de laatste tik wachten we met het request, zodat vijf keer snel
+// op + één PATCH wordt in plaats van vijf.
+export const COUNT_DELAY = 400
+
+// Per regel een aantal dat nog verstuurd moet worden: { timer, before, resolve }. before:
+// het aantal vóór de eerste tik, waar we naar teruggaan als opslaan mislukt. resolve: van
+// de belofte van de laatste tik; een nieuwe tik maakt de vorige belofte af.
+const pendingCounts = new Map()
 
 // Namen vergelijken zoals de opdracht zegt: spaties eromheen weg, kleine letters, verder exact.
 export function normalizeName(name) {
@@ -65,7 +75,7 @@ let pendingLoad = null
 export const useShoppingListStore = defineStore('shoppingList', {
   state: () => ({
     // Zoals de server ze stuurt: { id, name, quantity, unit, source_label, recipe_id,
-    // ingredient_id, checked, standard_count }.
+    // ingredient_id, checked, count, standard_count }.
     items: [],
     loaded: false,
     // Telt elke lokale wijziging, en hoeveel daarvan nog onderweg zijn. Zie load().
@@ -200,19 +210,52 @@ export const useShoppingListStore = defineStore('shoppingList', {
       return lines
     },
 
-    // De −-knop op de boodschappenlijst: één minder van de standaardlijst. Een regel die
-    // alleen van de standaardlijst kwam, verdwijnt op 0; een receptregel houdt zijn deel.
-    // Is de regel al weg (404), dan hier ook, en gooien we de fout door voor de melding.
-    async removeStandard(id) {
+    // De stepper ([−] 2 [+]) of een getypt aantal. Optimistisch: het nieuwe aantal staat er
+    // meteen, het request volgt pas COUNT_DELAY ms na de laatste tik (debounce). De belofte
+    // van de laatste tik volgt dat request; een eerdere tik is dan meteen klaar. Mislukt het
+    // opslaan, dan staat het aantal van vóór de eerste tik terug en gooien we de fout door
+    // voor de melding. Een regel die al weg is (404) verdwijnt hier ook.
+    // Zolang er een aantal wacht of onderweg is, telt dat als inFlight: een load() van
+    // tussendoor zet het oude aantal dan niet terug.
+    setCount(id, count) {
+      const item = this.items.find((i) => i.id === id)
+      if (!item) return Promise.resolve()
+      const pending = pendingCounts.get(id)
+      if (pending) {
+        clearTimeout(pending.timer)
+        pending.resolve()
+      } else {
+        this.inFlight++
+      }
+      const before = pending ? pending.before : item.count
+      item.count = count
       this.changes++
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingCounts.delete(id)
+          this.saveCount(id, count, before).then(resolve, reject)
+        }, COUNT_DELAY)
+        pendingCounts.set(id, { timer, before, resolve })
+      })
+    },
+
+    async saveCount(id, count, before) {
       try {
-        const { item } = await api.removeStandardFromShoppingListItem(id)
-        this.putLine(id, item)
+        const saved = await api.updateShoppingListItem(id, { count })
+        // Is er intussen opnieuw getikt, dan wint dat aantal.
+        if (!pendingCounts.has(id)) this.putLine(id, saved)
+        this.persist()
       } catch (e) {
-        if (e.kind === 'not_found') this.putLine(id, null)
+        if (isNetworkError(e)) this.markOffline()
+        if (e.kind === 'not_found') {
+          this.putLine(id, null)
+        } else {
+          const item = this.items.find((i) => i.id === id)
+          if (item && !pendingCounts.has(id) && item.count === count) item.count = before
+        }
         throw e
       } finally {
-        this.persist()
+        this.inFlight--
       }
     },
 
@@ -340,7 +383,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // "✓ op lijst" op de receptpagina: haalt het receptdeel weg van alle open regels van dit
     // ingrediënt met dit recept als herkomst. Regels uit een andere herkomst blijven staan.
     // Was zo'n regel ook van de standaardlijst bijgeteld (standard_count > 0), dan blijft
-    // hij staan als standaardregel ("melk"); anders verdwijnt hij.
+    // hij staan als standaardregel ("melk", één minder); anders verdwijnt hij.
     async removeFromRecipe(ingredient, recipeId) {
       const ids = this.listStatus(ingredient, recipeId).own.map((item) => item.id)
       this.changes++

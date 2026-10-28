@@ -119,6 +119,7 @@ nl:
         source_label: Herkomst
         recipe: Recept
         checked: Afgevinkt
+        count: Aantal
       tag:
         name: Naam
         recipes: Recepten

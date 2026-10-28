@@ -8,18 +8,25 @@ export function isStandardOnly(item) {
   return item.recipe_id == null && item.source_label === STANDARD_SOURCE
 }
 
-// De tekst van een regel op de boodschappenlijst.
-//   alleen standaardlijst:        "melk", vanaf 2 keer "melk ×2"
-//   met hoeveelheid:              "200 ml melk"; zonder ("naar smaak"): "zout"
-//   ook van de standaardlijst:    "200 ml melk +1", zodat je ziet dat het geen 400 ml is
+// Het aantal van een regel (de stepper): 1 tot en met 99. Een offline kopie van vóór het
+// aantal heeft er geen; die telt als 1.
+export const MAX_COUNT = 99
+
+export function countOf(item) {
+  return item.count ?? 1
+}
+
+// De tekst van een regel op de boodschappenlijst. Het aantal staat in de stepper ernaast,
+// dus niet nog eens in de tekst; alleen bij een hoeveelheid vermenigvuldigt het:
+//   zonder hoeveelheid:  "melk" (ook "zout", naar smaak uit een recept)
+//   met hoeveelheid:     "100 g yoghurt", bij aantal 2 "200 g yoghurt (×2)"
+// Een standaardregel heeft normaal geen hoeveelheid; staat er (via de API) toch een, dan
+// tonen we die liever dan hem stil weg te laten.
 export function shoppingListLine(item) {
-  const count = item.standard_count ?? 0
-  // Een standaardregel heeft normaal geen hoeveelheid; staat er (via de API) toch een, dan
-  // tonen we die liever dan hem stil weg te laten.
-  const base =
-    item.quantity == null ? item.name : `${formatQuantity(item.quantity)} ${item.unit} ${item.name}`
-  if (isStandardOnly(item)) return count >= 2 ? `${base} ×${count}` : base
-  return count > 0 ? `${base} +${count}` : base
+  if (item.quantity == null) return item.name
+  const count = countOf(item)
+  const total = `${formatQuantity(item.quantity * count)} ${item.unit} ${item.name}`
+  return count >= 2 ? `${total} (×${count})` : total
 }
 
 // "uit: …" onder de regel: de herkomst, en ", standaard" als er van de standaardlijst

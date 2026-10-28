@@ -12,7 +12,7 @@ const wok = { recipe_id: 2, recipe_title: 'Wok met kip', source_label: 'Wok met 
 const ITEMS = [
   { id: 1, name: 'orzo', quantity: 250, unit: 'g', ...orzo },
   { id: 2, name: 'kip', quantity: 300, unit: 'g', ...wok },
-  { id: 3, name: 'melk', quantity: 200, unit: 'ml', ...orzo, standard_count: 1 },
+  { id: 3, name: 'melk', quantity: 200, unit: 'ml', ...orzo, count: 2, standard_count: 1 },
   { id: 4, name: 'wc-papier', source_label: 'standaard', standard_count: 1 },
   { id: 5, name: 'feta', ...orzo, checked: true },
   { id: 6, name: 'courgette', ...orzo },
@@ -87,7 +87,7 @@ describe('Recepten op je lijst', () => {
       'Los / standaardlijst',
     ])
     expect(wrapper.findAll('.section').map((s) => s.findAll('.line').map((l) => l.text()))).toEqual(
-      [['250 g orzo', '200 ml melk +1', 'feta', 'courgette'], ['300 g kip'], ['wc-papier']],
+      [['250 g orzo', '400 ml melk (×2)', 'feta', 'courgette'], ['300 g kip'], ['wc-papier']],
     )
     expect(wrapper.find('.section li:nth-child(3)').classes()).toContain('checked')
 

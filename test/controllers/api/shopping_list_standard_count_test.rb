@@ -1,8 +1,7 @@
 require "test_helper"
 
-# The standard list on the shopping list: a tap adds one (a new line, or +1 on a line that is
-# already there), the minus button takes one off, and "✓ op lijst" on a recipe keeps what
-# came from the standard list.
+# The standard list on the shopping list: a tap adds one (a new line, or one more on a line
+# that is already there), and "✓ op lijst" on a recipe keeps what came from the standard list.
 class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
   setup do
     Rails.cache.clear # reset rate_limit counters
@@ -22,7 +21,7 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
 
       assert_equal 1, lines.size
       assert_equal({ "name" => "kaas", "quantity" => nil, "unit" => nil, "source_label" => "standaard",
-        "recipe_id" => nil, "checked" => false, "standard_count" => 1, "recipe_title" => nil, "recipe_visible" => false,
+        "recipe_id" => nil, "checked" => false, "count" => 1, "standard_count" => 1, "recipe_title" => nil, "recipe_visible" => false,
         "category" => "zuivel" },
         lines.first.except("id", "ingredient_id"))
     end
@@ -34,18 +33,18 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
     assert_no_difference("ShoppingListItem.count") do
       second = add_standard(standard_items(:kaas)).first
       assert_equal first["id"], second["id"]
-      assert_equal 2, second["standard_count"]
+      assert_equal [ 2, 2 ], second.values_at("count", "standard_count")
     end
   end
 
-  test "a recipe line already on the list gets +1 and keeps its quantity" do
+  test "a recipe line already on the list gets one more and keeps its quantity per piece" do
     line = ShoppingListItem.create!(name: "melk", quantity: 200, unit: "ml",
       source_label: "Pannenkoeken", recipe: recipes(:pannenkoeken))
 
     assert_no_difference("ShoppingListItem.count") do
       result = add_standard(standard_items(:melk)).first
       assert_equal({ "id" => line.id, "quantity" => 200, "unit" => "ml", "source_label" => "Pannenkoeken",
-        "standard_count" => 1 }, result.slice("id", "quantity", "unit", "source_label", "standard_count"))
+        "count" => 2, "standard_count" => 1 }, result.slice("id", "quantity", "unit", "source_label", "count", "standard_count"))
     end
   end
 
@@ -57,13 +56,13 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
     assert_equal 1, shopping_list_items(:melk).reload.standard_count
   end
 
-  test "selection mode: items on the list get +1, the others a new line" do
+  test "selection mode: items on the list get one more, the others a new line" do
     kaas = ShoppingListItem.create!(name: "kaas", source_label: "standaard")
 
     assert_difference("ShoppingListItem.count", 2) do
       lines = add_standard(standard_items(:kaas), standard_items(:melk), standard_items(:wc_papier))
       assert_equal [ [ "kaas", 2 ], [ "melk", 1 ], [ "wc-papier", 1 ] ],
-        lines.map { |line| [ line["name"], line["standard_count"] ] }
+        lines.map { |line| [ line["name"], line["count"] ] }
       assert_equal kaas.id, lines.first["id"]
     end
   end
@@ -87,38 +86,6 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
     assert_response :too_many_requests
   end
 
-  # remove_standard
-
-  test "the minus button counts down, and a standard line at 0 is removed" do
-    line = ShoppingListItem.create!(name: "kaas", source_label: "standaard", standard_count: 2)
-
-    post remove_standard_api_shopping_list_item_url(line), as: :json
-    assert_response :ok
-    assert_equal 1, response.parsed_body["item"]["standard_count"]
-
-    assert_difference("ShoppingListItem.count", -1) do
-      post remove_standard_api_shopping_list_item_url(line), as: :json
-    end
-    assert_response :ok
-    assert_nil response.parsed_body["item"]
-  end
-
-  test "the minus button on a recipe line at 0 leaves the recipe part" do
-    line = shopping_list_items(:bloem)
-    line.update!(standard_count: 1)
-
-    assert_no_difference("ShoppingListItem.count") do
-      post remove_standard_api_shopping_list_item_url(line), as: :json
-    end
-    assert_equal({ "quantity" => 250, "source_label" => "Pannenkoeken", "standard_count" => 0 },
-      response.parsed_body["item"].slice("quantity", "source_label", "standard_count"))
-  end
-
-  test "the minus button on a line that is gone is a 404" do
-    post remove_standard_api_shopping_list_item_url(id: 0), as: :json
-    assert_response :not_found
-  end
-
   # remove_recipe
 
   test "removing the recipe part of a line without standard part removes the line" do
@@ -129,16 +96,16 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
     assert_nil response.parsed_body["item"]
   end
 
-  test "removing the recipe part of a line with standard part leaves a standard line" do
+  test "removing the recipe part of a line with standard part leaves a standard line, one less" do
     line = shopping_list_items(:bloem)
-    line.update!(standard_count: 1)
+    line.update!(count: 2, standard_count: 1)
 
     assert_no_difference("ShoppingListItem.count") do
       post remove_recipe_api_shopping_list_item_url(line), as: :json
     end
     assert_response :ok
     assert_equal({ "id" => line.id, "name" => "bloem", "quantity" => nil, "unit" => nil, "source_label" => "standaard",
-      "recipe_id" => nil, "standard_count" => 1 },
+      "recipe_id" => nil, "count" => 1, "standard_count" => 1 },
       response.parsed_body["item"].except("ingredient_id", "checked", "recipe_title", "recipe_visible", "category"))
   end
 end

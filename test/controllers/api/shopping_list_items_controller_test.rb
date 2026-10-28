@@ -18,7 +18,7 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({
       "id" => @bloem.id, "name" => "bloem", "quantity" => 250, "unit" => "g",
       "source_label" => "Pannenkoeken", "recipe_id" => recipes(:pannenkoeken).id,
-      "ingredient_id" => ingredients(:bloem).id, "checked" => false, "standard_count" => 0,
+      "ingredient_id" => ingredients(:bloem).id, "checked" => false, "count" => 1, "standard_count" => 0,
       "recipe_title" => "Pannenkoeken", "recipe_visible" => true, "category" => nil
     }, response.parsed_body.find { |item| item["id"] == @bloem.id })
   end
@@ -183,7 +183,28 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "volkoren bloem", @bloem.reload.name
   end
 
-  test "update ignores fields other than checked and name" do
+  test "update sets the count (the stepper)" do
+    patch api_shopping_list_item_url(@bloem), params: { shopping_list_item: { count: 3 } }, as: :json
+
+    assert_response :ok
+    assert_equal 3, response.parsed_body["count"]
+    assert_equal 3, @bloem.reload.count
+    # The quantity stays per piece; the list multiplies it.
+    assert_equal 250, @bloem.quantity
+  end
+
+  test "update refuses a count outside 1 to 99 or not a whole number, in Dutch" do
+    { 0 => "moet groter dan of gelijk zijn aan 1", 100 => "moet minder dan of gelijk zijn aan 99",
+      1.5 => "moet een geheel getal zijn", "veel" => "is geen getal" }.each do |count, message|
+      patch api_shopping_list_item_url(@bloem), params: { shopping_list_item: { count: count } }, as: :json
+
+      assert_response :unprocessable_content
+      assert_equal [ message ], response.parsed_body["errors"]["count"], "count #{count.inspect}"
+    end
+    assert_equal 1, @bloem.reload.count
+  end
+
+  test "update ignores fields other than checked, name and count" do
     patch api_shopping_list_item_url(@bloem), params: { shopping_list_item: { checked: true, quantity: 1, unit: "stuks" } },
       as: :json
 
@@ -243,7 +264,6 @@ class Api::ShoppingListItemsControllerTest < ActionDispatch::IntegrationTest
     "create" => -> { [ :post, api_shopping_list_items_url, { shopping_list_item: { name: "brood" } } ] },
     "update" => -> { [ :patch, api_shopping_list_item_url(@bloem), { shopping_list_item: { checked: true } } ] },
     "destroy" => -> { [ :delete, api_shopping_list_item_url(id: 0), {} ] },
-    "remove_standard" => -> { [ :post, remove_standard_api_shopping_list_item_url(id: 0), {} ] },
     "remove_recipe" => -> { [ :post, remove_recipe_api_shopping_list_item_url(id: 0), {} ] },
     "clear_checked" => -> { [ :delete, clear_checked_api_shopping_list_items_url, {} ] },
     "clear_all" => -> { [ :delete, clear_all_api_shopping_list_items_url, {} ] }

@@ -298,8 +298,12 @@ describe('ShoppingListView', () => {
       )
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-      for (const button of wrapper.findAll('.items .remove')) {
+      for (const button of wrapper.findAll('.items .remove, .items .stepper button')) {
         expect(button.attributes('disabled')).toBeDefined()
+      }
+      // De stepper is grijs: ook het getal kun je niet intypen.
+      for (const input of wrapper.findAll('.items .stepper input')) {
+        expect(input.attributes('disabled')).toBeDefined()
       }
       expect(buttonWithText(wrapper, 'Afgevinkte wissen').attributes('disabled')).toBeDefined()
       expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeDefined()
@@ -391,66 +395,114 @@ describe('ShoppingListView', () => {
     })
   })
 
-  describe('standaardlijst-teller', () => {
+  describe('aantal (stepper)', () => {
     beforeEach(() => {
       server = fakeServer({
         shopping: [
-          { id: 1, name: 'melk', source_label: 'standaard', standard_count: 2 },
+          { id: 1, name: 'melk', source_label: 'standaard', count: 2, standard_count: 2 },
           {
             id: 2,
-            name: 'bloem',
-            quantity: 200,
+            name: 'yoghurt',
+            quantity: 100,
             unit: 'g',
-            source_label: 'Wafels',
+            source_label: 'Muesli',
             recipe_id: 3,
-            standard_count: 1,
           },
-          { id: 3, name: 'zout', source_label: 'Pannenkoeken', recipe_id: 4 },
+          { id: 3, name: 'zout', source_label: 'Pannenkoeken', recipe_id: 4, checked: true },
         ],
       })
     })
+
+    afterEach(() => vi.useRealTimers())
 
     function rowOf(wrapper, id) {
       return wrapper.find(`.items li[data-id="${id}"]`)
     }
 
-    it('toont "×2" en "+1", en de −-knop alleen bij iets van de standaardlijst', async () => {
+    function countOf(wrapper, id) {
+      return rowOf(wrapper, id).find('.stepper input').element.value
+    }
+
+    function patchBodies() {
+      return server.fetch.mock.calls
+        .filter(([, o]) => o.method === 'PATCH')
+        .map(([, o]) => JSON.parse(o.body).shopping_list_item)
+    }
+
+    it('elke regel heeft een stepper met het getal (ook bij 1); de tekst zelf heeft geen ×n', async () => {
       ;({ wrapper } = await mountApp())
 
-      expect(listLines(wrapper)).toEqual(['melk ×2', '200 g bloem +1', 'zout'])
-      expect(rowOf(wrapper, 2).find('.sources').text()).toBe('uit: Wafels, standaard')
-      expect(rowOf(wrapper, 1).find('.minus').exists()).toBe(true)
-      expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(true)
-      expect(rowOf(wrapper, 3).find('.minus').exists()).toBe(false)
-      expect(rowOf(wrapper, 1).find('.minus').attributes('aria-label')).toBe('Eén melk minder')
+      expect(listLines(wrapper)).toEqual(['melk', '100 g yoghurt', 'zout'])
+      expect([1, 2, 3].map((id) => countOf(wrapper, id))).toEqual(['2', '1', '1'])
+      // Bij 1 kan − niet; ✕ staat er nog naast.
+      expect(rowOf(wrapper, 2).find('.step.down').attributes('disabled')).toBeDefined()
+      expect(rowOf(wrapper, 2).find('.remove').exists()).toBe(true)
+      // Afgevinkt: de stepper staat uit.
+      expect(rowOf(wrapper, 3).find('.step.up').attributes('disabled')).toBeDefined()
+      expect(rowOf(wrapper, 3).find('.stepper input').attributes('disabled')).toBeDefined()
     })
 
-    it('− telt af; een standaardregel op 0 verdwijnt, een receptregel blijft', async () => {
+    it('+ op een regel met hoeveelheid: meteen "200 g yoghurt (×2)", na 400 ms één PATCH', async () => {
       ;({ wrapper } = await mountApp())
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 
-      await rowOf(wrapper, 1).find('.minus').trigger('click')
-      await flushPromises()
-      expect(listLines(wrapper)[0]).toBe('melk')
+      await rowOf(wrapper, 2).find('.step.up').trigger('click')
+      await rowOf(wrapper, 2).find('.step.up').trigger('click')
+      expect(listLines(wrapper)[1]).toBe('300 g yoghurt (×3)')
+      expect(countOf(wrapper, 2)).toBe('3')
+      expect(patchBodies()).toEqual([])
 
-      await rowOf(wrapper, 1).find('.minus').trigger('click')
+      await rowOf(wrapper, 2).find('.step.down').trigger('click')
+      vi.advanceTimersByTime(400)
       await flushPromises()
-      expect(rowOf(wrapper, 1).exists()).toBe(false)
 
-      await rowOf(wrapper, 2).find('.minus').trigger('click')
-      await flushPromises()
-      expect(listLines(wrapper)).toEqual(['200 g bloem', 'zout'])
-      expect(rowOf(wrapper, 2).find('.minus').exists()).toBe(false)
+      expect(patchBodies()).toEqual([{ count: 2 }])
+      expect(server.shoppingDb[1].count).toBe(2)
+      expect(listLines(wrapper)[1]).toBe('200 g yoghurt (×2)')
     })
 
-    it('afvinken streept de hele regel af, met teller', async () => {
+    it('intypen en Enter slaat het getypte aantal op', async () => {
+      ;({ wrapper } = await mountApp())
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+      const input = rowOf(wrapper, 1).find('.stepper input')
+      await input.trigger('focus')
+      await input.setValue('12')
+      await input.trigger('keydown', { key: 'Enter' })
+      await input.trigger('blur')
+      vi.advanceTimersByTime(400)
+      await flushPromises()
+
+      expect(patchBodies()).toEqual([{ count: 12 }])
+      expect(countOf(wrapper, 1)).toBe('12')
+    })
+
+    it('mislukt het opslaan, dan staat het oude aantal terug met een melding', async () => {
+      ;({ wrapper } = await mountApp())
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      vi.stubGlobal(
+        'fetch',
+        mockFetch(() => jsonResponse({ error: 'De server heeft een fout gemaakt.' }, 500)),
+      )
+
+      await rowOf(wrapper, 1).find('.step.up').trigger('click')
+      expect(countOf(wrapper, 1)).toBe('3')
+      vi.advanceTimersByTime(400)
+      await flushPromises()
+
+      expect(countOf(wrapper, 1)).toBe('2')
+      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    })
+
+    it('afvinken streept de hele regel af en houdt het aantal', async () => {
       ;({ wrapper } = await mountApp())
 
-      await rowOf(wrapper, 1).find('input').setValue(false)
-      await rowOf(wrapper, 1).find('input').trigger('change')
+      await rowOf(wrapper, 1).find('input[type="checkbox"]').setValue(true)
       await flushPromises()
 
       expect(rowOf(wrapper, 1).classes()).toContain('checked')
-      expect(server.shoppingDb[0]).toMatchObject({ checked: true, standard_count: 2 })
+      expect(server.shoppingDb[0]).toMatchObject({ checked: true, count: 2 })
+      expect(rowOf(wrapper, 1).find('.step.up').attributes('disabled')).toBeDefined()
     })
   })
 })

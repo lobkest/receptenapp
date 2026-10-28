@@ -5,7 +5,7 @@ import HouseButton from '@/components/HouseButton.vue'
 // verwijderen), of in de selectiemodus een vinkje over de hele regel. Wat een knop doet,
 // regelt StandardItemsView via de events.
 // Staat het item al (open) op de boodschappenlijst (onList), dan is [+] "✓ op lijst"; die
-// blijft klikbaar en zet er dan één bij ("melk ×2").
+// blijft klikbaar en zet er dan één bij (het aantal van die regel op de boodschappenlijst).
 // Ervoor het huisje (HouseButton, compact): bij elk item, ook zonder ingrediënt (de eerste
 // tik maakt dat aan); een tik zet het om. In de selectiemodus
 // alleen een label "in huis" (inHouse): dat slaat "Op lijst (n)" over.

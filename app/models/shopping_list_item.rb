@@ -2,12 +2,17 @@
 # every row belongs to it. Anyone with the link can read and change it.
 # Lines are never merged: adding "bloem" twice gives two lines, each with its own source.
 # The one exception is the standard list: tapping an item that is already on the list adds
-# one to standard_count of an existing line ("melk ×2", "melk 200 ml +1"), see add_standard!.
+# one to count of an existing line, see add_standard!.
+#
+# count: how many you want, 1 to 99, set with the stepper on the shopping list. A multiplier:
+# "100 g yoghurt" with count 2 is 200 g. standard_count: how many times it was tapped on the
+# standard list; only > 0 matters (the line has a standard part, see remove_recipe_part!).
 class ShoppingListItem < ApplicationRecord
   include HasQuantity
 
   MAX_LENGTH = 100
   MAX_SOURCE_LENGTH = 255
+  MAX_COUNT = 99
   # source_label of a line that only came from the standard list (no recipe, no quantity).
   STANDARD_SOURCE = "standaard"
 
@@ -28,6 +33,7 @@ class ShoppingListItem < ApplicationRecord
   # A plain inclusion check, as before: no enum methods needed on a shopping list line.
   has_quantity unit_inclusion: true
   validates :source_label, length: { maximum: MAX_SOURCE_LENGTH }
+  validates :count, numericality: { only_integer: true, greater_than_or_equal_to: 1, less_than_or_equal_to: MAX_COUNT }
   validates :standard_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   # belongs_to optional skips the existence check; without this an unknown id hits the
   # foreign key and becomes a 500 instead of a 422.
@@ -46,8 +52,9 @@ class ShoppingListItem < ApplicationRecord
   scope :unchecked, -> { where(checked: false) }
 
   # One tap on the standard list for name. Already on the list (an open line with the same
-  # name, whatever its source): one more on an existing line, preferring a line that only
-  # came from the standard list, otherwise the oldest. Not on the list: a new standard line.
+  # name, whatever its source): one more on an existing line (count, up to MAX_COUNT),
+  # preferring a line that only came from the standard list, otherwise the oldest. Not on
+  # the list: a new standard line.
   # Standard items have no ingredient, so this matches on name, like the browser does.
   # Returns the line.
   def self.add_standard!(name)
@@ -56,21 +63,13 @@ class ShoppingListItem < ApplicationRecord
     line = matching.find(&:standard_only?) || matching.first
     return create!(name: name, source_label: STANDARD_SOURCE, standard_count: 1) if line.nil?
 
-    line.increment!(:standard_count, touch: true)
+    line.update!(count: [ line.count + 1, MAX_COUNT ].min, standard_count: line.standard_count + 1)
+    line
   end
 
   # Only from the standard list: no recipe part (and so no quantity).
   def standard_only?
     recipe_id.nil? && source_label == STANDARD_SOURCE
-  end
-
-  # The minus button on the shopping list: one less from the standard list. A standard line
-  # that reaches 0 is removed (returns nil); a recipe line keeps its recipe part.
-  def remove_standard!
-    return self if standard_count.zero?
-    return destroy_line if standard_only? && standard_count == 1
-
-    decrement!(:standard_count, touch: true)
   end
 
   # "Verwijder" in "Recepten op je lijst": remove_recipe_part! on every open line of one
@@ -92,12 +91,12 @@ class ShoppingListItem < ApplicationRecord
   end
 
   # "✓ op lijst" on a recipe takes the recipe part off. Was the line also added from the
-  # standard list, it stays as a standard line (same count); otherwise it is removed
-  # (returns nil).
+  # standard list, it stays as a standard line with one less (the recipe counted once, but
+  # never below 1); otherwise it is removed (returns nil).
   def remove_recipe_part!
     return destroy_line if standard_count.zero?
 
-    update!(recipe: nil, quantity: nil, unit: nil, source_label: STANDARD_SOURCE)
+    update!(recipe: nil, quantity: nil, unit: nil, source_label: STANDARD_SOURCE, count: [ count - 1, 1 ].max)
     self
   end
 

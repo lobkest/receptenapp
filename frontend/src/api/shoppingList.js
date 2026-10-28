@@ -18,7 +18,7 @@ export function addShoppingListItems(items) {
   return request(BASE, { method: 'POST', body: JSON.stringify({ shopping_list_items: items }) })
 }
 
-// fields: { checked } of { name }.
+// fields: { checked }, { name } of { count } (1 tot en met 99, de stepper).
 export function updateShoppingListItem(id, fields) {
   return request(itemPath(id), {
     method: 'PATCH',
@@ -28,12 +28,6 @@ export function updateShoppingListItem(id, fields) {
 
 export function deleteShoppingListItem(id) {
   return request(itemPath(id), { method: 'DELETE' })
-}
-
-// De −-knop: één minder van de standaardlijst. Geeft { item } terug; item is null als de
-// regel daardoor weg is.
-export function removeStandardFromShoppingListItem(id) {
-  return request(`${itemPath(id)}/remove_standard`, { method: 'POST' })
 }
 
 // "✓ op lijst" op een recept: het receptdeel eraf; wat van de standaardlijst kwam, blijft.

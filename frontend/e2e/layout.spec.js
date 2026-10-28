@@ -630,15 +630,15 @@ test('boodschappen: gedeeld tussen twee telefoons', async ({ browser }) => {
   const saved = phoneB.page.waitForResponse(
     (r) => r.url().includes('/api/shopping_list_items/') && r.request().method() === 'PATCH',
   )
-  await row(phoneB.page, 'bloem').locator('input').check()
+  await row(phoneB.page, 'bloem').getByRole('checkbox').check()
   expect((await saved).status()).toBe(200)
   await expect(phoneB.page.locator('.shopping-link')).toContainText('Boodschappen (2)')
   await checkLayout(phoneB.page, phoneB.errors, 'boodschappen-telefoon-b')
 
   // A heeft nog de oude stand; na terugkeren naar de app is de bloem afgevinkt.
-  await expect(row(phoneA.page, 'bloem').locator('input')).not.toBeChecked()
+  await expect(row(phoneA.page, 'bloem').getByRole('checkbox')).not.toBeChecked()
   await switchBackTo(phoneA.page)
-  await expect(row(phoneA.page, 'bloem').locator('input')).toBeChecked()
+  await expect(row(phoneA.page, 'bloem').getByRole('checkbox')).toBeChecked()
   await expect(row(phoneA.page, 'bloem')).toHaveClass(/checked/)
   await expect(phoneA.page.locator('.shopping-link')).toContainText('Boodschappen (2)')
   await checkLayout(phoneA.page, phoneA.errors, 'boodschappen-telefoon-a')

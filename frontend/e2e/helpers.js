@@ -59,6 +59,17 @@ export async function openShoppingList(page, path = '/boodschappen') {
   await expect(page.locator('.items').first()).toBeVisible()
 }
 
+// Een regel op de boodschappenlijst, op de tekst van de regel ("400 ml melk (×2)" past op
+// "melk"); met een RegExp precies.
+export function shoppingRow(page, text) {
+  return page.locator('.items li').filter({ has: page.locator('.line', { hasText: text }) })
+}
+
+// Het getal in de stepper van die regel (een invoerveld).
+export function countInput(page, text) {
+  return shoppingRow(page, text).locator('.stepper input')
+}
+
 export function sorted(texts) {
   return texts.toSorted((a, b) => a.localeCompare(b, 'nl'))
 }

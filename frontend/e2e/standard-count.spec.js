@@ -3,14 +3,16 @@ import { RAILS_URL } from './env.js'
 import {
   addFromRecipe,
   collectErrors,
+  countInput,
   ingredientRow,
   openShoppingList,
   shoppingList,
+  shoppingRow,
 } from './helpers.js'
 
 // Op de standaardlijst zie je wat al op de boodschappenlijst staat ("✓ op lijst"). Nog eens
-// tikken maakt geen nieuwe regel maar telt op: "melk ×2", of bij een receptregel
-// "200 ml melk +1". De −-knop op de boodschappenlijst telt weer af.
+// tikken maakt geen nieuwe regel maar telt op bij het aantal: "melk" met 2 in de stepper, of
+// bij een receptregel "400 ml melk (×2)". De stepper zelf: e2e/shopping-list-count.spec.js.
 // Screenshots in e2e/screenshots/.
 
 let api
@@ -80,10 +82,6 @@ async function openStandard(page) {
   await expect(standardButton(page, 'melk')).toBeVisible()
 }
 
-function shoppingRow(page, text) {
-  return page.locator('.items li').filter({ has: page.locator('.line', { hasText: text }) })
-}
-
 function shoppingLines(page) {
   return page.locator('.items li .line')
 }
@@ -93,7 +91,9 @@ function recipeButton(page, name) {
   return ingredientRow(page, name).locator('.list-button')
 }
 
-test('a) [+] wordt "✓ op lijst"; nog eens tikken geeft één regel "melk ×2"', async ({ page }) => {
+test('a) [+] wordt "✓ op lijst"; nog eens tikken geeft één regel "melk" met aantal 2', async ({
+  page,
+}) => {
   const errors = collectErrors(page)
   await openStandard(page)
 
@@ -106,14 +106,15 @@ test('a) [+] wordt "✓ op lijst"; nog eens tikken geeft één regel "melk ×2"'
 
   const list = await shoppingList(api)
   expect(list).toHaveLength(1)
-  expect(list[0]).toMatchObject({ name: 'melk', quantity: null, standard_count: 2 })
+  expect(list[0]).toMatchObject({ name: 'melk', quantity: null, count: 2 })
 
   await openShoppingList(page)
-  await expect(shoppingLines(page)).toHaveText(['melk ×2'])
+  await expect(shoppingLines(page)).toHaveText(['melk'])
+  await expect(countInput(page, 'melk')).toHaveValue('2')
   expect(errors).toEqual([])
 })
 
-test('b) − telt af naar ×1, nog eens − haalt de regel weg; de standaardlijst toont weer [+]', async ({
+test('b) − telt af tot 1 en staat dan uit; ✕ haalt de regel weg, de standaardlijst toont weer [+]', async ({
   page,
 }) => {
   await openStandard(page)
@@ -123,11 +124,13 @@ test('b) − telt af naar ×1, nog eens − haalt de regel weg; de standaardlijs
   await expect(page.getByRole('status')).toContainText('Nog een kaas')
 
   await openShoppingList(page)
-  await expect(shoppingLines(page)).toHaveText(['kaas ×2'])
+  await expect(countInput(page, 'kaas')).toHaveValue('2')
   await page.getByRole('button', { name: 'Eén kaas minder' }).click()
-  await expect(shoppingLines(page)).toHaveText(['kaas'])
-  await page.getByRole('button', { name: 'Eén kaas minder' }).click()
-  await expect(page.getByText('Je boodschappenlijst is leeg.')).toBeVisible()
+  await expect(countInput(page, 'kaas')).toHaveValue('1')
+  await expect(page.getByRole('button', { name: 'Eén kaas minder' })).toBeDisabled()
+  await expect.poll(async () => (await shoppingList(api))[0]?.count).toBe(1)
+  await page.getByRole('button', { name: 'kaas verwijderen' }).click()
+  await expect(page.locator('.empty')).toBeVisible()
   expect(await shoppingList(api)).toEqual([])
 
   await openStandard(page)
@@ -135,7 +138,7 @@ test('b) − telt af naar ×1, nog eens − haalt de regel weg; de standaardlijs
   await expect(standardButton(page, 'kaas')).not.toHaveText('✓ op lijst')
 })
 
-test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "+1"; recept-✓ weg laat "melk" staan', async ({
+test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "(×2)"; recept-✓ weg laat "melk" staan', async ({
   page,
 }) => {
   const errors = collectErrors(page)
@@ -153,15 +156,16 @@ test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "+1"; recept-✓
     quantity: 200,
     unit: 'ml',
     recipe_id: pancakes.id,
+    count: 2,
     standard_count: 1,
   })
   await openShoppingList(page)
-  await expect(shoppingLines(page)).toHaveText(['200 ml melk +1'])
+  await expect(shoppingLines(page)).toHaveText(['400 ml melk (×2)'])
   await expect(shoppingRow(page, 'melk').locator('.sources')).toHaveText(
     'uit: Teller-pannenkoeken, standaard',
   )
 
-  // d) Op het recept "✓ op lijst" wegtikken: het receptdeel gaat, "melk" blijft.
+  // d) Op het recept "✓ op lijst" wegtikken: het receptdeel gaat, "melk" blijft (één minder).
   await page.goto(`/recepten/${pancakes.id}`)
   await expect(recipeButton(page, 'melk')).toHaveText('✓ op lijst')
   await recipeButton(page, 'melk').click()
@@ -176,10 +180,11 @@ test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "+1"; recept-✓
     unit: null,
     recipe_id: null,
     source_label: 'standaard',
-    standard_count: 1,
+    count: 1,
   })
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText(['melk'])
+  await expect(countInput(page, 'melk')).toHaveValue('1')
   expect(errors).toEqual([])
 })
 
@@ -200,13 +205,13 @@ test('e) afstrepen: de standaardlijst toont weer [+], en een tik maakt een nieuw
   await expect(standardButton(page, 'brood')).toHaveText('✓ op lijst')
 
   const list = await shoppingList(api)
-  expect(list.map((item) => [item.name, item.checked, item.standard_count])).toEqual([
+  expect(list.map((item) => [item.name, item.checked, item.count])).toEqual([
     ['brood', true, 1],
     ['brood', false, 1],
   ])
 })
 
-test('f) selectiemodus met een mix: wat er al op staat +1, de rest een nieuwe regel', async ({
+test('f) selectiemodus met een mix: wat er al op staat één meer, de rest een nieuwe regel', async ({
   page,
 }) => {
   await addFromRecipe(api, pancakes, 'melk')
@@ -222,17 +227,18 @@ test('f) selectiemodus met een mix: wat er al op staat +1, de rest een nieuwe re
   await expect(page.getByRole('status')).toContainText('3 items op je boodschappenlijst gezet.')
 
   const list = await shoppingList(api)
-  expect(list.map((item) => [item.name, item.quantity, item.standard_count]).sort()).toEqual([
-    ['melk', 200, 1],
+  expect(list.map((item) => [item.name, item.quantity, item.count]).sort()).toEqual([
+    ['melk', 200, 2],
     ['wc-papier', null, 1],
     ['yoghurt', null, 2],
   ])
 
   await openShoppingList(page)
-  await expect(shoppingLines(page)).toHaveText(['200 ml melk +1', 'yoghurt ×2', 'wc-papier'])
+  await expect(shoppingLines(page)).toHaveText(['400 ml melk (×2)', 'yoghurt', 'wc-papier'])
+  await expect(countInput(page, 'yoghurt')).toHaveValue('2')
 })
 
-test('screenshots: standaardlijst (mix ✓ en [+]) en boodschappenlijst (×2, +1, −) op een iPhone', async ({
+test('screenshots: standaardlijst (mix ✓ en [+]) en boodschappenlijst (steppers) op een iPhone', async ({
   page,
 }) => {
   const errors = collectErrors(page)
@@ -267,18 +273,18 @@ test('screenshots: standaardlijst (mix ✓ en [+]) en boodschappenlijst (×2, +1
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText([
     // Per categorie: zuivel, daarna overig.
-    '200 ml melk +1',
-    'kaas ×2',
+    '400 ml melk (×2)',
+    'kaas',
     '125 g bloem',
     'wc-papier',
   ])
   await expect(page.locator('.category-title')).toHaveText(['zuivel', 'overig'])
   // "uit: …" staat naast de naam (afgekapt als het niet past), dus elke rij is één regel
-  // hoog: het aanraakvak van 40 px plus wat ruimte.
+  // hoog: de stepperknoppen van 44 px plus wat ruimte.
   for (const height of await page
     .locator('.items li')
     .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))) {
-    expect(height).toBeLessThan(46)
+    expect(height).toBeLessThan(50)
   }
   expect(await noHorizontalScroll()).toBe(true)
   await page.screenshot({

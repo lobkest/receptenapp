@@ -713,44 +713,93 @@ describe('boodschappenlijst-store', () => {
         JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:snapshot')).data,
       ).toEqual(list.items)
     })
+  })
 
-    it('removeStandard telt af en haalt een standaardregel op 0 weg', async () => {
-      fakeServer({
-        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', standard_count: 2 })],
+  describe('aantal (setCount)', () => {
+    const line = (fields) => ({ checked: false, recipe_id: null, ingredient_id: null, ...fields })
+
+    beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }))
+    afterEach(() => vi.useRealTimers())
+
+    it('staat er meteen, en snel achter elkaar tikken wordt één PATCH met het laatste aantal', async () => {
+      const { fetch, shoppingDb } = fakeServer({
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard' })],
       })
       const list = await loadedStore()
 
-      await list.removeStandard(5)
-      expect(list.items.map((i) => i.standard_count)).toEqual([1])
+      const first = list.setCount(5, 2)
+      list.setCount(5, 3)
+      const last = list.setCount(5, 4)
+      expect(list.items[0].count).toBe(4)
 
-      await list.removeStandard(5)
-      expect(list.items).toEqual([])
+      vi.advanceTimersByTime(399)
+      expect(requestsOf(fetch, 'PATCH')).toHaveLength(0)
+      vi.advanceTimersByTime(1)
+      await Promise.all([first, last])
+
+      const patches = requestsOf(fetch, 'PATCH')
+      expect(patches).toHaveLength(1)
+      expect(bodyOf(patches[0])).toEqual({ shopping_list_item: { count: 4 } })
+      expect(shoppingDb[0].count).toBe(4)
+      expect(
+        JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:snapshot')).data[0].count,
+      ).toBe(4)
     })
 
-    it('removeStandard laat bij een receptregel het receptdeel staan', async () => {
-      fakeServer({
-        shopping: [
-          line({ id: 5, name: 'melk', quantity: 200, unit: 'ml', recipe_id: 1, standard_count: 1 }),
-        ],
-      })
-      const list = await loadedStore()
-
-      await list.removeStandard(5)
-
-      expect(list.items).toEqual([
-        expect.objectContaining({ id: 5, quantity: 200, recipe_id: 1, standard_count: 0 }),
-      ])
-    })
-
-    it('removeStandard op een regel die al weg is: hier ook weg, en de fout door', async () => {
+    it('zet bij een fout het aantal van vóór de eerste tik terug en gooit de fout door', async () => {
       const { shoppingDb } = fakeServer({
-        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', standard_count: 2 })],
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard', count: 2 })],
+      })
+      const list = await loadedStore()
+
+      list.setCount(5, 3)
+      // 100 bestaat niet in de stepper, maar de server weigert het net als de echte (422).
+      const saving = list.setCount(5, 100)
+      vi.advanceTimersByTime(400)
+
+      await expect(saving).rejects.toMatchObject({ kind: 'validation' })
+      expect(list.items[0].count).toBe(2)
+      expect(shoppingDb[0].count).toBe(2)
+    })
+
+    it('zonder verbinding: terug naar het oude aantal, en de lijst is offline', async () => {
+      fakeServer({ shopping: [line({ id: 5, name: 'melk', source_label: 'standaard' })] })
+      const list = await loadedStore()
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+      const saving = list.setCount(5, 2)
+      vi.advanceTimersByTime(400)
+
+      await expect(saving).rejects.toMatchObject({ kind: 'network' })
+      expect(list.items[0].count).toBe(1)
+      expect(list.offline).toBe(true)
+    })
+
+    it('een regel die al weg is (404) verdwijnt hier ook', async () => {
+      const { shoppingDb } = fakeServer({
+        shopping: [line({ id: 5, name: 'melk', source_label: 'standaard' })],
       })
       const list = await loadedStore()
       shoppingDb.splice(0)
 
-      await expect(list.removeStandard(5)).rejects.toMatchObject({ kind: 'not_found' })
+      const saving = list.setCount(5, 2)
+      vi.advanceTimersByTime(400)
+
+      await expect(saving).rejects.toMatchObject({ kind: 'not_found' })
       expect(list.items).toEqual([])
+    })
+
+    it('een load() terwijl het aantal nog wacht, zet het oude aantal niet terug', async () => {
+      fakeServer({ shopping: [line({ id: 5, name: 'melk', source_label: 'standaard' })] })
+      const list = await loadedStore()
+
+      const saving = list.setCount(5, 3)
+      await list.load()
+      expect(list.items[0].count).toBe(3)
+
+      vi.advanceTimersByTime(400)
+      await saving
+      expect(list.items[0].count).toBe(3)
     })
   })
 })

@@ -109,6 +109,35 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_nil shopping_list_items(:bloem).reload.quantity
   end
 
+  # count
+
+  test "count is standaard 1 en een heel getal van 1 tot en met 99, met Nederlandse meldingen" do
+    item = ShoppingListItem.create!(name: "brood")
+    assert_equal 1, item.count
+
+    { 1 => nil, 99 => nil,
+      0 => "Aantal moet groter dan of gelijk zijn aan 1",
+      100 => "Aantal moet minder dan of gelijk zijn aan 99",
+      1.5 => "Aantal moet een geheel getal zijn",
+      "2,5" => "Aantal is geen getal",
+      "veel" => "Aantal is geen getal" }.each do |count, message|
+      item.count = count
+      if message
+        assert item.invalid?, "count #{count.inspect}"
+        assert_equal [ message ], item.errors.full_messages_for(:count)
+      else
+        assert item.valid?, "count #{count.inspect}"
+      end
+    end
+  end
+
+  test "de database weigert een count buiten 1 tot en met 99" do
+    item = shopping_list_items(:bloem)
+
+    assert_raises(ActiveRecord::StatementInvalid) { item.update_column(:count, 0) }
+    assert_raises(ActiveRecord::StatementInvalid) { ShoppingListItem.find(item.id).update_column(:count, 100) }
+  end
+
   # standard_count
 
   test "standard_count is standaard 0 en nooit negatief, ook niet in de database" do
@@ -134,7 +163,7 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_difference("ShoppingListItem.count", 1) do
       line = ShoppingListItem.add_standard!(" Melk ")
       assert_equal [ "melk", "standaard", nil, nil, 1 ],
-        [ line.name, line.source_label, line.recipe_id, line.quantity, line.standard_count ]
+        [ line.name, line.source_label, line.recipe_id, line.quantity, line.count ]
     end
   end
 
@@ -146,8 +175,8 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_no_difference("ShoppingListItem.count") do
       assert_equal standard_line, ShoppingListItem.add_standard!("melk")
     end
-    assert_equal 2, standard_line.reload.standard_count
-    assert_equal 0, recipe_line.reload.standard_count
+    assert_equal [ 2, 2 ], [ standard_line.reload.count, standard_line.standard_count ]
+    assert_equal [ 1, 0 ], [ recipe_line.reload.count, recipe_line.standard_count ]
   end
 
   test "add_standard! telt anders op bij de oudste open regel, en laat de hoeveelheid staan" do
@@ -158,30 +187,9 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_no_difference("ShoppingListItem.count") { ShoppingListItem.add_standard!("melk") }
 
     oldest.reload
-    assert_equal [ 1, BigDecimal("200"), "ml", "Pannenkoeken" ],
-      [ oldest.standard_count, oldest.quantity, oldest.unit, oldest.source_label ]
-    assert_equal 0, newer.reload.standard_count
-  end
-
-  test "remove_standard! telt af; een standaardregel op 0 verdwijnt" do
-    line = ShoppingListItem.create!(name: "kaas", source_label: "standaard", standard_count: 2)
-
-    assert_equal line, line.remove_standard!
-    assert_equal 1, line.reload.standard_count
-    assert_nil line.remove_standard!
-    assert_not ShoppingListItem.exists?(line.id)
-  end
-
-  test "remove_standard! laat bij een receptregel op 0 het receptdeel staan" do
-    line = shopping_list_items(:bloem)
-    line.update!(standard_count: 1)
-
-    assert_equal line, line.remove_standard!
-    line.reload
-    assert_equal [ 0, BigDecimal("250"), recipes(:pannenkoeken).id ], [ line.standard_count, line.quantity, line.recipe_id ]
-    # Nog een keer: er valt niets meer af te tellen.
-    assert_equal line, line.remove_standard!
-    assert_equal 0, line.reload.standard_count
+    assert_equal [ 2, 1, BigDecimal("200"), "ml", "Pannenkoeken" ],
+      [ oldest.count, oldest.standard_count, oldest.quantity, oldest.unit, oldest.source_label ]
+    assert_equal 1, newer.reload.count
   end
 
   test "remove_recipe_part! verwijdert een receptregel zonder standaarddeel" do
@@ -191,14 +199,23 @@ class ShoppingListItemTest < ActiveSupport::TestCase
     assert_not ShoppingListItem.exists?(line.id)
   end
 
-  test "remove_recipe_part! maakt van een receptregel met standaarddeel een standaardregel" do
+  test "remove_recipe_part! maakt van een receptregel met standaarddeel een standaardregel, één minder" do
     line = shopping_list_items(:bloem)
-    line.update!(standard_count: 2)
+    line.update!(count: 3, standard_count: 2)
 
     assert_equal line, line.remove_recipe_part!
     line.reload
     assert_equal [ "bloem", nil, nil, nil, "standaard", 2, ingredients(:bloem).id ],
-      [ line.name, line.quantity, line.unit, line.recipe_id, line.source_label, line.standard_count, line.ingredient_id ]
+      [ line.name, line.quantity, line.unit, line.recipe_id, line.source_label, line.count, line.ingredient_id ]
     assert line.standard_only?
+  end
+
+  test "add_standard! telt niet verder dan 99; remove_recipe_part! niet onder 1" do
+    ShoppingListItem.create!(name: "kaas", source_label: "standaard", count: 99)
+    assert_equal 99, ShoppingListItem.add_standard!("kaas").count
+
+    recipe_line = shopping_list_items(:bloem)
+    recipe_line.update!(standard_count: 1)
+    assert_equal 1, recipe_line.remove_recipe_part!.count
   end
 end

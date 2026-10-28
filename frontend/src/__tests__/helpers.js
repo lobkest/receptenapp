@@ -95,6 +95,7 @@ function shoppingRoutes(initial) {
     source_label: null,
     recipe_id: null,
     checked: false,
+    count: 1,
     standard_count: 0,
     ...item,
   }))
@@ -108,6 +109,7 @@ function shoppingRoutes(initial) {
     const matching = db.filter((item) => !item.checked && item.name === name)
     const line = matching.find(standardOnly) ?? matching[0]
     if (line) {
+      line.count = Math.min(line.count + 1, 99)
       line.standard_count++
       return line
     }
@@ -128,6 +130,7 @@ function shoppingRoutes(initial) {
       source_label: fields.source_label ?? null,
       recipe_id: fields.recipe_id ?? null,
       checked: fields.checked ?? false,
+      count: fields.count ?? 1,
       standard_count:
         fields.standard_count ??
         (fields.recipe_id == null && fields.source_label === 'standaard' ? 1 : 0),
@@ -171,6 +174,7 @@ function shoppingRoutes(initial) {
             quantity: null,
             unit: null,
             source_label: 'standaard',
+            count: Math.max(line.count - 1, 1),
           })
           kept.push(structuredClone(line))
         } else {
@@ -190,15 +194,6 @@ function shoppingRoutes(initial) {
     }
 
     const member = db.find((i) => url.startsWith(`${SHOPPING_BASE}/${i.id}/`))
-    if (member && url.endsWith('/remove_standard') && method === 'POST') {
-      if (!member.standard_count) return result(member)
-      if (standardOnly(member) && member.standard_count === 1) {
-        db.splice(db.indexOf(member), 1)
-        return result(null)
-      }
-      member.standard_count--
-      return result(member)
-    }
     if (member && url.endsWith('/remove_recipe') && method === 'POST') {
       if (!member.standard_count) {
         db.splice(db.indexOf(member), 1)
@@ -209,6 +204,7 @@ function shoppingRoutes(initial) {
         quantity: null,
         unit: null,
         source_label: 'standaard',
+        count: Math.max(member.count - 1, 1),
       })
       return result(member)
     }
@@ -216,9 +212,17 @@ function shoppingRoutes(initial) {
     const item = db.find((i) => url === `${SHOPPING_BASE}/${i.id}`)
     if (!item) return jsonResponse({ error: 'Shopping list item not found' }, 404)
     if (method === 'PATCH') {
-      const { checked, name } = body.shopping_list_item
+      const { checked, name, count } = body.shopping_list_item
+      // Zoals de validatie van ShoppingListItem#count: een heel getal van 1 tot en met 99.
+      if (count !== undefined && !(Number.isInteger(count) && count >= 1 && count <= 99)) {
+        return jsonResponse(
+          { error: 'Controleer de ingevulde velden.', errors: { count: ['is ongeldig'] } },
+          422,
+        )
+      }
       if (checked !== undefined) item.checked = checked
       if (name !== undefined) item.name = normalize(name)
+      if (count !== undefined) item.count = count
       return jsonResponse(structuredClone(item))
     }
     if (method === 'DELETE') {

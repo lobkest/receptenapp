@@ -4,6 +4,7 @@ module ShoppingListItemSerializer
   module_function
 
   # ingredient_id: the linked ingredient, or nil (ticking it off puts it in the house).
+  # count: how many, 1 to 99; a multiplier for quantity ("100 g" × 2 is 200 g).
   # standard_count: how many times it was added from the standard list (0: never).
   # recipe_title: the recipe's current name, for "Recepten op je lijst" and grouping per
   # recipe (source_label of a variation is "Pannenkoeken (variatie: …)"); nil without a recipe.
@@ -13,7 +14,7 @@ module ShoppingListItemSerializer
   # (squished, lower case) on both sides. categories: name => category, see items.
   def item(item, categories = nil)
     categories ||= categories_for([ item ])
-    item.slice("id", "name", "unit", "source_label", "recipe_id", "ingredient_id", "checked", "standard_count")
+    item.slice("id", "name", "unit", "source_label", "recipe_id", "ingredient_id", "checked", "count", "standard_count")
       .merge("quantity" => RecipeSerializer.number(item.quantity),
         "recipe_title" => item.recipe&.title, "recipe_visible" => item.recipe.present? && !item.recipe.deletion_requested?,
         "category" => categories[item.name])

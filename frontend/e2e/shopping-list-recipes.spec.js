@@ -73,7 +73,7 @@ test.afterAll(async () => {
 })
 
 // Beide recepten helemaal op de lijst (eerst orzo, dan wok), feta afgevinkt. Met
-// standardMelk ook melk van de standaardlijst: "200 ml melk +1" bij de orzo.
+// standardMelk ook melk van de standaardlijst: "400 ml melk (×2)" bij de orzo.
 async function fillList({ standardMelk = false } = {}) {
   for (const recipe of [orzo, wok]) {
     const response = await api.post(`/api/recipes/${recipe.id}/add_to_shopping_list`)
@@ -195,11 +195,11 @@ test('d+f) verwijder recept A: alleen de open regels weg; daarna op het recept w
   expect(errors).toEqual([])
 })
 
-test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page }) => {
+test('e) "400 ml melk (×2)" blijft als "melk"; de dialoog zegt dat', async ({ page }) => {
   const errors = collectErrors(page)
   await fillList({ standardMelk: true })
   await openShoppingList(page)
-  await expect(page.locator('.items .line', { hasText: /^200 ml melk \+1$/ })).toHaveCount(1)
+  await expect(page.locator('.items .line', { hasText: /^400 ml melk \(×2\)$/ })).toHaveCount(1)
 
   await boxRow(page, 'Groep-orzo').locator('.remove-recipe').click()
   const dialog = page.locator('dialog')
@@ -218,6 +218,7 @@ test('e) "200 ml melk +1" blijft als "melk"; de dialoog zegt dat', async ({ page
     recipe_id: null,
     quantity: null,
     source_label: 'standaard',
+    count: 1,
     standard_count: 1,
   })
 
@@ -256,8 +257,13 @@ test('g) offline: groeperen werkt op de opgeslagen lijst, verwijderen niet', asy
   await page.getByLabel('Groepeer per recept').check()
   await expect(page).toHaveURL(/\?groep=recept$/)
   await expect(sectionTitles(page)).toHaveText(['Groep-wok', 'Groep-orzo'])
-  // De +1-regel staat bij het recept, niet bij "Los / standaardlijst".
-  await expect(sectionLines(page, 'Groep-orzo')).toContainText(['200 ml melk +1'])
+  // De regel met standaarddeel staat bij het recept, niet bij "Los / standaardlijst".
+  await expect(sectionLines(page, 'Groep-orzo')).toContainText(['400 ml melk (×2)'])
+  // Offline is de stepper grijs; afvinken kan wel.
+  for (const control of await page.locator('.items .stepper button, .items .stepper input').all()) {
+    await expect(control).toBeDisabled()
+  }
+  await expect(page.locator('.items input[type="checkbox"]').first()).toBeEnabled()
   for (const button of await page.locator('.remove-recipe').all()) {
     await expect(button).toBeDisabled()
   }

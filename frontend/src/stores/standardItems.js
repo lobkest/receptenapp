@@ -54,7 +54,7 @@ export const useStandardItemsStore = defineStore('standardItems', {
     },
 
     // Op de gedeelde boodschappenlijst, in één request, zonder hoeveelheid: je moet het
-    // gewoon kopen. Staat het er al (open) op, dan komt er één bij op die regel ("melk ×2");
+    // gewoon kopen. Staat het er al (open) op, dan komt er één bij op het aantal van die regel;
     // anders een nieuwe regel met herkomst "standaard". Geeft het aantal items terug.
     async addToShoppingList(ids) {
       const chosen = this.items.filter((i) => ids.includes(i.id))

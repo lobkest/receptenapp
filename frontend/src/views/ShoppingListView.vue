@@ -2,18 +2,19 @@
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import CountStepper from '@/components/CountStepper.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
 import ShoppingListRecipes from '@/components/ShoppingListRecipes.vue'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
-import { shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
+import { countOf, shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
 import { categorySections, groupByRecipe, removeRecipeQuestion } from '@/utils/shoppingListRecipes'
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
 // of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
-// opgeslagen kopie; dan kun je alleen afvinken.
+// opgeslagen kopie; dan kun je alleen afvinken (de stepper is dan grijs).
 // Bij openen staat de offline kopie er meteen, met "Offline kopie van 28 okt om 14:05, bijwerken…"
 // erboven; zodra de verse lijst binnen is (list.fresh), verdwijnt die melding.
 const list = useShoppingListStore()
@@ -96,8 +97,8 @@ async function clearAll() {
     :pending="list.pending"
   >
     <template v-if="list.offline" #default>
-      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Verwijderen en
-      wissen kan pas weer online.
+      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Het aantal
+      veranderen, verwijderen en wissen kan pas weer online.
     </template>
   </OfflineNotice>
 
@@ -148,17 +149,13 @@ async function clearAll() {
             </span>
           </label>
           <div class="line-actions">
-            <!-- Alleen bij iets van de standaardlijst: één minder ("melk ×2" → "melk"). -->
-            <button
-              v-if="item.standard_count > 0"
-              type="button"
-              class="minus"
-              :disabled="list.offline"
-              :aria-label="`Eén ${item.name} minder`"
-              @click="attempt(() => list.removeStandard(item.id))"
-            >
-              −
-            </button>
+            <!-- Het aantal; bij een afgevinkte regel valt er niets meer te kiezen. -->
+            <CountStepper
+              :count="countOf(item)"
+              :name="item.name"
+              :disabled="list.offline || item.checked"
+              @change="(count) => attempt(() => list.setCount(item.id, count))"
+            />
             <button
               type="button"
               class="remove"
@@ -294,22 +291,17 @@ async function clearAll() {
 
 .line-actions {
   display: flex;
+  align-items: center;
 }
 
-.remove,
-.minus {
+/* Net zo groot als de knoppen van de stepper (minstens 44×44). */
+.remove {
+  width: max(var(--tap), 44px);
+  min-height: max(var(--tap), 44px);
+  padding: 0;
   color: var(--color-text-muted);
   background: transparent;
   border-color: transparent;
-}
-
-/* − is een tikje groter en donkerder dan ✕: dit gebruik je vaker. */
-.minus {
-  width: var(--tap);
-  padding: 0;
-  font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--color-accent-text);
 }
 
 .checked .line {

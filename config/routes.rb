@@ -45,7 +45,6 @@ Rails.application.routes.draw do
     # Public, no code needed: anyone with the link shares these two lists.
     resources :shopping_list_items, only: %i[ index create update destroy ] do
       member do
-        post :remove_standard
         post :remove_recipe
       end
       collection do

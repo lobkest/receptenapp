@@ -19,34 +19,26 @@ const recipe = (fields) => ({
 })
 
 describe('shoppingListLine', () => {
-  it('alleen standaardlijst: de naam bij 1, "×n" vanaf 2', () => {
-    expect(shoppingListLine(standard({ standard_count: 1 }))).toBe('melk')
-    expect(shoppingListLine(standard({ standard_count: 2 }))).toBe('melk ×2')
-    expect(shoppingListLine(standard({ standard_count: 5 }))).toBe('melk ×5')
+  it('zonder hoeveelheid: alleen de naam; het aantal staat in de stepper, niet in de tekst', () => {
+    expect(shoppingListLine(standard({ count: 1 }))).toBe('melk')
+    expect(shoppingListLine(standard({ count: 2, standard_count: 2 }))).toBe('melk')
+    expect(shoppingListLine(recipe({ quantity: null, unit: null, count: 3 }))).toBe('melk')
   })
 
-  it('een oude regel zonder standard_count (offline kopie van vóór de teller) is gewoon de naam', () => {
-    expect(shoppingListLine(standard({}))).toBe('melk')
+  it('een oude regel zonder count (offline kopie van vóór het aantal) telt als 1', () => {
+    expect(shoppingListLine(recipe({}))).toBe('200 ml melk')
+  })
+
+  it('met hoeveelheid: het aantal vermenigvuldigt, met "(×n)" erachter vanaf 2', () => {
+    expect(shoppingListLine(recipe({ count: 1 }))).toBe('200 ml melk')
+    expect(shoppingListLine(recipe({ count: 2 }))).toBe('400 ml melk (×2)')
+    expect(shoppingListLine(recipe({ quantity: 0.5, unit: 'el', count: 3 }))).toBe(
+      '1,5 el melk (×3)',
+    )
   })
 
   it('een standaardregel met (toch) een hoeveelheid toont die', () => {
-    expect(shoppingListLine(standard({ quantity: 500, unit: 'ml', standard_count: 1 }))).toBe(
-      '500 ml melk',
-    )
-  })
-
-  it('receptregel: hoeveelheid en naam, "+n" erachter als er van de standaardlijst bij is', () => {
-    expect(shoppingListLine(recipe({ standard_count: 0 }))).toBe('200 ml melk')
-    expect(shoppingListLine(recipe({ standard_count: 1 }))).toBe('200 ml melk +1')
-    expect(shoppingListLine(recipe({ quantity: 0.5, unit: 'el', standard_count: 2 }))).toBe(
-      '0,5 el melk +2',
-    )
-  })
-
-  it('"naar smaak" uit een recept met standaarddeel: naam met "+n"', () => {
-    expect(shoppingListLine(recipe({ quantity: null, unit: null, standard_count: 1 }))).toBe(
-      'melk +1',
-    )
+    expect(shoppingListLine(standard({ quantity: 500, unit: 'ml', count: 1 }))).toBe('500 ml melk')
   })
 })
 

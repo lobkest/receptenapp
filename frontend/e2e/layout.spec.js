@@ -502,16 +502,38 @@ test('standaard: toevoegen met nieuwe categorie, verwijderen met bevestiging', a
     expect(box.height, label).toBeGreaterThanOrEqual(40)
   }
 
-  // Toevoegen met een nieuwe categorie.
+  // Toevoegen met een nieuwe categorie: eerst het formulier openen via +.
+  await page.getByRole('button', { name: 'Item toevoegen' }).click()
   const addForm = page.locator('.add-card')
+  await expect(addForm.getByLabel('Naam')).toBeFocused()
   await addForm.getByLabel('Naam').fill('Chocola')
   await addForm.getByLabel('Categorie').selectOption({ label: 'Nieuwe categorie…' })
   await expect(addForm.getByLabel('Nieuwe categorie')).toBeFocused()
   await addForm.getByLabel('Nieuwe categorie').fill('Snoep')
   await addForm.getByRole('button', { name: 'Toevoegen' }).click()
   await expect(page.getByRole('heading', { name: 'snoep' })).toBeVisible()
+  // Het formulier blijft open: Naam leeg met focus, de categorie blijft staan.
   await expect(addForm.getByLabel('Naam')).toHaveValue('')
-  await expect(addForm.getByLabel('Categorie').locator('option')).toContainText(['snoep'])
+  await expect(addForm.getByLabel('Naam')).toBeFocused()
+  await expect(addForm.getByLabel('Categorie')).toHaveValue('snoep')
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: 'e2e/screenshots/standaard-toevoegen.png',
+    animations: 'disabled',
+  })
+
+  // De + en de titel op één regel, rechts uitgelijnd met het formulier.
+  const toggle = await page.getByRole('button', { name: 'Sluiten' }).boundingBox()
+  const title = await page.getByRole('heading', { level: 1 }).boundingBox()
+  const card = await addForm.boundingBox()
+  expect(toggle.y + toggle.height / 2).toBeCloseTo(title.y + title.height / 2, -1)
+  expect(Math.abs(toggle.x + toggle.width - (card.x + card.width))).toBeLessThanOrEqual(1)
+  expect(title.height).toBeLessThan(50)
+
+  // Escape sluit het formulier.
+  await addForm.getByLabel('Naam').press('Escape')
+  await expect(addForm).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Item toevoegen' })).toBeFocused()
 
   // Verwijderen: eerst een venster, focus op Annuleren; Escape sluit zonder te verwijderen.
   await page.getByRole('button', { name: 'banaan verwijderen' }).click()
@@ -545,6 +567,8 @@ test('standaard: selectiemodus, op lijst en bulk-verwijderen', async ({ page }) 
   await expect(page.locator('.bottom-bar')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Selecteren' }).click()
+  // In de selectiemodus geen +-knop.
+  await expect(page.locator('.add-toggle')).toHaveCount(0)
   await page.getByLabel('melk').check()
   await page.getByLabel('wc-papier').check()
   await page.getByRole('button', { name: 'Op lijst (2)' }).click()

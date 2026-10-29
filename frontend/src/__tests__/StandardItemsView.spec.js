@@ -20,6 +20,12 @@ function rowOf(wrapper, name) {
   return wrapper.findAll('.items li').find((li) => li.find('.line').text() === name)
 }
 
+// Opent het toevoegformulier via de +-knop naast de titel.
+async function openAddForm(wrapper) {
+  await wrapper.find('button[aria-label="Item toevoegen"]').trigger('click')
+  return () => wrapper.find('.add-card form')
+}
+
 function dialog(wrapper) {
   return wrapper.find('dialog')
 }
@@ -58,7 +64,7 @@ describe('StandardItemsView', () => {
 
     expect(wrapper.text()).not.toContain('beheercode')
     expect(wrapper.find('.login-needed').exists()).toBe(false)
-    expect(wrapper.find('.add-card').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Item toevoegen"]').exists()).toBe(true)
     expect(listLines(wrapper)).toHaveLength(4)
     const urls = server.fetch.mock.calls.map(([url]) => url)
     expect(urls).toContain('/api/standard_items')
@@ -98,9 +104,20 @@ describe('StandardItemsView', () => {
   })
 
   describe('toevoegen', () => {
+    it('het formulier is standaard dicht en gaat open via +, met focus op Naam', async () => {
+      ;({ wrapper } = await mountApp())
+      expect(wrapper.find('.add-card').exists()).toBe(false)
+
+      const form = await openAddForm(wrapper)
+      await flushPromises()
+      expect(form().exists()).toBe(true)
+      expect(document.activeElement).toBe(form().find('.name').element)
+      expect(wrapper.find('.add-toggle').attributes('aria-label')).toBe('Sluiten')
+    })
+
     it('met een nieuwe categorie: verschijnt in een eigen groep, en het formulier wordt leeg', async () => {
       ;({ wrapper } = await mountApp())
-      const form = () => wrapper.find('.add-card form')
+      const form = await openAddForm(wrapper)
 
       await form().find('.name').setValue('Chocola')
       await form().find('select.category').setValue('NEW')
@@ -110,7 +127,9 @@ describe('StandardItemsView', () => {
 
       expect(server.db).toContainEqual({ id: 5, name: 'chocola', category: 'snoep' })
       expect(wrapper.findAll('.group h2').map((h) => h.text())).toContain('snoep')
+      // Het formulier blijft open: Naam leeg, de categorie blijft staan.
       expect(form().find('.name').element.value).toBe('')
+      expect(form().find('select.category').element.value).toBe('snoep')
       expect(form().find('.new-category').exists()).toBe(false)
       // De nieuwe categorie staat nu ook in de keuzelijst.
       const options = form()
@@ -127,7 +146,7 @@ describe('StandardItemsView', () => {
 
     it('meldt een dubbele naam bij het veld en houdt de invoer', async () => {
       ;({ wrapper } = await mountApp())
-      const form = wrapper.find('.add-card form')
+      const form = (await openAddForm(wrapper))()
 
       await form.find('.name').setValue('Melk')
       await form.trigger('submit')

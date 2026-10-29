@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, useTemplateRef, watch } from 'vue'
+import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
 import StandardItemRow from '@/components/StandardItemRow.vue'
@@ -91,17 +91,48 @@ function countText(count) {
 
 const saving = ref(false)
 const addErrors = ref({})
-// Ophogen geeft het toevoegformulier een nieuwe :key, waardoor het leeg opnieuw begint.
+// Ophogen geeft het toevoegformulier een nieuwe :key, waardoor het opnieuw begint:
+// Naam leeg, de categorie uit addInitial (de laatst gebruikte).
 const addFormKey = ref(0)
+const addInitial = ref({})
 
+// Het toevoegformulier staat dicht; de +-knop naast de titel opent het (en wordt ×).
+const adding = ref(false)
+const addPanel = useTemplateRef('addPanel')
+const addToggle = useTemplateRef('addToggle')
+
+async function focusAddName() {
+  await nextTick()
+  addPanel.value?.querySelector('.name')?.focus()
+}
+
+function openAdd() {
+  addErrors.value = {}
+  addInitial.value = {}
+  addFormKey.value++
+  adding.value = true
+  focusAddName()
+}
+
+function closeAdd({ refocus = false } = {}) {
+  adding.value = false
+  if (refocus) addToggle.value?.focus()
+}
+
+// Na toevoegen blijft het formulier open, zodat je meteen het volgende item invult.
 async function addItem(fields) {
   saving.value = true
+  let item
   const ok = await attempt(
-    () => standard.add(fields),
+    async () => (item = await standard.add(fields)),
     (errors) => (addErrors.value = errors),
   )
   saving.value = false
-  if (ok) addFormKey.value++
+  if (!ok) return
+  // De categorie zoals de server hem bewaarde ("Snoep" → "snoep"), zodat de keuzelijst hem kent.
+  addInitial.value = { category: item.category ?? '' }
+  addFormKey.value++
+  focusAddName()
 }
 
 const editingId = ref(null)
@@ -146,6 +177,7 @@ const selected = ref([])
 
 function startSelecting() {
   editingId.value = null
+  closeAdd()
   // Een oude bevestiging hoort niet in de selectiebalk.
   hideMessage()
   selecting.value = true
@@ -193,14 +225,38 @@ watch(
 </script>
 
 <template>
-  <h1 class="page-title">Standaardboodschappen</h1>
+  <div class="title-row">
+    <h1 class="page-title">Standaardboodschappen</h1>
+    <!-- Rond en gevuld groen: anders dan de lichte [+] ("op lijst") op elke rij. -->
+    <button
+      v-if="!selecting"
+      ref="addToggle"
+      type="button"
+      class="add-toggle"
+      :aria-label="adding ? 'Sluiten' : 'Item toevoegen'"
+      :aria-expanded="adding"
+      aria-controls="standard-add"
+      @click="adding ? closeAdd() : openAdd()"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path v-if="adding" d="M6 6l12 12M18 6L6 18" />
+        <path v-else d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+  </div>
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
-  <section class="card add-card">
-    <h2>Item toevoegen</h2>
+  <section
+    v-if="adding"
+    id="standard-add"
+    ref="addPanel"
+    class="card add-card"
+    @keydown.esc="closeAdd({ refocus: true })"
+  >
     <StandardItemForm
       :key="addFormKey"
+      :initial="addInitial"
       submit-label="Toevoegen"
       :categories="standard.categories"
       :errors="addErrors"
@@ -212,7 +268,7 @@ watch(
   <p v-if="loading" class="muted">Standaardlijst laden…</p>
 
   <p v-else-if="standard.loaded && standard.items.length === 0" class="empty card">
-    Je hebt nog geen standaardboodschappen. Voeg hierboven je eerste item toe.
+    Je hebt nog geen standaardboodschappen. Voeg met + je eerste item toe.
   </p>
 
   <!-- Rechtsboven de lijst, niet naast de titel: daar zou "Standaardboodschappen"
@@ -272,11 +328,51 @@ watch(
 </template>
 
 <style scoped>
-/* "Standaardboodschappen" is één lang woord: op een telefoon (375–390 px) moet het op
-   één regel passen. Daarom schaalt de grootte mee met de schermbreedte, en nooit een
-   afbreekstreepje (hyphens: manual, in plaats van auto uit main.css). */
+/* Titel links, de +-knop rechts op dezelfde regel. */
+.title-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.title-row .page-title {
+  min-width: 0;
+  margin: 0;
+}
+
+.add-toggle,
+.add-toggle:hover:not(:disabled) {
+  flex: 0 0 auto;
+  width: var(--tap);
+  padding: 0;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  border-radius: var(--radius-full);
+}
+
+.add-toggle:hover:not(:disabled) {
+  background: var(--color-brand-strong);
+  border-color: var(--color-brand-strong);
+}
+
+.add-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* "Standaardboodschappen" is één lang woord: op een telefoon (375–390 px) moet het,
+   naast de +-knop, op één regel passen. Daarom schaalt de grootte mee met de
+   schermbreedte, en nooit een afbreekstreepje (hyphens: manual, in plaats van auto
+   uit main.css). */
 .page-title {
-  font-size: clamp(var(--text-xl), 6.5vw, var(--text-2xl));
+  font-size: clamp(var(--text-xl), 5.5vw, var(--text-2xl));
   -webkit-hyphens: manual;
   hyphens: manual;
 }

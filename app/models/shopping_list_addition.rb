@@ -17,7 +17,10 @@ class ShoppingListAddition
   # skip_ingredient_ids: rows of the recipe to leave out, because they are in the house
   # ("Alles op lijst" and "Variatie op lijst"). skip_addition_ids: the same for the
   # ingredients a variation adds (VariationChange ids). Unknown ids are ignored.
-  attr_accessor :source, :ingredient_ids, :alternative_ids, :skip_ingredient_ids, :skip_addition_ids
+  # skip_in_house: true leaves out what is in the house now, worked out here instead of by
+  # the browser. For a change made offline and sent later: the stock of that moment counts,
+  # like "Alles op lijst" online would see it. Comes on top of the skip ids.
+  attr_accessor :source, :ingredient_ids, :alternative_ids, :skip_ingredient_ids, :skip_addition_ids, :skip_in_house
   attr_writer :servings
   attr_reader :items
 
@@ -31,6 +34,11 @@ class ShoppingListAddition
     lines = source.shopping_list_items(servings: Integer(servings.to_s), only: chosen_ids, swaps: swaps, **skips)
     @items = ShoppingListItem.transaction { lines.map { |attributes| ShoppingListItem.create!(attributes) } }
     true
+  end
+
+  # For ClientAction.once: an invalid addition raises, so nothing is remembered.
+  def save!
+    save || raise(ActiveModel::ValidationError, self)
   end
 
   def servings
@@ -52,9 +60,30 @@ class ShoppingListAddition
 
     # Only a variation adds ingredients of its own.
     def skips
-      skips = { skip: integers(skip_ingredient_ids) }
-      skips[:skip_additions] = integers(skip_addition_ids) if source.is_a?(RecipeVariation)
+      skips = { skip: integers(skip_ingredient_ids) + in_house_row_ids }
+      skips[:skip_additions] = integers(skip_addition_ids) + in_house_addition_ids if source.is_a?(RecipeVariation)
       skips
+    end
+
+    def present_ids
+      @present_ids ||= skip_in_house ? PantryItem.present_ingredient_ids : Set.new
+    end
+
+    # The rows whose ingredient is in the house, after swapping: like the house on the
+    # recipe page, which shows the alternative when it is swapped in.
+    def in_house_row_ids
+      return [] if present_ids.empty?
+
+      recipe.recipe_ingredients.select { |row| present_ids.include?((swaps[row.id] || row).ingredient_id) }.map(&:id)
+    end
+
+    # A variation's additions have a name, not an ingredient: matched by name, like the browser.
+    def in_house_addition_ids
+      return [] if present_ids.empty?
+
+      additions = source.additions
+      present_names = Ingredient.where(id: present_ids.to_a, name: additions.map(&:name)).pluck(:name)
+      additions.select { |addition| present_names.include?(addition.name) }.map(&:id)
     end
 
     def integers(ids)
@@ -63,9 +92,9 @@ class ShoppingListAddition
 
     # { row id => alternative }, for the alternatives that were asked for.
     def swaps
-      recipe.recipe_ingredients.flat_map(&:alternatives)
-        .select { |alternative| chosen_alternative_ids.include?(alternative.id) }
-        .index_by(&:recipe_ingredient_id)
+      @swaps ||= recipe.recipe_ingredients.flat_map(&:alternatives)
+          .select { |alternative| chosen_alternative_ids.include?(alternative.id) }
+          .index_by(&:recipe_ingredient_id)
     end
 
     # Each alternative must belong to a row of this recipe, and a row is swapped only once.

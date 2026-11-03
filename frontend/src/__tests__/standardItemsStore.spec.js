@@ -72,7 +72,11 @@ describe('standaardboodschappen-store', () => {
 
     const [, options] = requestsOf(fetch, 'POST')[0]
     expect(JSON.parse(options.body)).toEqual({
-      standard_item: { name: ' Banaan ', category: 'Groente & Fruit' },
+      standard_item: {
+        name: ' Banaan ',
+        category: 'Groente & Fruit',
+        client_id: expect.any(String),
+      },
     })
     expect(item).toEqual({ id: 5, name: 'banaan', category: 'groente & fruit' })
     expect(standard.items).toContainEqual(item)

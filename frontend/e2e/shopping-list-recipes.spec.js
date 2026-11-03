@@ -232,7 +232,7 @@ test('e) "400 ml melk (×2)" blijft als "melk"; de dialoog zegt dat', async ({ p
   await expect(page.locator('.ingredients > ul > li .via-source')).toHaveText('via standaard')
 })
 
-test('g) offline: groeperen werkt op de opgeslagen lijst, verwijderen niet', async ({
+test('g) offline: groeperen werkt op de opgeslagen lijst, recept verwijderen niet', async ({
   browser,
 }) => {
   await fillList({ standardMelk: true })
@@ -259,10 +259,8 @@ test('g) offline: groeperen werkt op de opgeslagen lijst, verwijderen niet', asy
   await expect(sectionTitles(page)).toHaveText(['Groep-wok', 'Groep-orzo'])
   // De regel met standaarddeel staat bij het recept, niet bij "Los / standaardlijst".
   await expect(sectionLines(page, 'Groep-orzo')).toContainText(['400 ml melk (×2)'])
-  // Offline is de stepper grijs; afvinken kan wel.
-  for (const control of await page.locator('.items .stepper button, .items .stepper input').all()) {
-    await expect(control).toBeDisabled()
-  }
+  // Afvinken en het aantal gaan offline via de outbox; een heel recept weghalen niet.
+  await expect(page.locator('.items .stepper input').first()).toBeEnabled()
   await expect(page.locator('.items input[type="checkbox"]').first()).toBeEnabled()
   for (const button of await page.locator('.remove-recipe').all()) {
     await expect(button).toBeDisabled()

@@ -41,16 +41,20 @@ export function requestVariationDeletion(recipeId, id, reason) {
 // regels terug.
 // skip: wat in huis is en dus niet op de lijst hoeft: { ingredientIds (regels van het
 // recept), additionIds (toevoegingen van de variatie) }.
+// sync: { clientActionId, skipInHouse }, zie addRecipeToShoppingList.
 export function addVariationToShoppingList(
   recipeId,
   id,
   servings,
   alternativeIds = [],
   { ingredientIds = [], additionIds = [] } = {},
+  { clientActionId = null, skipInHouse = false } = {},
 ) {
   const body = alternativeIds.length ? { servings, alternative_ids: alternativeIds } : { servings }
   if (ingredientIds.length) body.skip_ingredient_ids = ingredientIds
   if (additionIds.length) body.skip_addition_ids = additionIds
+  if (skipInHouse) body.skip_in_house = true
+  if (clientActionId) body.client_action_id = clientActionId
   return request(`${variationPath(recipeId, id)}/add_to_shopping_list`, {
     method: 'POST',
     body: JSON.stringify(body),

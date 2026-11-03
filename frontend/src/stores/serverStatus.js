@@ -51,6 +51,10 @@ export const useServerStatusStore = defineStore('serverStatus', {
 
   getters: {
     online: (state) => state.status === 'online',
+    // Geen verbinding (de browser meldt offline, of de server is niet te bereiken): dan
+    // zijn knoppen die iets op de server moeten veranderen uit, behalve wat via de outbox
+    // kan (stores/offline.js). Een server die nog wakker wordt telt niet als offline.
+    offline: (state) => state.browserOffline || state.status === 'offline',
   },
 
   actions: {

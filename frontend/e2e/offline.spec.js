@@ -84,17 +84,15 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   )
   await expect.poll(sortedLines).toEqual(['250 g bloem', '500 ml melk', 'wc-papier'])
 
-  // Afvinken werkt; verwijderen en wissen niet.
+  // Afvinken werkt (en verwijderen en het aantal, via de outbox); wissen niet.
   await box('bloem').check()
   await box('melk').check()
   await box('bloem').uncheck()
   await expect(row('melk')).toHaveClass(/checked/)
   await expect(row('bloem')).not.toHaveClass(/checked/)
   await expect(page.locator('.shopping-link')).toContainText('Boodschappen (2)')
-  await expect(page.locator('.offline-notice')).toContainText(
-    '2 wijzigingen nog niet gesynchroniseerd',
-  )
-  await expect(page.locator('.items .remove').first()).toBeDisabled()
+  await expect(page.locator('.offline-notice')).toContainText('2 wijzigingen wachten op verbinding')
+  await expect(page.locator('.items .remove').first()).toBeEnabled()
   await expect(page.locator('.clear-checked')).toBeDisabled()
   await expect(page.locator('.clear-all')).toBeDisabled()
   await expect(page.getByRole('alert')).toHaveCount(0)

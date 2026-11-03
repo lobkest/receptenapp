@@ -31,8 +31,9 @@ const emit = defineEmits(['add', 'edit', 'remove', 'error'])
     <span v-if="onList" class="on-list-tag">✓ op lijst</span>
   </label>
 
-  <div v-else class="row">
+  <div v-else class="row" :class="{ pending: item.pending }">
     <span class="line">{{ item.name }}</span>
+    <span v-if="item.pending" class="pending-mark">wacht op sync</span>
     <div class="item-actions">
       <HouseButton
         class="house"
@@ -87,6 +88,13 @@ const emit = defineEmits(['add', 'edit', 'remove', 'error'])
 </template>
 
 <style scoped>
+/* Offline toegevoegd, nog niet bij de server: klein en schuin, zoals op de boodschappenlijst. */
+.pending-mark {
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
 /* Compact: naam links, knoppen rechts op dezelfde regel. */
 .row {
   display: flex;

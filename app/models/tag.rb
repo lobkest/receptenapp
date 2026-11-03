@@ -29,6 +29,21 @@ class Tag < ApplicationRecord
   # - the other insert is not committed yet: ours hits the unique index; create_or_find_by!
   #   (in a savepoint, so the recipe's transaction survives) then returns the existing row;
   # - the other insert was just committed: our uniqueness validation sees it (:taken).
+  # What /api/tags (and the offline snapshot) sends: every tag of a visible recipe with how
+  # many visible recipes have it, on name. Manual tags counted in SQL; automatic ones counted
+  # per recipe that passes ("ja" or "met_wissel"), and not something a form can pick.
+  #   [ { name: "snel", count: 3, automatic: false }, { name: "vegetarisch", count: 5, automatic: true } ]
+  def self.counts(evaluator = RecipeTagEvaluator.load)
+    manual = Tag.manual.joins(:recipes).merge(Recipe.visible).group(:name).count
+      .map { |name, count| { name: name, count: count, automatic: false } }
+    automatic = Hash.new(0)
+    Recipe.visible.includes(RecipeTagEvaluator::PRELOAD).find_each do |recipe|
+      evaluator.passing_names(recipe).each { |name| automatic[name] += 1 }
+    end
+
+    (manual + automatic.map { |name, count| { name: name, count: count, automatic: true } }).sort_by { |tag| tag[:name] }
+  end
+
   def self.named(name)
     find_by(name: name) || create_or_find_by!(name: name)
   rescue ActiveRecord::RecordInvalid => error

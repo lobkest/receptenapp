@@ -40,10 +40,13 @@ function nextIdAfter(db) {
 }
 
 // De standaardlijst, zoals de Rails-controller: openbaar, namen genormaliseerd en uniek,
-// bulk_destroy alles of niets. Geeft null voor een URL die hier niet hoort.
+// bulk_destroy alles of niets. Een POST met een bekende client_id geeft dat item terug (200).
+// Geeft null voor een URL die hier niet hoort.
 function standardRoutes(initial) {
   const db = initial.map((item) => ({ category: null, ...item }))
   let nextId = nextIdAfter(db)
+  // item → client_id, buiten het item zelf: de API stuurt hem niet terug.
+  const clientIds = new WeakMap()
 
   function save(item, fields) {
     const name = normalize(fields.name)
@@ -61,11 +64,15 @@ function standardRoutes(initial) {
       return jsonResponse(db.toSorted((a, b) => a.name.localeCompare(b.name)))
     }
     if (url === STANDARD_BASE && method === 'POST') {
+      const clientId = body.standard_item.client_id
+      const known = clientId && db.find((other) => clientIds.get(other) === clientId)
+      if (known) return jsonResponse(known)
       const item = { id: nextId }
       const error = save(item, body.standard_item)
       if (error) return error
       nextId++
       db.push(item)
+      if (clientId) clientIds.set(item, clientId)
       return jsonResponse(item, 201)
     }
     if (url === `${STANDARD_BASE}/bulk_destroy` && method === 'POST') {
@@ -100,6 +107,16 @@ function shoppingRoutes(initial) {
     ...item,
   }))
   let nextId = nextIdAfter(db)
+  // client_action_id → de regels van de eerste keer (ClientAction op de server).
+  const actions = new Map()
+
+  // Zoals ClientAction.once: met een bekend id niets opnieuw, maar dezelfde regels terug.
+  function once(id, fn) {
+    if (id && actions.has(id)) return actions.get(id).filter((line) => db.includes(line))
+    const lines = fn()
+    if (id) actions.set(id, lines)
+    return lines
+  }
 
   const standardOnly = (item) => item.recipe_id == null && item.source_label === 'standaard'
 
@@ -139,9 +156,38 @@ function shoppingRoutes(initial) {
     return item
   }
 
+  // Zoals ShoppingListItem.add_loose!: optellen bij een open regel zonder hoeveelheid voor
+  // hetzelfde ingrediënt (of dezelfde naam), anders een nieuwe losse regel.
+  function addLoose({ name, ingredient_id: ingredientId = null, count = 1, checked = false }) {
+    const match =
+      !checked &&
+      db.find(
+        (item) =>
+          !item.checked &&
+          item.quantity == null &&
+          (ingredientId != null
+            ? item.ingredient_id === ingredientId
+            : item.name === normalize(name)),
+      )
+    if (match) {
+      match.count = Math.min(match.count + count, 99)
+      return match
+    }
+    const line = add({ name, count, checked, source_label: 'los' })
+    line.ingredient_id = ingredientId
+    return line
+  }
+
   function handle(method, url, body) {
     if (!url.startsWith(SHOPPING_BASE)) return null
     if (url === SHOPPING_BASE && method === 'GET') return jsonResponse(structuredClone(db))
+    if (url === `${SHOPPING_BASE}/add` && method === 'POST') {
+      if (!normalize(body.name)) {
+        return jsonResponse({ errors: { name: ['moet opgegeven zijn'] } }, 422)
+      }
+      const lines = once(body.client_action_id, () => [addLoose(body)])
+      return jsonResponse(structuredClone(lines), 201)
+    }
     if (url === SHOPPING_BASE && method === 'POST') {
       const list = body.shopping_list_items ?? [body.shopping_list_item]
       if (list.some((fields) => !normalize(fields.name))) {
@@ -232,23 +278,94 @@ function shoppingRoutes(initial) {
     return null
   }
 
-  return { db, handle, addStandard }
+  return { db, handle, add, addStandard, once }
+}
+
+// Een korte, vaste ETag voor een JSON-antwoord: verandert als de inhoud verandert.
+function etagOf(value) {
+  const text = JSON.stringify(value)
+  let hash = 0
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0
+  return `W/"${hash.toString(16)}"`
 }
 
 // Een nep-server voor beide lijsten. standardDb en shoppingDb zijn de "database":
 // tests kunnen erin kijken en erin schrijven (alsof een ander apparaat iets wijzigt).
-export function fakeServer({ standard = [], shopping = [] } = {}) {
+// recipes (zoals /api/recipes/:id) en presentIds (in huis): voor "Alles op lijst" en de
+// offline snapshot (GET /api/offline_snapshot, met ETag en 304). Zonder presentIds heeft de
+// snapshot geen voorraad (dan geen huisjes, zoals in de tests van vóór de snapshot).
+// ingredients ([{ id, name }]): GET /api/ingredients en de namen in de snapshot.
+export function fakeServer({
+  standard = [],
+  shopping = [],
+  recipes = [],
+  presentIds = null,
+  ingredients = [],
+} = {}) {
   const standardServer = standardRoutes(standard)
   const shoppingServer = shoppingRoutes(shopping)
 
+  // Zoals Recipe#shopping_list_items: zonder ingredient_ids alles behalve de optionele, en
+  // met skip_in_house zonder wat nu in huis is. Geschaald, zonder afronding (de tests
+  // gebruiken ronde getallen).
+  function addRecipe(recipe, body) {
+    const factor = (body.servings ?? recipe.servings) / recipe.servings
+    const skip = new Set(body.skip_ingredient_ids ?? [])
+    return recipe.ingredients
+      .filter((row) => (body.ingredient_ids ? body.ingredient_ids.includes(row.id) : !row.optional))
+      .filter((row) => !skip.has(row.id))
+      .filter((row) => !(body.skip_in_house && presentIds?.includes(row.ingredient_id)))
+      .map((row) =>
+        shoppingServer.add({
+          name: row.name,
+          quantity: row.quantity == null ? null : row.quantity * factor,
+          unit: row.unit,
+          source_label: recipe.title,
+          recipe_id: recipe.id,
+        }),
+      )
+  }
+
   const fetch = mockFetch((method, url, options) => {
     const body = options.body ? JSON.parse(options.body) : {}
+    if (url === '/api/offline_snapshot' && method === 'GET') {
+      const data = {
+        recipes,
+        tags: [],
+        categories: [],
+        ingredients,
+        standard_items: standardServer.db,
+        pantry: presentIds && {
+          in_house: presentIds.map((id) => ({ id, name: `#${id}` })),
+          staples: [],
+          suggestions: [],
+        },
+      }
+      const etag = etagOf(data)
+      if (options.headers?.['If-None-Match'] === etag) return new Response(null, { status: 304 })
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: etag },
+      })
+    }
+    if (url === '/api/ingredients' && method === 'GET') return jsonResponse(ingredients)
+    const recipeAdd = url.match(/^\/api\/recipes\/(\d+)\/add_to_shopping_list$/)
+    if (recipeAdd && method === 'POST') {
+      const recipe = recipes.find((r) => r.id === Number(recipeAdd[1]))
+      if (!recipe) return jsonResponse({ error: 'Niet gevonden.' }, 404)
+      const lines = shoppingServer.once(body.client_action_id, () => addRecipe(recipe, body))
+      return jsonResponse(structuredClone(lines), 201)
+    }
     if (url === `${STANDARD_BASE}/add_to_shopping_list` && method === 'POST') {
-      const names = standardServer.db
-        .filter((item) => body.ids.includes(item.id))
-        .map((item) => item.name)
-        .sort()
-      return jsonResponse(structuredClone(names.map(shoppingServer.addStandard)))
+      // ids, of (vanuit de outbox) names; met client_action_id niets dubbel.
+      const names = (
+        body.names ??
+        standardServer.db.filter((item) => body.ids.includes(item.id)).map((item) => item.name)
+      ).sort()
+      const lines = shoppingServer.once(body.client_action_id, () =>
+        names.map(shoppingServer.addStandard),
+      )
+      return jsonResponse(structuredClone(lines))
     }
     const response =
       standardServer.handle(method, url, body) ?? shoppingServer.handle(method, url, body)

@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/pantry'
+import { isNetworkError, isOffline } from '@/offline'
 import { presentIngredientIds } from '@/utils/inHouse'
+import { pantryGroups, withAllTags } from '@/utils/offlineRecipes'
 import { normalizeName } from '@/stores/shoppingList'
+import { useSnapshotStore } from '@/stores/snapshot'
 
 // Telt elke loadRecipes(): alleen het antwoord op de laatste telt (snel filters aantikken).
 let latestRecipes = 0
@@ -13,6 +16,9 @@ const pendingPantry = new WeakMap()
 // "In huis": de voorraad en de recepten die je ermee kunt maken. Alles staat op de server
 // (één voorraad voor iedereen met de link); hier alleen wat de pagina laat zien. De pagina
 // ververst bij openen en bij terugkeren naar de app, net als de lijsten.
+// Offline (of tot de server antwoordt) komen voorraad en recepten uit de offline snapshot
+// (stores/snapshot.js); de recepten rekenen we dan in de browser uit (utils/offlineRecipes).
+// Aanpassen kan offline niet: dat zet de pagina uit.
 export const usePantryStore = defineStore('pantry', {
   state: () => ({
     // Zoals /api/pantry: { in_house, staples, suggestions }, of null voor het laden.
@@ -51,6 +57,10 @@ export const usePantryStore = defineStore('pantry', {
 
     loadPantry() {
       if (pendingPantry.has(this)) return pendingPantry.get(this)
+      const snapshot = useSnapshotStore()
+      snapshot.restore()
+      if (!this.pantry && snapshot.data?.pantry) this.pantry = snapshot.data.pantry
+      if (isOffline() && this.pantry) return Promise.resolve()
       const pending = api
         .fetchPantry()
         .then((pantry) => {
@@ -59,17 +69,35 @@ export const usePantryStore = defineStore('pantry', {
             throw new TypeError('geen voorraad')
           }
           this.pantry = pantry
+          snapshot.patch('pantry', pantry)
+        })
+        .catch((e) => {
+          // Geen verbinding maar wel een kopie: die blijft staan.
+          if (!isNetworkError(e) || !this.pantry) throw e
         })
         .finally(() => pendingPantry.delete(this))
       pendingPantry.set(this, pending)
       return pending
     },
 
+    // Zonder verbinding uit de snapshot, met de voorraad zoals hier bekend.
     async loadRecipes(tags = this.tags) {
       const current = ++latestRecipes
       this.tags = tags
-      const groups = await api.fetchPantryRecipes({ tags })
-      if (current === latestRecipes) this.groups = groups
+      const offline = () => {
+        const snapshot = useSnapshotStore()
+        snapshot.restore()
+        if (!snapshot.available || !this.pantry) return false
+        this.groups = pantryGroups(withAllTags(snapshot.recipes, tags), this.presentIds)
+        return true
+      }
+      if (isOffline() && offline()) return
+      try {
+        const groups = await api.fetchPantryRecipes({ tags })
+        if (current === latestRecipes) this.groups = groups
+      } catch (e) {
+        if (!(isNetworkError(e) && current === latestRecipes && offline())) throw e
+      }
     },
 
     // In huis (true) of eruit (false). Daarna de recepten opnieuw, want wat ontbreekt

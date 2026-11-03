@@ -1,7 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { useHouseStatus } from '@/composables/useHouseStatus'
+import { OFFLINE_TEXT } from '@/offline'
 import { usePantryStore } from '@/stores/pantry'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { normalizeName } from '@/stores/shoppingList'
 
 // Het huisje naast de lijstknop (receptpagina, variaties, standaardlijst):
@@ -24,6 +26,8 @@ const props = defineProps({
 const emit = defineEmits(['error'])
 
 const pantry = usePantryStore()
+// Offline alleen tonen: de voorraad aanpassen kan pas weer online.
+const server = useServerStatusStore()
 const { statusOf } = useHouseStatus()
 const status = computed(() => {
   const known = statusOf(props.ingredient)
@@ -56,7 +60,8 @@ async function toggle() {
         ? `${ingredient.name} is in huis; tik om uit de voorraad te halen`
         : `${ingredient.name} is niet in huis; tik om in de voorraad te zetten`
     "
-    :disabled="busy"
+    :disabled="busy || server.offline"
+    :title="server.offline ? OFFLINE_TEXT : undefined"
     @click="toggle"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

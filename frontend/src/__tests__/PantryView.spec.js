@@ -294,7 +294,9 @@ describe('PantryView', () => {
     await salad.find('.add-missing').trigger('click')
     await flushPromises()
 
-    expect(added).toEqual([{ recipe: 20, servings: 4, ingredient_ids: [21, 22] }])
+    expect(added).toEqual([
+      { recipe: 20, servings: 4, ingredient_ids: [21, 22], client_action_id: expect.any(String) },
+    ])
     expect(salad.find('.added').text()).toBe('Op de lijst ✓')
     expect(salad.find('.add-missing').exists()).toBe(false)
   })

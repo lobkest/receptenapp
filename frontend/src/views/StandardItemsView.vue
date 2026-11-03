@@ -1,13 +1,17 @@
 <script setup>
 import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
 import StandardItemRow from '@/components/StandardItemRow.vue'
 import StandardItemsBottomBar from '@/components/StandardItemsBottomBar.vue'
 import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useTimedMessage } from '@/composables/useTimedMessage'
+import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
+import { useSnapshotStore } from '@/stores/snapshot'
 import { useStandardItemsStore } from '@/stores/standardItems'
 import { skippedMessage, splitInHouse } from '@/utils/inHouse'
 
@@ -17,6 +21,10 @@ import { skippedMessage, splitInHouse } from '@/utils/inHouse'
 const standard = useStandardItemsStore()
 const shoppingList = useShoppingListStore()
 const confirmDialog = useTemplateRef('confirmDialog')
+// Offline: de kopie uit de snapshot; toevoegen, bewerken en verwijderen gaan via de outbox.
+const offline = useOfflineStore()
+const snapshot = useSnapshotStore()
+const server = useServerStatusStore()
 
 const loading = ref(false)
 // Melding bij een mislukte actie (netwerk, server). Validatiefouten staan bij het veld.
@@ -244,6 +252,13 @@ watch(
       </svg>
     </button>
   </div>
+
+  <OfflineNotice
+    v-if="standard.loaded && (standard.offline || offline.pending > 0)"
+    :saved-at="snapshot.savedAt"
+    :offline="server.browserOffline"
+    :pending="offline.pending"
+  />
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 

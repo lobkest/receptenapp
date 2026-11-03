@@ -11,9 +11,16 @@ class Api::StandardItemsController < ApplicationController
     render json: StandardItem.order(:name).map { |item| serialize(item) }
   end
 
-  # POST /api/standard_items
+  # POST /api/standard_items  { "standard_item": { "name": "melk", "category": "zuivel", "client_id": "…uuid…" } }
+  # client_id (optional): an item with that client_id that is already there is returned as
+  # it is, with 200 (an offline change sent twice). See ClientAction for the uuid.
   def create
-    @standard_item = StandardItem.new(standard_item_params)
+    client_id = params.dig(:standard_item, :client_id).to_s
+    if client_id.match?(ClientAction::UUID) && (existing = StandardItem.find_by(client_id: client_id))
+      return render json: serialize(existing)
+    end
+
+    @standard_item = StandardItem.new(standard_item_params.merge(client_id: client_id.presence))
     save_and_render(status: :created)
   end
 
@@ -45,14 +52,21 @@ class Api::StandardItemsController < ApplicationController
   end
 
   # POST /api/standard_items/add_to_shopping_list  { "ids": [1, 2, 3] }
+  # POST /api/standard_items/add_to_shopping_list  { "names": ["melk"], "client_action_id": "…" }
   # Each item once on the shopping list: a new line, or one more on a line that is already
   # there (ShoppingListItem.add_standard!). Ids that do not exist are skipped. Returns the
   # lines that were added or changed, in the order of the item names.
+  # names: for a change made offline, which can name an item that was itself added offline
+  # (no id yet). client_action_id: sent again, nothing is added twice (ClientAction).
   def add_to_shopping_list
-    ids = params.expect(ids: [])
+    names = if params.key?(:names)
+      params.expect(names: []).map { |name| name.to_s.squish.downcase }.compact_blank.uniq.sort
+    else
+      StandardItem.where(id: params.expect(ids: [])).order(:name).pluck(:name)
+    end
 
-    lines = ShoppingListItem.transaction do
-      StandardItem.where(id: ids).order(:name).map { |item| ShoppingListItem.add_standard!(item.name) }
+    lines, _created = ClientAction.once(params[:client_action_id]) do
+      ShoppingListItem.transaction { names.map { |name| ShoppingListItem.add_standard!(name) } }
     end
 
     render json: ShoppingListItemSerializer.items(lines)
@@ -63,6 +77,7 @@ class Api::StandardItemsController < ApplicationController
       @standard_item = StandardItem.find(params[:id])
     end
 
+    # client_id only on create (see create), never changed afterwards.
     def standard_item_params
       params.expect(standard_item: [ :name, :category ])
     end

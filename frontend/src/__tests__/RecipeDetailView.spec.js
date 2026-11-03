@@ -463,7 +463,9 @@ describe('RecipeDetailView', () => {
       await button(wrapper, 'bloem op boodschappenlijst').trigger('click')
       await flushPromises()
 
-      expect(addRequests).toEqual([{ servings: 6, ingredient_ids: [1] }])
+      expect(addRequests).toEqual([
+        { servings: 6, ingredient_ids: [1], client_action_id: expect.any(String) },
+      ])
       // De regels die de server teruggeeft, staan in de store (teller in het menu).
       expect(useShoppingListStore().items).toEqual(serverLines)
       expect(wrapper.find('[role="status"]').text()).toBe('bloem staat op je boodschappenlijst.')
@@ -480,7 +482,7 @@ describe('RecipeDetailView', () => {
       await flushPromises()
 
       // Zonder ingredient_ids: de server neemt alles behalve de optionele.
-      expect(addRequests).toEqual([{ servings: 2 }])
+      expect(addRequests).toEqual([{ servings: 2, client_action_id: expect.any(String) }])
       expect(wrapper.find('[role="status"]').text()).toContain('Alle ingrediënten')
     })
 
@@ -550,7 +552,7 @@ describe('RecipeDetailView', () => {
         await buttonWithText(wrapper, 'Alles op lijst').trigger('click')
         await flushPromises()
 
-        expect(addRequests).toEqual([{ servings: 4 }])
+        expect(addRequests).toEqual([{ servings: 4, client_action_id: expect.any(String) }])
         expect(wrapper.find('[role="status"]').text()).toBe(
           'Alle ingrediënten staan op je boodschappenlijst, behalve de optionele.',
         )
@@ -562,7 +564,9 @@ describe('RecipeDetailView', () => {
         await button(wrapper, 'poedersuiker op boodschappenlijst').trigger('click')
         await flushPromises()
 
-        expect(addRequests).toEqual([{ servings: 4, ingredient_ids: [5] }])
+        expect(addRequests).toEqual([
+          { servings: 4, ingredient_ids: [5], client_action_id: expect.any(String) },
+        ])
       })
     })
   })

@@ -18,6 +18,14 @@ export function addShoppingListItems(items) {
   return request(BASE, { method: 'POST', body: JSON.stringify({ shopping_list_items: items }) })
 }
 
+// Een los item getypt op de lijst ("3 uien"): { name, count, ingredient_id (een gekozen
+// suggestie, of null), checked?, client_action_id }. Staat hetzelfde ingrediënt (of zonder
+// ingrediënt dezelfde naam) er al open op zonder hoeveelheid, dan telt de server het aantal
+// daarbij op. Geeft de regel terug in een lijst ([] als hij intussen weg is).
+export function addLooseItem(item) {
+  return request(`${BASE}/add`, { method: 'POST', body: JSON.stringify(item) })
+}
+
 // fields: { checked }, { name } of { count } (1 tot en met 99, de stepper).
 export function updateShoppingListItem(id, fields) {
   return request(itemPath(id), {

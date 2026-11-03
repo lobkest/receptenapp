@@ -10,7 +10,11 @@ import RecipeDetailSteps from '@/components/RecipeDetailSteps.vue'
 import RecipeDetailVariations from '@/components/RecipeDetailVariations.vue'
 import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
+import { isNetworkError, isOffline } from '@/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
+import { useSnapshotStore } from '@/stores/snapshot'
 import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
@@ -72,22 +76,38 @@ function setSwaps(next) {
 // Lukt dat niet, dan blijft de laatste stand staan.
 const shoppingList = useShoppingListStore()
 
+// Uit de offline snapshot: staat het recept daarin, dan zie je het meteen (ook zonder
+// verbinding), en vervangt de verse versie van de server het zodra die er is
+// (stale-while-revalidate). fromCopy: wat je ziet komt (nog) uit de snapshot.
+const snapshot = useSnapshotStore()
+const server = useServerStatusStore()
+const fromCopy = ref(false)
+
 // keepServings: na herladen (bijv. na een conflict) blijft de gekozen porties staan.
 async function load(id, { keepServings = false } = {}) {
   const chosen = servings.value
-  loading.value = true
   notFound.value = false
   error.value = null
-  recipe.value = null
+  snapshot.restore()
+  const cached = snapshot.recipe(id)
+  const show = (loaded) => {
+    const keep = (keepServings || recipe.value?.id === loaded.id) && chosen
+    recipe.value = { ...loaded, variations: loaded.variations ?? [] }
+    servings.value = keep ? chosen : loaded.servings
+  }
+  if (cached && recipe.value?.id !== cached.id) show(cached)
+  else if (!cached) recipe.value = null
+  fromCopy.value = Boolean(cached)
+  if (cached && isOffline()) return
+  loading.value = !cached
   try {
-    const loaded = await fetchRecipe(id)
-    loaded.variations ??= []
-    recipe.value = loaded
-    servings.value = keepServings && chosen ? chosen : loaded.servings
+    show(await fetchRecipe(id))
+    fromCopy.value = false
   } catch (e) {
     if (e.kind === 'not_found') {
+      recipe.value = null
       notFound.value = true
-    } else {
+    } else if (!(cached && isNetworkError(e))) {
       error.value = e.message
     }
   } finally {
@@ -126,6 +146,12 @@ watch(
   <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
   <article v-else-if="recipe">
+    <!-- Uit de offline kopie en geen verbinding: dan zie je wanneer die kopie is gemaakt. -->
+    <OfflineNotice
+      v-if="fromCopy && server.offline"
+      :saved-at="snapshot.savedAt"
+      :offline="server.browserOffline"
+    />
     <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
     <!-- De categorie klein boven de titel; zonder categorie niets. -->
     <p v-if="recipe.category" class="category-label">{{ recipe.category.name }}</p>

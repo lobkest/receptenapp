@@ -16,8 +16,15 @@ import { useAdminStore } from '@/stores/admin'
 // van de pagina (geen oude data). Zodra hij online is, opent de pagina en haalt hij vers op.
 // meta.keepMounted: de pagina blijft dan wel bestaan (alleen verborgen), zodat een half
 // ingevuld formulier niet verdwijnt als de server even slaapt.
+// meta.offline: de pagina kan uit de offline snapshot (stores/snapshot.js); is die er,
+// dan wacht hij niet op de server maar toont hij meteen de kopie.
 export const routes = [
-  { path: '/', name: 'recipes', component: RecipeListView, meta: { needsServer: true } },
+  {
+    path: '/',
+    name: 'recipes',
+    component: RecipeListView,
+    meta: { needsServer: true, offline: true },
+  },
   {
     path: '/recepten/nieuw',
     name: 'recipe-new',
@@ -33,10 +40,15 @@ export const routes = [
     path: '/standaard',
     name: 'standard-items',
     component: StandardItemsView,
-    meta: { needsServer: true },
+    meta: { needsServer: true, offline: true },
   },
   // Wat je in huis hebt, en welke recepten je daarmee kunt maken.
-  { path: '/in-huis', name: 'pantry', component: PantryView, meta: { needsServer: true } },
+  {
+    path: '/in-huis',
+    name: 'pantry',
+    component: PantryView,
+    meta: { needsServer: true, offline: true },
+  },
   // Koppelen aan NEVO voor de voedingswaarde; iedereen mag dit, zoals recepten bewerken.
   {
     path: '/ingredienten',

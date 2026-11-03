@@ -2,19 +2,33 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import ServerWaiting from '@/components/ServerWaiting.vue'
+import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
+import { useSnapshotStore } from '@/stores/snapshot'
+import { useStandardItemsStore } from '@/stores/standardItems'
 import { watchConnectivity } from '@/offline'
 
 const shoppingList = useShoppingListStore()
 const server = useServerStatusStore()
 const pantry = usePantryStore()
+const snapshot = useSnapshotStore()
+const standard = useStandardItemsStore()
+const offline = useOfflineStore()
 const route = useRoute()
 
 // Pagina's met meta.needsServer (router/index.js) wachten tot de server online is; tot dan
 // staat er een laadmelding. Met keepMounted blijft de pagina bestaan, alleen verborgen.
-const waitingForServer = computed(() => Boolean(route.meta.needsServer) && !server.online)
+// Met meta.offline (recepten, standaardlijst, In huis) niet als er een offline snapshot is:
+// die pagina's tonen dan meteen de kopie en verversen zodra de server antwoordt.
+snapshot.restore()
+const waitingForServer = computed(
+  () =>
+    Boolean(route.meta.needsServer) &&
+    !server.online &&
+    !(route.meta.offline && snapshot.available),
+)
 const keepPage = computed(() => !waitingForServer.value || Boolean(route.meta.keepMounted))
 
 // De lijst is gedeeld: iemand anders kan hem intussen hebben aangepast. Daarom halen we
@@ -23,8 +37,13 @@ const keepPage = computed(() => !waitingForServer.value || Boolean(route.meta.ke
 // dan blijft de oude stand staan, en de boodschappenpagina toont zelf een melding.
 // Elke verversing verstuurt eerst wat offline is afgevinkt (de wachtrij in de store);
 // daarom ook verversen zodra de verbinding terug is ('online').
+// Ook de offline snapshot (met If-None-Match: meestal een 304) en de standaardlijst als
+// die geladen is: elke load() verstuurt eerst de outbox (stores/offline.js), daarna zie je
+// overal de stand van de server.
 function refreshShoppingList() {
   shoppingList.load().catch(() => {})
+  snapshot.load()
+  if (standard.loaded) standard.load().catch(() => {})
 }
 
 // Bij het starten en terug naar het tabblad ook pingen of de server wakker is
@@ -123,6 +142,18 @@ onUnmounted(() => {
     </RouterLink>
   </nav>
   <main>
+    <!-- De server weigerde een wijziging van toen je offline was (bijv. een dubbele naam). -->
+    <p v-if="offline.notice" class="notice notice-error sync-notice" role="alert">
+      <span>{{ offline.notice }}</span>
+      <button
+        type="button"
+        class="dismiss"
+        aria-label="Melding sluiten"
+        @click="offline.dismissNotice()"
+      >
+        ✕
+      </button>
+    </p>
     <RouterView v-slot="{ Component }">
       <ServerWaiting v-if="waitingForServer" />
       <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
@@ -153,6 +184,21 @@ footer {
 
 .route-page {
   display: contents;
+}
+
+.sync-notice {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.sync-notice .dismiss {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border-color: transparent;
 }
 
 main {

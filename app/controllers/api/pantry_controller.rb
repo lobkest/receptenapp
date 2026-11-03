@@ -6,9 +6,6 @@ class Api::PantryController < ApplicationController
   include PublicWriteRateLimit
   limit_public_writes only: %i[ update_ingredient update_ingredient_by_name reset ]
 
-  # Quick picks under the search field: the ingredients most used in recipes.
-  MAX_SUGGESTIONS = 12
-
   # GET /api/pantry
   def show
     render_pantry
@@ -59,19 +56,6 @@ class Api::PantryController < ApplicationController
 
   private
     def render_pantry
-      present = PantryItem.where(present: true).select(:ingredient_id)
-      render json: PantrySerializer.pantry(
-        in_house: Ingredient.where(staple: false, id: present).order(:name),
-        staples: Ingredient.where(staple: true).includes(:pantry_item).order(:name),
-        suggestions: suggestions(present)
-      )
-    end
-
-    # Counted over the rows of visible recipes (also optional ones). Staples are left out:
-    # they have their own section.
-    def suggestions(present)
-      Ingredient.joins(recipe_ingredients: :recipe).merge(Recipe.visible)
-        .where(staple: false).where.not(id: present)
-        .group(:id).order(Arel.sql("COUNT(*) DESC"), :name).limit(MAX_SUGGESTIONS).pluck(:id, :name)
+      render json: PantrySerializer.pantry(**PantryItem.overview)
     end
 end

@@ -1,11 +1,13 @@
 <script setup>
 import { computed, ref } from 'vue'
+import OfflineHint from '@/components/OfflineHint.vue'
 import VariationCard from '@/components/VariationCard.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { createVariation, requestVariationDeletion, updateVariation } from '@/api/variations'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { applySwaps, swappedAlternativeIds } from '@/utils/alternatives'
 import { skippedMessage, splitInHouse } from '@/utils/inHouse'
@@ -53,6 +55,8 @@ function resetVariationFeedback() {
   variationError.value = null
   variationConflict.value = false
 }
+
+const server = useServerStatusStore()
 
 function closeVariationForms() {
   adding.value = false
@@ -258,6 +262,7 @@ async function askVariationDeletion(variation) {
           :factor="factor"
           :busy="busyVariationId === variation.id"
           :recipe-id="recipe.id"
+          :offline="server.offline"
           @add-to-list="addVariationToList"
           @add-ingredient="addAdditionToList"
           @remove-ingredient="removeAdditionFromList"
@@ -281,9 +286,12 @@ async function askVariationDeletion(variation) {
       @submit="saveVariation"
       @cancel="cancelVariation"
     />
-    <button v-else type="button" class="add-variation" @click="startAdding">
-      Voeg variatie toe
-    </button>
+    <template v-else>
+      <button type="button" class="add-variation" :disabled="server.offline" @click="startAdding">
+        Voeg variatie toe
+      </button>
+      <OfflineHint v-if="server.offline" />
+    </template>
   </section>
 </template>
 

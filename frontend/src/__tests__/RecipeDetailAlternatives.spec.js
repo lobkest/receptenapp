@@ -151,14 +151,22 @@ describe('ingrediënt wisselen op de receptpagina', () => {
     await flushPromises()
 
     expect(requests).toEqual([
-      { url: '/api/recipes/7/add_to_shopping_list', body: { servings: 2, alternative_ids: [4] } },
       {
         url: '/api/recipes/7/add_to_shopping_list',
-        body: { servings: 2, ingredient_ids: [12], alternative_ids: [4] },
+        body: { servings: 2, alternative_ids: [4], client_action_id: expect.any(String) },
+      },
+      {
+        url: '/api/recipes/7/add_to_shopping_list',
+        body: {
+          servings: 2,
+          ingredient_ids: [12],
+          alternative_ids: [4],
+          client_action_id: expect.any(String),
+        },
       },
       {
         url: '/api/recipes/7/variations/30/add_to_shopping_list',
-        body: { servings: 2, alternative_ids: [4] },
+        body: { servings: 2, alternative_ids: [4], client_action_id: expect.any(String) },
       },
     ])
     expect(wrapper.find('.variations [role="status"]').text()).toContain('Pittig')
@@ -171,7 +179,10 @@ describe('ingrediënt wisselen op de receptpagina', () => {
     await flushPromises()
 
     expect(requests).toEqual([
-      { url: '/api/recipes/7/add_to_shopping_list', body: { servings: 2 } },
+      {
+        url: '/api/recipes/7/add_to_shopping_list',
+        body: { servings: 2, client_action_id: expect.any(String) },
+      },
     ])
   })
 })

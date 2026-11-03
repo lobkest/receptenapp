@@ -3,11 +3,12 @@
 // (stale-while-revalidate). Offline is het alles wat er is.
 import { readJson, writeJson } from './storage'
 
-export function saveSnapshot(key, data, savedAt = Date.now()) {
-  return writeJson(`${key}:snapshot`, { savedAt, data })
+// meta: wat er verder bij hoort, bijv. { etag } voor de volgende If-None-Match.
+export function saveSnapshot(key, data, savedAt = Date.now(), meta = {}) {
+  return writeJson(`${key}:snapshot`, { ...meta, savedAt, data })
 }
 
-// Geeft { data, savedAt } terug, of null als er geen (geldige) snapshot is.
+// Geeft { data, savedAt, ...meta } terug, of null als er geen (geldige) snapshot is.
 export function loadSnapshot(key) {
   const snapshot = readJson(`${key}:snapshot`)
   if (!snapshot || typeof snapshot.savedAt !== 'number' || !('data' in snapshot)) return null

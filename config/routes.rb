@@ -39,6 +39,8 @@ Rails.application.routes.draw do
       patch :ingredients, action: :update_ingredient_by_name
     end
     resources :nevo_foods, only: :index
+    # Everything the app shows offline, in one answer with an ETag (OfflineSnapshotsController).
+    resource :offline_snapshot, only: :show
     # Which frontend build belongs to this server; see lib/app_version.rb.
     resource :version, only: :show
 
@@ -48,6 +50,8 @@ Rails.application.routes.draw do
         post :remove_recipe
       end
       collection do
+        # A loose item typed on the list ("3 uien"), see ShoppingListItem.add_loose!.
+        post :add
         delete :clear_checked
         delete :clear_all
       end

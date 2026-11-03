@@ -283,7 +283,7 @@ describe('ShoppingListView', () => {
       expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeUndefined()
     })
 
-    it('toont offline de opgeslagen lijst met tijdstip, en schakelt wissen uit', async () => {
+    it('toont offline de opgeslagen lijst met tijdstip; alleen wissen staat uit', async () => {
       vi.spyOn(Date, 'now').mockReturnValue(new Date(2026, 9, 16, 9, 41).getTime())
       ;({ wrapper } = await mountApp())
       wrapper.unmount()
@@ -298,13 +298,9 @@ describe('ShoppingListView', () => {
       )
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-      for (const button of wrapper.findAll('.items .remove, .items .stepper button')) {
-        expect(button.attributes('disabled')).toBeDefined()
-      }
-      // De stepper is grijs: ook het getal kun je niet intypen.
-      for (const input of wrapper.findAll('.items .stepper input')) {
-        expect(input.attributes('disabled')).toBeDefined()
-      }
+      // Verwijderen en het aantal gaan offline via de outbox.
+      expect(wrapper.find('.items .remove').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('.items .stepper input').attributes('disabled')).toBeUndefined()
       expect(buttonWithText(wrapper, 'Afgevinkte wissen').attributes('disabled')).toBeDefined()
       expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeDefined()
       expect(wrapper.find('.items input[type="checkbox"]').attributes('disabled')).toBeUndefined()
@@ -341,12 +337,12 @@ describe('ShoppingListView', () => {
       await checkboxes[0].setValue(true)
       await flushPromises()
       expect(wrapper.find('.offline-notice .pending').text()).toBe(
-        '1 wijziging nog niet gesynchroniseerd',
+        '1 wijziging wacht op verbinding',
       )
       await checkboxes[1].setValue(true)
       await flushPromises()
       expect(wrapper.find('.offline-notice .pending').text()).toBe(
-        '2 wijzigingen nog niet gesynchroniseerd',
+        '2 wijzigingen wachten op verbinding',
       )
 
       setOnline(true)

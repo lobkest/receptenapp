@@ -5,7 +5,9 @@ import { collectErrors, isServerRequest } from './helpers.js'
 // Elk tabblad dat de server nodig heeft, toont in dezelfde drie toestanden precies dezelfde
 // gedeelde melding (ServerWaiting in App.vue), en verder niets: geen kop, geen chips, geen
 // invoer. (a) offline, (b) laden (net geopend) en (c) een trage start (> 5 s). Boodschappen
-// hoort er bewust niet bij: die toont offline meteen de opgeslagen lijst.
+// hoort er bewust niet bij: die toont offline meteen de opgeslagen lijst. Recepten, In huis
+// en Standaard (meta.offline) ook niet zodra er een offline snapshot is: die tonen dan de
+// kopie (zie e2e/offline-sync.spec.js).
 //
 // Op de gebouwde app zonder service worker, net als e2e/server-status.spec.js: zo vangt
 // page.route() elk verzoek zelf op. Screenshots in e2e/screenshots/laadstatus-*.png.
@@ -23,6 +25,9 @@ const TABS = [
   ['standaard', '/standaard', 'Standaard'],
   ['ingredienten', '/ingredienten', 'Ingrediënten'],
 ]
+
+// Deze tonen offline de kopie uit de snapshot in plaats van de melding.
+const OFFLINE_TABS = ['recepten', 'in-huis', 'standaard']
 
 // Alleen de gedeelde melding in beeld; de screenshot van <main> komt terug om te vergelijken.
 async function expectOnlyNotice(page, text, name) {
@@ -67,6 +72,12 @@ test('(a) offline: op elk tabblad alleen de gedeelde melding, daarna haalt In hu
   const shots = []
   for (const [name, , link] of TABS) {
     await page.getByRole('link', { name: link, exact: true }).click()
+    if (OFFLINE_TABS.includes(name)) {
+      // De snapshot van het openen hierboven: de pagina zelf, met de offline-melding.
+      await expect(page.locator('main .server-waiting')).toHaveCount(0)
+      await expect(page.locator('main h1')).toBeVisible()
+      continue
+    }
     shots.push([name, await expectOnlyNotice(page, OFFLINE, `${name}-offline`)])
     await expect(page.locator('.server-waiting .spinner')).toHaveCount(0)
   }

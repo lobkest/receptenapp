@@ -58,16 +58,22 @@ export function requestDeletion(id, reason) {
 // behalve de optionele ingrediënten. alternativeIds: de gewisselde ingrediënten ("⇄ tofu").
 // Geeft de nieuwe regels terug.
 // skipIds: regels die in huis zijn; "Alles op lijst" slaat die over.
+// sync: { clientActionId, skipInHouse } voor een wijziging die (ook) via de outbox kan gaan:
+// met hetzelfde clientActionId zet de server niets dubbel op de lijst; skipInHouse laat
+// de server zelf overslaan wat op dat moment in huis is (zie src/offline/outbox.js).
 export function addRecipeToShoppingList(
   id,
   servings,
   ingredientIds = null,
   alternativeIds = [],
   skipIds = [],
+  { clientActionId = null, skipInHouse = false } = {},
 ) {
   const body = ingredientIds ? { servings, ingredient_ids: ingredientIds } : { servings }
   if (alternativeIds.length) body.alternative_ids = alternativeIds
   if (skipIds.length) body.skip_ingredient_ids = skipIds
+  if (skipInHouse) body.skip_in_house = true
+  if (clientActionId) body.client_action_id = clientActionId
   return request(`/api/recipes/${encodeURIComponent(id)}/add_to_shopping_list`, {
     method: 'POST',
     body: JSON.stringify(body),

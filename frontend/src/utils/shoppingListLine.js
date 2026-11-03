@@ -2,6 +2,8 @@ import { formatQuantity } from '@/utils/quantity'
 
 // Herkomst van een regel die alleen van de standaardlijst komt (zonder recept).
 export const STANDARD_SOURCE = 'standaard'
+// Herkomst van een regel die je op de boodschappenlijst zelf typte ("3 uien").
+export const LOOSE_SOURCE = 'los'
 
 // Komt deze regel alleen van de standaardlijst (geen recept, dus ook geen hoeveelheid)?
 export function isStandardOnly(item) {

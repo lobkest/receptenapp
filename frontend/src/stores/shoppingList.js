@@ -5,7 +5,18 @@ import { addRecipeToShoppingList } from '@/api/recipes'
 import { addStandardItemsToShoppingList } from '@/api/standardItems'
 import { addVariationToShoppingList } from '@/api/variations'
 import { recipesOnList } from '@/utils/shoppingListRecipes'
-import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapshot } from '@/offline'
+import { isNetworkError, isOffline, isTempId, loadSnapshot, newId, saveSnapshot } from '@/offline'
+import { useOfflineStore } from '@/stores/offline'
+import { useSnapshotStore } from '@/stores/snapshot'
+import {
+  applyShoppingAction,
+  applyShoppingActions,
+  lineTarget,
+  looseMatch,
+  recipeLines,
+  variationLines,
+} from '@/utils/offlineShoppingList'
+import { MAX_COUNT } from '@/utils/shoppingListLine'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Regels worden nooit samengevoegd: twee keer bloem (uit twee
@@ -15,27 +26,26 @@ import { createActionQueue, isNetworkError, isOffline, loadSnapshot, saveSnapsho
 // src/utils/shoppingListLine.js voor hoe een regel het toont.
 //
 // Offline (in de winkel zonder bereik): de store bewaart na elk contact met de server een
-// kopie in localStorage (snapshot) en toont die bij openen meteen. Afvinken werkt dan nog;
-// dat gaat in een wachtrij en wordt verstuurd zodra er weer verbinding is. Toevoegen,
-// verwijderen, het aantal veranderen en wissen kan offline niet. Zie src/offline/.
+// kopie (snapshot, in IndexedDB) en toont die bij openen meteen. Afstrepen, het aantal
+// veranderen, regels verwijderen en toevoegen (vanuit een recept, de standaardlijst of los)
+// werken dan nog: dat gaat in de outbox (stores/offline.js) en wordt verstuurd zodra er
+// weer verbinding is. Tot dan staat het er alvast, als "wacht op sync" (zie
+// src/utils/offlineShoppingList.js). Wissen en "✓ op lijst" weghalen kan offline niet.
+// Ook online krijgt elke toevoeging een uuid mee: valt de verbinding weg terwijl het request
+// onderweg is, dan gaat dezelfde actie via de outbox, en de server zet niets dubbel.
 
 const OFFLINE_KEY = 'shoppingList'
 
-// Acties: { item_id, checked, at }. Per regel telt alleen de laatste.
-const queue = createActionQueue(OFFLINE_KEY, { idOf: (action) => action.item_id })
-
-function sendAction(action) {
-  return api.updateShoppingListItem(action.item_id, { checked: action.checked })
+// De categorie van een standaarditem (uit de offline snapshot), voor een regel die alleen
+// hier bestaat: dan staat hij offline al in de goede afdeling.
+function categoryOf(name) {
+  const items = useSnapshotStore().data?.standard_items ?? []
+  return items.find((item) => item.name === name)?.category ?? null
 }
 
-// Wat nog in de wachtrij staat, over de (oudere) stand van de server heen.
+// Wat nog in de outbox staat, over de (oudere) stand van de server heen.
 function withQueuedActions(items) {
-  const actions = queue.all()
-  if (actions.length === 0) return items
-  const checkedById = new Map(actions.map((a) => [a.item_id, a.checked]))
-  return items.map((item) =>
-    checkedById.has(item.id) ? { ...item, checked: checkedById.get(item.id) } : item,
-  )
+  return applyShoppingActions(items, useOfflineStore().queued, { categoryOf })
 }
 
 // De stepper: zo lang na de laatste tik wachten we met het request, zodat vijf keer snel
@@ -88,9 +98,6 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // true zodra de lijst in deze sessie vers van de server kwam; tot dan (en weer na
     // verbindingsverlies) is wat je ziet de offline kopie van savedAt.
     fresh: false,
-    // Hoeveel offline wijzigingen nog in de wachtrij staan (een kopie van queue.size:
-    // localStorage zelf is niet reactief).
-    pending: queue.size,
   }),
 
   getters: {
@@ -120,7 +127,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
   actions: {
     // Haalt de hele lijst op. De eerste keer staat de opgeslagen kopie er meteen (al
     // vóór het request), zodat je niet op het netwerk hoeft te wachten. Eerst gaan de
-    // offline afgevinkte regels naar de server, daarna halen we de lijst op.
+    // offline wijzigingen (de outbox) naar de server, daarna halen we de lijst op.
     //
     // Is er intussen hier iets afgevinkt (of is dat nog onderweg), dan kan het antwoord
     // ouder zijn dan wat je ziet; dan houden we de eigen stand en haalt de volgende
@@ -144,7 +151,7 @@ export const useShoppingListStore = defineStore('shoppingList', {
             this.items = withQueuedActions(items)
           }
           this.loaded = true
-          this.persist()
+          this.persist(items)
         })
         .catch((e) => {
           if (!isNetworkError(e)) throw e
@@ -155,17 +162,26 @@ export const useShoppingListStore = defineStore('shoppingList', {
       return pendingLoad
     },
 
-    // Verstuurt de offline wachtrij. Zonder verbinding gooit hij de fout door (de rest
-    // blijft staan); lukt het om een andere reden niet (server stuk), dan blijft de rest
-    // ook staan en proberen we het bij de volgende verversing opnieuw.
-    async sync() {
-      try {
-        await queue.flush(sendAction)
-      } catch (e) {
-        if (isNetworkError(e)) throw e
-      } finally {
-        this.pending = queue.size
-      }
+    // Verstuurt de outbox (ook de standaardlijst: alles in de volgorde waarin je het deed).
+    // Zonder verbinding gooit hij de fout door; zie stores/offline.js.
+    sync() {
+      return useOfflineStore().sync()
+    },
+
+    // Zonder verbinding, of voor een regel die alleen hier bestaat: dan gaat een wijziging
+    // in de outbox in plaats van meteen naar de server.
+    queues(id = null) {
+      return isOffline() || (id != null && isTempId(id))
+    },
+
+    // Een actie in de outbox en meteen zichtbaar. De regels staan er al (optimistisch); de
+    // kopie in de opslag blijft de stand van de server (de outbox komt er bij openen overheen).
+    enqueue(action) {
+      this.markOffline()
+      this.changes++
+      const queued = { id: newId(), at: new Date().toISOString(), ...action }
+      useOfflineStore().enqueue(queued)
+      return queued
     },
 
     // De browser meldt dat de verbinding weg is ('offline'-event).
@@ -183,9 +199,13 @@ export const useShoppingListStore = defineStore('shoppingList', {
     },
 
     // Na elk geslaagd contact met de server: de lijst zoals je hem nu ziet, met tijdstip.
-    persist() {
+    // Staan er nog offline wijzigingen in de outbox, dan alleen de stand van de server
+    // (serverItems, als die er is): de outbox komt er bij openen weer overheen, en anders
+    // zou hij twee keer meetellen.
+    persist(serverItems = null) {
+      if (serverItems == null && useOfflineStore().has('shopping.')) return
       this.savedAt = Date.now()
-      saveSnapshot(OFFLINE_KEY, this.items, this.savedAt)
+      saveSnapshot(OFFLINE_KEY, serverItems ?? this.items, this.savedAt)
     },
 
     // Nieuwe of gewijzigde regels van de server: een bekende regel vervangen, een nieuwe
@@ -202,12 +222,81 @@ export const useShoppingListStore = defineStore('shoppingList', {
 
     // De standaardlijst ([+] of "Op lijst (n)"): de server telt één op bij een regel die er
     // al open op staat, of maakt een nieuwe (zie ShoppingListItem.add_standard!).
-    async addStandardItems(ids) {
+    // items: [{ id, name }] van de standaardlijst. Offline, of voor een item dat zelf nog
+    // op sync wacht (geen id), gaat het op naam via de outbox.
+    async addStandardItems(items) {
+      if (this.queues() || items.some((item) => isTempId(item.id))) {
+        return this.queueAction({
+          type: 'shopping.addStandard',
+          kind: 'call',
+          payload: { names: items.map((item) => item.name).sort() },
+        })
+      }
       this.changes++
-      const lines = await addStandardItemsToShoppingList(ids)
-      for (const line of lines) this.putLine(line.id, line)
-      this.persist()
-      return lines
+      try {
+        const lines = await addStandardItemsToShoppingList(items.map((item) => item.id))
+        for (const line of lines) this.putLine(line.id, line)
+        this.persist()
+        return lines
+      } catch (e) {
+        if (!isNetworkError(e)) throw e
+        return this.queueAction({
+          type: 'shopping.addStandard',
+          kind: 'call',
+          payload: { names: items.map((item) => item.name).sort() },
+        })
+      }
+    },
+
+    // Een actie die regels toevoegt: in de outbox, en de regels er alvast bij. Geeft de
+    // nieuwe regels terug (zoals de server zou doen), voor de melding "… staat op je lijst".
+    queueAction(action) {
+      const before = new Set(this.items)
+      const queued = this.enqueue(action)
+      this.items = applyShoppingAction(this.items, queued, { categoryOf })
+      return this.items.filter((item) => !before.has(item))
+    },
+
+    // Een los item, getypt bovenaan de boodschappenlijst ("3 uien"). ingredientId: de
+    // gekozen suggestie, of null voor vrije tekst (dan geen nieuw ingrediënt). Staat
+    // hetzelfde ingrediënt (of dezelfde naam) er al open op zonder hoeveelheid, dan telt
+    // count daar bij op, zoals de server doet (ShoppingListItem.add_loose!). Altijd via de
+    // outbox-vorm (met een uuid), ook online: dan is opnieuw versturen nooit dubbel.
+    // Geeft de regel terug.
+    async addLoose(name, { ingredientId = null, count = 1 } = {}) {
+      const match = looseMatch(this.items, { name, ingredientId })
+      if (match && isTempId(match.id)) {
+        // Wacht zelf nog op sync: het aantal van die (nog niet verstuurde) regel omhoog.
+        await this.setCount(match.id, Math.min(match.count + count, MAX_COUNT))
+        return match
+      }
+      const action = {
+        id: newId(),
+        type: 'shopping.addLoose',
+        kind: 'call',
+        payload: { name, ingredient_id: ingredientId, count, into: match?.id ?? null },
+      }
+      if (!match) action.target = lineTarget(`tmp:${action.id}`)
+      if (this.queues()) return this.queueAction(action)[0] ?? match
+
+      this.changes++
+      this.inFlight++
+      try {
+        const [line] = await api.addLooseItem({
+          name,
+          count,
+          ingredient_id: ingredientId,
+          client_action_id: action.id,
+        })
+        if (line) this.putLine(line.id, line)
+        this.persist()
+        return line
+      } catch (e) {
+        if (!isNetworkError(e)) throw e
+        return this.queueAction(action)[0] ?? match
+      } finally {
+        this.inFlight--
+      }
     },
 
     // De stepper ([−] 2 [+]) of een getypt aantal. Optimistisch: het nieuwe aantal staat er
@@ -220,6 +309,16 @@ export const useShoppingListStore = defineStore('shoppingList', {
     setCount(id, count) {
       const item = this.items.find((i) => i.id === id)
       if (!item) return Promise.resolve()
+      if (this.queues(id)) {
+        item.count = count
+        this.enqueue({
+          type: 'shopping.count',
+          kind: 'set',
+          target: lineTarget(id),
+          payload: { count },
+        })
+        return Promise.resolve()
+      }
       const pending = pendingCounts.get(id)
       if (pending) {
         clearTimeout(pending.timer)
@@ -246,7 +345,18 @@ export const useShoppingListStore = defineStore('shoppingList', {
         if (!pendingCounts.has(id)) this.putLine(id, saved)
         this.persist()
       } catch (e) {
-        if (isNetworkError(e)) this.markOffline()
+        if (isNetworkError(e)) {
+          // Geen verbinding: het aantal blijft staan en gaat later via de outbox.
+          if (!pendingCounts.has(id)) {
+            this.enqueue({
+              type: 'shopping.count',
+              kind: 'set',
+              target: lineTarget(id),
+              payload: { count },
+            })
+          }
+          return
+        }
         if (e.kind === 'not_found') {
           this.putLine(id, null)
         } else {
@@ -281,18 +391,47 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // id) op de receptpagina. De server schaalt en rondt af (app/models/quantity.rb), net
     // als bij een variatie, en geeft de nieuwe regels terug (die geven we ook terug).
     // skipIds: regels die in huis zijn; die slaat "Alles op lijst" over.
+    // Offline (of als de verbinding onderweg wegvalt) via de outbox: de regels staan er
+    // alvast, uitgerekend uit het recept in de offline snapshot. Bij "Alles op lijst" kijkt
+    // de server bij het versturen zelf wat dan in huis is (skip_in_house).
     async addRecipe(recipeId, servings, ingredientIds = null, alternativeIds = [], skipIds = []) {
+      const action = {
+        id: newId(),
+        type: 'shopping.addRecipe',
+        kind: 'call',
+        payload: {
+          recipe_id: recipeId,
+          servings,
+          ingredient_ids: ingredientIds,
+          alternative_ids: alternativeIds,
+          skip_in_house: ingredientIds == null,
+        },
+      }
+      const queue = () => {
+        const recipe = useSnapshotStore().recipe(recipeId)
+        action.preview = recipe
+          ? recipeLines(recipe, { servings, ingredientIds, alternativeIds, skipIds })
+          : []
+        return this.queueAction(action)
+      }
+      if (this.queues()) return queue()
       this.changes++
-      const lines = await addRecipeToShoppingList(
-        recipeId,
-        servings,
-        ingredientIds,
-        alternativeIds,
-        skipIds,
-      )
-      this.items.push(...lines)
-      this.persist()
-      return lines
+      try {
+        const lines = await addRecipeToShoppingList(
+          recipeId,
+          servings,
+          ingredientIds,
+          alternativeIds,
+          skipIds,
+          { clientActionId: action.id },
+        )
+        this.items.push(...lines)
+        this.persist()
+        return lines
+      } catch (e) {
+        if (!isNetworkError(e)) throw e
+        return queue()
+      }
     },
 
     // "Ontbrekende op lijst" (op "In huis" en bij "Met ingrediënt…"): de regels die nog
@@ -308,18 +447,45 @@ export const useShoppingListStore = defineStore('shoppingList', {
 
     // "Variatie op lijst": de server stelt de regels samen en geeft ze terug (wij ook).
     // skip: wat in huis is, zie addVariationToShoppingList.
+    // Offline net als addRecipe; de server kijkt bij het versturen zelf wat in huis is.
     async addVariation(recipeId, variationId, servings, alternativeIds = [], skip = {}) {
+      const action = {
+        id: newId(),
+        type: 'shopping.addVariation',
+        kind: 'call',
+        payload: {
+          recipe_id: recipeId,
+          variation_id: variationId,
+          servings,
+          alternative_ids: alternativeIds,
+        },
+      }
+      const queue = () => {
+        const recipe = useSnapshotStore().recipe(recipeId)
+        const variation = recipe?.variations.find((v) => v.id === variationId)
+        action.preview = variation
+          ? variationLines(recipe, variation, { servings, alternativeIds, skip })
+          : []
+        return this.queueAction(action)
+      }
+      if (this.queues()) return queue()
       this.changes++
-      const lines = await addVariationToShoppingList(
-        recipeId,
-        variationId,
-        servings,
-        alternativeIds,
-        skip,
-      )
-      this.items.push(...lines)
-      this.persist()
-      return lines
+      try {
+        const lines = await addVariationToShoppingList(
+          recipeId,
+          variationId,
+          servings,
+          alternativeIds,
+          skip,
+          { clientActionId: action.id },
+        )
+        this.items.push(...lines)
+        this.persist()
+        return lines
+      } catch (e) {
+        if (!isNetworkError(e)) throw e
+        return queue()
+      }
     },
 
     // Optimistisch: het vinkje staat er meteen, het request volgt. Naar de server gaat de
@@ -330,31 +496,32 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // verdwijnt hij hier ook.
     async toggle(id) {
       const item = this.items.find((i) => i.id === id)
-      if (!item) return
+      if (!item || item.locked) return
       const checked = !item.checked
       item.checked = checked
-      this.changes++
-      const action = { item_id: id, checked, at: new Date().toISOString() }
-      if (isOffline()) {
-        this.markOffline()
-        queue.enqueue(action)
-        this.pending = queue.size
+      const action = {
+        type: 'shopping.check',
+        kind: 'set',
+        target: lineTarget(id),
+        payload: { checked },
+      }
+      if (this.queues(id)) {
+        this.enqueue(action)
         return
       }
+      this.changes++
+      const offline = useOfflineStore()
       // Een oudere offline actie voor deze regel mag deze waarde later niet overschrijven.
-      queue.discard(id)
-      this.pending = queue.size
+      offline.discardSets(lineTarget(id), 'shopping.check')
       this.inFlight++
       try {
         await api.updateShoppingListItem(id, { checked })
         this.persist()
         // De server is weer bereikbaar: verstuur wat er nog wachtte en ververs.
-        if (this.offline || queue.size > 0) this.load().catch(() => {})
+        if (this.offline || offline.pending > 0) this.load().catch(() => {})
       } catch (e) {
         if (isNetworkError(e)) {
-          this.markOffline()
-          queue.enqueue(action)
-          this.pending = queue.size
+          this.enqueue(action)
           return
         }
         if (e.kind === 'not_found') {
@@ -368,13 +535,26 @@ export const useShoppingListStore = defineStore('shoppingList', {
       }
     },
 
-    // Al door iemand anders verwijderd (404) is ook goed: weg is weg.
+    // Al door iemand anders verwijderd (404) is ook goed: weg is weg. Offline (of voor een
+    // regel die zelf nog op sync wacht) via de outbox; die is dan meteen weg.
     async remove(id) {
+      const item = this.items.find((i) => i.id === id)
+      if (item?.locked) return
+      const action = { type: 'shopping.delete', kind: 'delete', target: lineTarget(id) }
+      if (this.queues(id)) {
+        this.enqueue(action)
+        this.items = this.items.filter((i) => i.id !== id)
+        return
+      }
       this.changes++
       try {
         await api.deleteShoppingListItem(id)
       } catch (e) {
-        if (e.kind !== 'not_found') throw e
+        if (isNetworkError(e)) {
+          this.enqueue(action)
+        } else if (e.kind !== 'not_found') {
+          throw e
+        }
       }
       this.items = this.items.filter((i) => i.id !== id)
       this.persist()

@@ -16,6 +16,8 @@ const props = defineProps({
   // Het recept van de pagina: dan staat bij elke toevoeging "+ lijst" of "✓ op lijst",
   // zoals bij de ingrediënten van het recept. Zonder (null) alleen de tekst.
   recipeId: { type: Number, default: null },
+  // Geen verbinding: op de lijst zetten kan (outbox), bewerken en verwijderen niet.
+  offline: { type: Boolean, default: false },
 })
 
 // add-ingredient en remove-ingredient: (variatie, toevoeging met geschaalde hoeveelheid).
@@ -90,13 +92,19 @@ function additionText(addition) {
       >
         Variatie op lijst
       </button>
-      <button type="button" class="edit" :disabled="busy" @click="emit('edit', variation)">
+      <!-- Op de lijst zetten kan offline (outbox); bewerken en verwijderen niet. -->
+      <button
+        type="button"
+        class="edit"
+        :disabled="busy || offline"
+        @click="emit('edit', variation)"
+      >
         Bewerken
       </button>
       <button
         type="button"
         class="delete btn-danger"
-        :disabled="busy"
+        :disabled="busy || offline"
         @click="emit('delete', variation)"
       >
         Verwijderen

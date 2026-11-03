@@ -20,8 +20,8 @@ export async function request(path, options = {}) {
   try {
     response = await fetch(path, {
       // Altijd vers van de server, nooit uit de HTTP-cache van de browser. De service
-      // worker cachet /api ook niet (vite.config.js); alleen de boodschappenlijst bewaart
-      // zelf een kopie (src/offline/).
+      // worker cachet /api ook niet (vite.config.js); de app bewaart zelf een kopie voor
+      // offline (src/offline/, in IndexedDB).
       cache: 'no-store',
       ...options,
       headers: {
@@ -43,7 +43,12 @@ export async function request(path, options = {}) {
   const body = await response.json().catch(() => ({}))
 
   if (response.ok) return body
+  throw errorFor(response, body)
+}
 
+// De ApiError bij een antwoord dat geen 2xx is; body: de JSON van dat antwoord (of {}).
+// Ook voor api/offline.js, dat fetch zelf doet (vanwege 304).
+export function errorFor(response, body) {
   // Elke fout van de API heeft dezelfde vorm (app/controllers/concerns/api_errors.rb):
   // { error: 'Nederlandse melding', errors: { veld: ['melding zonder veldnaam'] } }.
   // Dit is de enige plek die dat uitleest. Formulieren tonen errors bij elk veld; de rest
@@ -51,7 +56,7 @@ export async function request(path, options = {}) {
   const [kind, fallback] = STATUSES[response.status] ?? SERVER_ERROR
   // Bij een 500 nooit de servertekst: dat kan een technische melding zijn.
   const message = kind === 'server' ? fallback : (body.error ?? fallback)
-  throw new ApiError(kind, message, { status: response.status, errors: body.errors ?? {} })
+  return new ApiError(kind, message, { status: response.status, errors: body.errors ?? {} })
 }
 
 const SERVER_ERROR = ['server', 'Er ging iets mis op de server.']

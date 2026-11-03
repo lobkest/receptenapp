@@ -163,7 +163,7 @@ describe('In huis op de receptpagina', () => {
       {
         method: 'POST',
         url: '/api/recipes/7/add_to_shopping_list',
-        body: { servings: 2, skip_ingredient_ids: [13, 14] },
+        body: { servings: 2, skip_ingredient_ids: [13, 14], client_action_id: expect.any(String) },
       },
     ])
     expect(wrapper.find('.added').text()).toBe('1 toegevoegd, 2 al in huis.')
@@ -175,7 +175,11 @@ describe('In huis op de receptpagina', () => {
     await row(wrapper, 13).find('.list-button').trigger('click')
     await flushPromises()
 
-    expect(requests[0].body).toEqual({ servings: 2, ingredient_ids: [13] })
+    expect(requests[0].body).toEqual({
+      servings: 2,
+      ingredient_ids: [13],
+      client_action_id: expect.any(String),
+    })
   })
 
   it('hint "tofu in huis → wissel (+1)"; een tik wisselt, ook in de URL', async () => {
@@ -208,7 +212,12 @@ describe('In huis op de receptpagina', () => {
     expect(requests[0]).toEqual({
       method: 'POST',
       url: '/api/recipes/7/variations/30/add_to_shopping_list',
-      body: { servings: 2, skip_ingredient_ids: [13], skip_addition_ids: [41] },
+      body: {
+        servings: 2,
+        skip_ingredient_ids: [13],
+        skip_addition_ids: [41],
+        client_action_id: expect.any(String),
+      },
     })
     expect(wrapper.find('.variations .notice-success').text()).toMatch(
       /^"Met feta": .* al in huis\.$/,

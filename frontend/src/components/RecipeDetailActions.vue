@@ -1,11 +1,13 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import OfflineHint from '@/components/OfflineHint.vue'
 import { requestDeletion } from '@/api/recipes'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useTimedMessage } from '@/composables/useTimedMessage'
 import { useAdminStore } from '@/stores/admin'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { recipeText } from '@/utils/recipeText'
 import { shareText } from '@/utils/share'
 
@@ -23,6 +25,7 @@ const router = useRouter()
 // Gedeelde staat: de melding op het overzicht na verwijderen, en of je beheerder bent.
 const recipes = useRecipesStore()
 const admin = useAdminStore()
+const server = useServerStatusStore()
 const { askWithInput } = useConfirmDialog()
 
 // Verwijderen kan iedereen aanvragen. Het recept is dan meteen verborgen; de beheerder
@@ -81,7 +84,9 @@ async function askDeletion() {
 
 <template>
   <div class="recipe-actions">
-    <RouterLink :to="{ name: 'recipe-edit', params: { id: recipe.id } }" class="btn edit">
+    <!-- Zonder verbinding kun je niet bewerken of verwijderen; delen gaat wel. -->
+    <button v-if="server.offline" type="button" class="btn edit" disabled>Bewerken</button>
+    <RouterLink v-else :to="{ name: 'recipe-edit', params: { id: recipe.id } }" class="btn edit">
       Bewerken
     </RouterLink>
     <button type="button" class="btn share" :disabled="sharing" @click="share">Delen</button>
@@ -92,9 +97,15 @@ async function askDeletion() {
     >
       Versies
     </RouterLink>
-    <button type="button" class="btn-danger delete" :disabled="deleting" @click="askDeletion">
+    <button
+      type="button"
+      class="btn-danger delete"
+      :disabled="deleting || server.offline"
+      @click="askDeletion"
+    >
       Verwijderen
     </button>
+    <OfflineHint v-if="server.offline" class="actions-offline" />
     <p v-if="shareMessage" class="share-message notice notice-success" role="status">
       {{ shareMessage }}
     </p>

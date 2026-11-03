@@ -18,8 +18,8 @@ const title = computed(() =>
 
 const pendingText = computed(() =>
   props.pending === 1
-    ? '1 wijziging nog niet gesynchroniseerd'
-    : `${props.pending} wijzigingen nog niet gesynchroniseerd`,
+    ? '1 wijziging wacht op verbinding'
+    : `${props.pending} wijzigingen wachten op verbinding`,
 )
 </script>
 

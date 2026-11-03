@@ -1,16 +1,23 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import IngredientFilter from '@/components/IngredientFilter.vue'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import RecipeCard from '@/components/RecipeCard.vue'
 import RecipeFilterChips from '@/components/RecipeFilterChips.vue'
 import { useIngredientList } from '@/composables/useIngredientNames'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
+import { useSnapshotStore } from '@/stores/snapshot'
 import { categoryChips, filterRecipes, recipeSections } from '@/utils/categories'
 import { joinNames } from '@/utils/ingredientSearch'
 import { sortByCardHeight } from '@/utils/sortRecipes'
 
 const store = useRecipesStore()
+// Offline (store.offline) komen de recepten uit de snapshot; zoeken en filteren gebeurt
+// dan in de browser (utils/offlineRecipes.js).
+const snapshot = useSnapshotStore()
+const server = useServerStatusStore()
 // Een melding van de vorige pagina, bijv. "… is verwijderd." na een verwijderverzoek.
 const notice = ref(store.takeNotice())
 
@@ -98,6 +105,12 @@ onMounted(() => {
 
 <template>
   <h1>Recepten</h1>
+
+  <OfflineNotice
+    v-if="store.offline"
+    :saved-at="snapshot.savedAt"
+    :offline="server.browserOffline"
+  />
 
   <p v-if="notice" class="notice notice-success" role="status">{{ notice }}</p>
 

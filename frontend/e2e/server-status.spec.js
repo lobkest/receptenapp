@@ -29,7 +29,6 @@ test.use({ baseURL: PWA_URL, serviceWorkers: 'block' })
 
 const RICE = 'Rijstschotel serverstatus'
 const BREAD = 'Tarwebrood serverstatus'
-const WAKING = 'Server wordt wakker, ophalen… (kan ~1 minuut duren)'
 
 let api
 const recipeIds = []
@@ -107,12 +106,13 @@ async function cutServer(page) {
   return () => page.unroute(isServerRequest, handler)
 }
 
-test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen', async ({
+test('(a) trage server: Recepten en Boodschappen tonen meteen de bewaarde kopie', async ({
   page,
 }) => {
   const errors = collectErrors(page, { ignoreFailedLoads: true })
 
-  // Eerst één keer online: de lijst wordt lokaal bewaard, met tijdstip.
+  // Eerst één keer online: de lijst en de offline snapshot (de recepten) worden lokaal
+  // bewaard, met tijdstip.
   await page.goto('/boodschappen')
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.offline-notice')).toHaveCount(0)
@@ -120,9 +120,9 @@ test('(a) trage server: laadmelding op Recepten, bewaarde lijst op Boodschappen'
   // De server slaapt: geen antwoord op /up of /api.
   const wakeUp = await sleepServer(page)
   await page.goto('/')
-  await expect(page.locator('.server-waiting')).toHaveText(WAKING)
-  await expect(page.locator('.recipe-card')).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Recepten' })).toHaveCount(0)
+  // Met een snapshot geen laadmelding maar meteen de recepten (stale-while-revalidate).
+  await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
+  await expect(page.locator('.server-waiting')).toHaveCount(0)
   await checkLayout(page, errors, shot('a-recepten-wakker-worden'))
 
   await page.goto('/boodschappen')
@@ -163,9 +163,9 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await expect(notice).toContainText(
     /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
   )
-  await expect(notice).toContainText('Afvinken kan gewoon')
+  await expect(notice).toContainText('Afvinken, het aantal, verwijderen en toevoegen kan gewoon')
   await page.locator('.items input[type="checkbox"]').first().check()
-  await expect(notice).toContainText('1 wijziging nog niet gesynchroniseerd')
+  await expect(notice).toContainText('1 wijziging wacht op verbinding')
   await expect(page.getByRole('alert')).toHaveCount(0)
   await checkLayout(page, errors, shot('b-boodschappen-api-onbereikbaar'))
 
@@ -175,13 +175,14 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
     /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, Offline/,
   )
   await page.locator('.items input[type="checkbox"]').nth(1).check()
-  await expect(notice).toContainText('2 wijzigingen nog niet gesynchroniseerd')
+  await expect(notice).toContainText('2 wijzigingen wachten op verbinding')
   await checkLayout(page, errors, shot('b-boodschappen-offline'))
 
-  // Recepten toont offline geen oude data.
+  // Recepten toont offline de kopie uit de snapshot, met de offline-melding.
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
-  await expect(page.locator('.server-waiting')).toContainText('Offline')
-  await expect(page.locator('.recipe-card')).toHaveCount(0)
+  await expect(page.locator('.server-waiting')).toHaveCount(0)
+  await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
+  await expect(page.locator('.offline-notice')).toContainText('Offline')
   await checkLayout(page, errors, shot('b-recepten-offline'))
 
   // (c) Weer verbinding en de server bereikbaar: de wachtrij gaat naar de server en de

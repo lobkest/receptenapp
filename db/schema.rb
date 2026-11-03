@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -20,6 +20,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index "lower((name)::text)", name: "index_categories_on_lower_name", unique: true
+  end
+
+  create_table "client_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "item_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_client_actions_on_created_at"
   end
 
   create_table "ingredient_traits", force: :cascade do |t|
@@ -68,7 +75,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["code"], name: "index_nevo_foods_on_code", unique: true
-    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying]::text[])", name: "nevo_foods_unit_known"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text])", name: "nevo_foods_unit_known"
   end
 
   create_table "pantry_items", force: :cascade do |t|
@@ -91,7 +98,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.index ["recipe_ingredient_id", "ingredient_id"], name: "index_recipe_ingredient_alternatives_on_row_and_ingredient", unique: true
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "recipe_ingredient_alternatives_quantity_has_unit"
     t.check_constraint "quantity > 0::numeric", name: "recipe_ingredient_alternatives_quantity_positive"
-    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "recipe_ingredient_alternatives_unit_known"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text, 'stuks'::character varying::text, 'tl'::character varying::text, 'el'::character varying::text])", name: "recipe_ingredient_alternatives_unit_known"
   end
 
   create_table "recipe_ingredients", force: :cascade do |t|
@@ -106,7 +113,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.index ["recipe_id", "ingredient_id"], name: "index_recipe_ingredients_on_recipe_id_and_ingredient_id", unique: true
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "recipe_ingredients_quantity_has_unit"
     t.check_constraint "quantity > 0::numeric", name: "recipe_ingredients_quantity_positive"
-    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "recipe_ingredients_unit_known"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text, 'stuks'::character varying::text, 'tl'::character varying::text, 'el'::character varying::text])", name: "recipe_ingredients_unit_known"
   end
 
   create_table "recipe_tags", force: :cascade do |t|
@@ -167,13 +174,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.boolean "pantry_changed", default: false, null: false
     t.integer "standard_count", default: 0, null: false
     t.integer "count", default: 1, null: false
+    t.uuid "client_id"
+    t.index ["client_id"], name: "index_shopping_list_items_on_client_id", unique: true
     t.index ["ingredient_id"], name: "index_shopping_list_items_on_ingredient_id"
     t.index ["recipe_id"], name: "index_shopping_list_items_on_recipe_id"
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "shopping_list_items_quantity_has_unit"
     t.check_constraint "count >= 1 AND count <= 99", name: "shopping_list_items_count_range"
     t.check_constraint "quantity > 0::numeric", name: "shopping_list_items_quantity_positive"
     t.check_constraint "standard_count >= 0", name: "shopping_list_items_standard_count_not_negative"
-    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "shopping_list_items_unit_known"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text, 'stuks'::character varying::text, 'tl'::character varying::text, 'el'::character varying::text])", name: "shopping_list_items_unit_known"
   end
 
   create_table "standard_items", force: :cascade do |t|
@@ -181,6 +190,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.string "category"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "client_id"
+    t.index ["client_id"], name: "index_standard_items_on_client_id", unique: true
     t.index ["name"], name: "index_standard_items_on_name", unique: true
   end
 
@@ -231,9 +242,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.index ["recipe_variation_id", "recipe_ingredient_id"], name: "index_variation_changes_on_variation_and_recipe_ingredient", unique: true
     t.check_constraint "(quantity IS NULL) = (unit IS NULL)", name: "variation_changes_quantity_has_unit"
     t.check_constraint "kind::text = 'remove'::text AND recipe_ingredient_id IS NOT NULL AND name IS NULL AND quantity IS NULL AND unit IS NULL OR kind::text = 'add'::text AND recipe_ingredient_id IS NULL AND name IS NOT NULL", name: "variation_changes_fields_match_kind"
-    t.check_constraint "kind::text = ANY (ARRAY['add'::character varying, 'remove'::character varying]::text[])", name: "variation_changes_kind_known"
+    t.check_constraint "kind::text = ANY (ARRAY['add'::character varying::text, 'remove'::character varying::text])", name: "variation_changes_kind_known"
     t.check_constraint "quantity > 0::numeric", name: "variation_changes_quantity_positive"
-    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying, 'ml'::character varying, 'stuks'::character varying, 'tl'::character varying, 'el'::character varying]::text[])", name: "variation_changes_unit_known"
+    t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text, 'stuks'::character varying::text, 'tl'::character varying::text, 'el'::character varying::text])", name: "variation_changes_unit_known"
   end
 
   create_table "variation_tag_changes", force: :cascade do |t|
@@ -244,7 +255,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_120001) do
     t.datetime "updated_at", null: false
     t.index ["recipe_variation_id", "tag_id"], name: "index_variation_tag_changes_on_recipe_variation_id_and_tag_id", unique: true
     t.index ["tag_id"], name: "index_variation_tag_changes_on_tag_id"
-    t.check_constraint "kind::text = ANY (ARRAY['add'::character varying, 'remove'::character varying]::text[])", name: "variation_tag_changes_kind_known"
+    t.check_constraint "kind::text = ANY (ARRAY['add'::character varying::text, 'remove'::character varying::text])", name: "variation_tag_changes_kind_known"
   end
 
   add_foreign_key "ingredient_traits", "ingredients", on_delete: :cascade

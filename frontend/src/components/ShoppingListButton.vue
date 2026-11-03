@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from 'vue'
+import { OFFLINE_TEXT } from '@/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 
 // De knop naast een ingrediënt op de receptpagina (en bij een toevoeging van een variatie).
@@ -20,6 +22,8 @@ const props = defineProps({
 const emit = defineEmits(['add', 'remove'])
 
 const shoppingList = useShoppingListStore()
+// Op de lijst zetten kan offline (outbox); weghalen met "✓ op lijst" pas weer online.
+const server = useServerStatusStore()
 const status = computed(() => shoppingList.listStatus(props.ingredient, props.recipeId))
 const state = computed(() => {
   if (!status.value.onList) return 'add'
@@ -42,7 +46,8 @@ const state = computed(() => {
     v-else-if="state === 'own'"
     type="button"
     class="list-button own"
-    :disabled="busy"
+    :disabled="busy || server.offline"
+    :title="server.offline ? OFFLINE_TEXT : undefined"
     :aria-label="`${ingredient.name} staat op je boodschappenlijst; tik om weg te halen`"
     @click="emit('remove')"
   >

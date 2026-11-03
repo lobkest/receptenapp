@@ -179,7 +179,11 @@ describe('Met ingrediënt… op het receptenoverzicht', () => {
 
     const call = fetch.mock.calls.find(([url]) => url.endsWith('/add_to_shopping_list'))
     expect(call[0]).toBe('/api/recipes/2/add_to_shopping_list')
-    expect(JSON.parse(call[1].body)).toEqual({ servings: 6, ingredient_ids: [32, 33] })
+    expect(JSON.parse(call[1].body)).toEqual({
+      servings: 6,
+      ingredient_ids: [32, 33],
+      client_action_id: expect.any(String),
+    })
     expect(cards[2].text()).toContain('Op de lijst ✓')
     // De knop staat niet in de link: tikken opent het recept niet.
     expect(cards[2].find('a .add-missing').exists()).toBe(false)

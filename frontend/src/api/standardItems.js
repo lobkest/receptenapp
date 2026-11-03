@@ -12,7 +12,8 @@ export function fetchStandardItems() {
   return request(BASE)
 }
 
-// item: { name, category }; category null = geen categorie ("overig").
+// item: { name, category, client_id? }; category null = geen categorie ("overig").
+// client_id: een uuid; nog een keer met hetzelfde geeft het bestaande item terug.
 export function createStandardItem(item) {
   return request(BASE, { method: 'POST', body: JSON.stringify({ standard_item: item }) })
 }
@@ -29,6 +30,15 @@ export function deleteStandardItem(id) {
 // die er al (open) op staat. Geeft de nieuwe en gewijzigde regels terug.
 export function addStandardItemsToShoppingList(ids) {
   return request(`${BASE}/add_to_shopping_list`, { method: 'POST', body: JSON.stringify({ ids }) })
+}
+
+// Hetzelfde op naam, voor een wijziging uit de outbox: een item dat offline is aangemaakt,
+// heeft nog geen id. Met hetzelfde clientActionId telt de server niets dubbel.
+export function addStandardNamesToShoppingList(names, clientActionId) {
+  return request(`${BASE}/add_to_shopping_list`, {
+    method: 'POST',
+    body: JSON.stringify({ names, client_action_id: clientActionId }),
+  })
 }
 
 // Alles of niets, in één transactie. Geeft { deleted_ids } terug.

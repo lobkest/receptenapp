@@ -2,11 +2,11 @@
 # any device. Writes are rate limited (PublicWriteRateLimit).
 class Api::ShoppingListItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy remove_recipe destroy_recipe clear_checked clear_all ]
+  limit_public_writes only: %i[ create add update destroy remove_recipe destroy_recipe clear_checked clear_all ]
 
   # "Alles op lijst" for a big recipe is a few dozen; this only stops absurd requests.
   MAX_ITEMS_PER_REQUEST = 100
-  ITEM_FIELDS = %i[ name quantity unit source_label recipe_id checked ].freeze
+  ITEM_FIELDS = %i[ name quantity unit source_label recipe_id checked client_id ].freeze
 
   before_action :set_item, only: %i[ update destroy remove_recipe ]
 
@@ -21,12 +21,36 @@ class Api::ShoppingListItemsController < ApplicationController
   # Every item becomes its own line, also when the same name and unit is already on the list:
   # each line keeps its own source_label and recipe_id. One item returns that item; several
   # return the new lines in the order they were sent.
+  # client_id (a uuid from the browser, optional): a line with that client_id that is already
+  # there is returned as it is instead of added again (an offline change sent twice). Status
+  # 201 when anything was added, 200 when everything was already there.
   def create
     if params.key?(:shopping_list_items)
       create_many(params.expect(shopping_list_items: [ ITEM_FIELDS ]))
     else
       create_one(params.expect(shopping_list_item: ITEM_FIELDS))
     end
+  rescue ActiveRecord::RecordNotUnique
+    # The same client_id at the same moment from a second request: now it is there.
+    raise if @retried
+
+    @retried = true
+    retry
+  end
+
+  # POST /api/shopping_list_items/add  { "name": "uien", "count": 3, "ingredient_id": 12 }
+  # A loose item typed on the list (ShoppingListItem.add_loose!): with ingredient_id when a
+  # suggestion was picked, without it free text. client_action_id: see ClientAction. Returns
+  # the line in a list ([] when a repeated action's line is gone since), like "op lijst".
+  def add
+    fields = params.permit(:name, :ingredient_id, :count, :checked)
+    ingredient = fields[:ingredient_id].presence && Ingredient.find(fields[:ingredient_id])
+
+    items, created = ClientAction.once(params[:client_action_id]) do
+      [ ShoppingListItem.add_loose!(name: fields[:name], ingredient: ingredient, count: fields.fetch(:count, 1),
+        checked: boolean_param(fields[:checked])) ]
+    end
+    render json: ShoppingListItemSerializer.items(items), status: created ? :created : :ok
   end
 
   # PATCH/PUT /api/shopping_list_items/1  { "shopping_list_item": { "checked": true } }
@@ -87,7 +111,17 @@ class Api::ShoppingListItemsController < ApplicationController
       @item = ShoppingListItem.find(params[:id])
     end
 
+    # Only a real uuid: an invalid one would be cast to nil and match a line without client_id.
+    def existing_line(attributes)
+      client_id = attributes[:client_id].to_s
+      ShoppingListItem.find_by(client_id: client_id) if client_id.match?(ClientAction::UUID)
+    end
+
     def create_one(attributes)
+      if (existing = existing_line(attributes))
+        return render json: serialize(existing)
+      end
+
       item = ShoppingListItem.new(attributes)
 
       if item.save
@@ -106,8 +140,13 @@ class Api::ShoppingListItemsController < ApplicationController
       end
 
       failed_index = failed_item = nil
+      added = false
       items = ShoppingListItem.transaction do
         attributes_list.each_with_index.map do |attributes, index|
+          existing = existing_line(attributes)
+          next existing if existing
+
+          added = true
           item = ShoppingListItem.new(attributes)
           unless item.save
             failed_index, failed_item = index, item
@@ -121,7 +160,7 @@ class Api::ShoppingListItemsController < ApplicationController
         errors = failed_item.errors.to_hash.transform_keys { |field| "shopping_list_items[#{failed_index}].#{field}" }
         render_error :unprocessable_content, I18n.t("api.invalid"), errors
       else
-        render json: items.map { |item| serialize(item) }, status: :created
+        render json: ShoppingListItemSerializer.items(items), status: added ? :created : :ok
       end
     end
 

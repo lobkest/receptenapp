@@ -5,7 +5,9 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CountStepper from '@/components/CountStepper.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
+import ShoppingListAddField from '@/components/ShoppingListAddField.vue'
 import ShoppingListRecipes from '@/components/ShoppingListRecipes.vue'
+import { useOfflineStore } from '@/stores/offline'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { countOf, shoppingListLine, shoppingListSource } from '@/utils/shoppingListLine'
@@ -14,11 +16,13 @@ import { categorySections, groupByRecipe, removeRecipeQuestion } from '@/utils/s
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
 // of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
-// opgeslagen kopie; dan kun je alleen afvinken (de stepper is dan grijs).
+// opgeslagen kopie; afvinken, het aantal, verwijderen en toevoegen werken dan gewoon (via de
+// outbox, stores/offline.js). Wat nog op sync wacht, staat er met "wacht op sync" bij.
 // Bij openen staat de offline kopie er meteen, met "Offline kopie van 28 okt om 14:05, bijwerken…"
 // erboven; zodra de verse lijst binnen is (list.fresh), verdwijnt die melding.
 const list = useShoppingListStore()
 const server = useServerStatusStore()
+const offline = useOfflineStore()
 
 const loading = ref(false)
 // Melding bij een mislukte actie (netwerk, server, te veel verzoeken).
@@ -73,6 +77,11 @@ const sections = computed(() =>
 
 const confirmDialog = useTemplateRef('confirmDialog')
 
+// "Iets toevoegen…" (ShoppingListAddField): een los item, ook offline.
+function addLoose({ name, ingredientId, count }) {
+  attempt(() => list.addLoose(name, { ingredientId, count }))
+}
+
 async function removeRecipe(recipe) {
   const sure = await confirmDialog.value.ask(removeRecipeQuestion(recipe))
   if (sure) attempt(() => list.removeRecipe(recipe))
@@ -91,16 +100,18 @@ async function clearAll() {
   <h1>Boodschappen</h1>
 
   <OfflineNotice
-    v-if="list.loaded && (!list.fresh || list.offline || list.pending > 0)"
+    v-if="(list.loaded && (!list.fresh || list.offline)) || offline.pending > 0"
     :saved-at="list.savedAt"
     :offline="server.browserOffline"
-    :pending="list.pending"
+    :pending="offline.pending"
   >
     <template v-if="list.offline" #default>
-      Afvinken kan gewoon; dat gaat naar de server zodra je weer verbinding hebt. Het aantal
-      veranderen, verwijderen en wissen kan pas weer online.
+      Afvinken, het aantal, verwijderen en toevoegen kan gewoon; dat gaat naar de server zodra je
+      weer verbinding hebt. Wissen kan pas weer online.
     </template>
   </OfflineNotice>
+
+  <ShoppingListAddField v-if="list.loaded || !loading" @add="addLoose" />
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
@@ -110,8 +121,8 @@ async function clearAll() {
   <p v-else-if="loading" class="muted">Boodschappenlijst laden…</p>
 
   <p v-else-if="list.loaded && list.items.length === 0" class="empty card">
-    Je boodschappenlijst is leeg. Voeg ingrediënten toe vanaf een
-    <RouterLink to="/">recept</RouterLink>.
+    Je boodschappenlijst is leeg. Typ hierboven wat je nodig hebt, of voeg ingrediënten toe vanaf
+    een <RouterLink to="/">recept</RouterLink>.
   </p>
 
   <template v-else-if="list.items.length">
@@ -128,12 +139,15 @@ async function clearAll() {
           v-for="item in section.items"
           :key="item.id"
           :data-id="item.id"
-          :class="{ checked: item.checked }"
+          :class="{ checked: item.checked, pending: item.pending }"
         >
           <label>
+            <!-- locked: de server rekent bij de sync welke regels het worden; pas daarna
+                 af te strepen, te wijzigen of weg te halen. -->
             <input
               type="checkbox"
               :checked="item.checked"
+              :disabled="item.locked"
               @change="attempt(() => list.toggle(item.id))"
             />
             <!-- "uit: …" direct achter de regel, niet eronder: dat scheelt een regel hoogte.
@@ -146,6 +160,7 @@ async function clearAll() {
                 :title="`uit: ${shoppingListSource(item)}`"
                 >uit: {{ shoppingListSource(item) }}</span
               >
+              <span v-if="item.pending" class="pending-mark">wacht op sync</span>
             </span>
           </label>
           <div class="line-actions">
@@ -153,13 +168,13 @@ async function clearAll() {
             <CountStepper
               :count="countOf(item)"
               :name="item.name"
-              :disabled="list.offline || item.checked"
+              :disabled="item.checked || item.locked"
               @change="(count) => attempt(() => list.setCount(item.id, count))"
             />
             <button
               type="button"
               class="remove"
-              :disabled="list.offline"
+              :disabled="item.locked"
               :aria-label="`${item.name} verwijderen`"
               @click="attempt(() => list.remove(item.id))"
             >
@@ -302,6 +317,21 @@ async function clearAll() {
   color: var(--color-text-muted);
   background: transparent;
   border-color: transparent;
+}
+
+/* Nog niet bij de server: klein en schuin, op een eigen regel onder de naam (naast de naam
+   is op een telefoon geen plek: dan schuift het onder de stepper). */
+.pending .text {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.pending-mark {
+  flex-basis: 100%;
+  line-height: 1.2;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
 }
 
 .checked .line {

@@ -15,6 +15,8 @@ class ShoppingListItem < ApplicationRecord
   MAX_COUNT = 99
   # source_label of a line that only came from the standard list (no recipe, no quantity).
   STANDARD_SOURCE = "standaard"
+  # source_label of a line typed on the shopping list itself ("3 uien"), see add_loose!.
+  LOOSE_SOURCE = "los"
 
   # Optional: items from the standard list (or any POST without recipe_id) have no recipe, and
   # deleting a recipe sets recipe_id to NULL (foreign key with on_delete: :nullify).
@@ -67,6 +69,30 @@ class ShoppingListItem < ApplicationRecord
     line
   end
 
+  # A loose item typed on the shopping list: "uien" count times. ingredient: the suggestion
+  # that was picked, or nil for free text (name as typed; no new ingredient is made, but a
+  # name that happens to be an ingredient is linked, like any line). Already on the list as
+  # an open line without an amount for the same ingredient (or, free text, the same name):
+  # count more on that line, so "uien" twice is "uien ×2". Otherwise a new loose line.
+  # checked: ticked off offline before it was ever sent; then always its own line, ticked
+  # off (an update, so it goes in the house like any tick). Returns the line.
+  def self.add_loose!(name:, ingredient: nil, count: 1, checked: false)
+    count = Integer(count.to_s, exception: false) || 0
+    name = ingredient&.name || name.to_s.squish.downcase
+    unless checked
+      matching = unchecked.where(quantity: nil).where(ingredient ? { ingredient: ingredient } : { name: name })
+      line = matching.order(:id).first
+      if line && count.between?(1, MAX_COUNT)
+        line.update!(count: [ line.count + count, MAX_COUNT ].min)
+        return line
+      end
+    end
+
+    line = create!(name: name, ingredient: ingredient, count: count, source_label: LOOSE_SOURCE)
+    line.update!(checked: true) if checked
+    line
+  end
+
   # Only from the standard list: no recipe part (and so no quantity).
   def standard_only?
     recipe_id.nil? && source_label == STANDARD_SOURCE
@@ -87,7 +113,7 @@ class ShoppingListItem < ApplicationRecord
 
   # The lines of a recipe that is gone: no recipe_id any more, but the recipe's source_label.
   def self.of_deleted_recipe(source_label)
-    where(recipe_id: nil, source_label: source_label.to_s.squish).where.not(source_label: STANDARD_SOURCE)
+    where(recipe_id: nil, source_label: source_label.to_s.squish).where.not(source_label: [ STANDARD_SOURCE, LOOSE_SOURCE ])
   end
 
   # "✓ op lijst" on a recipe takes the recipe part off. Was the line also added from the

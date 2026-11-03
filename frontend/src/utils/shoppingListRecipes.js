@@ -1,5 +1,5 @@
 import { groupByCategory } from '@/utils/grouping'
-import { STANDARD_SOURCE } from '@/utils/shoppingListLine'
+import { LOOSE_SOURCE, STANDARD_SOURCE } from '@/utils/shoppingListLine'
 
 // "Recepten op je lijst" en "Groepeer per recept" op de boodschappenlijst. Alles wordt
 // afgeleid uit de regels zelf (ook offline, uit de opgeslagen kopie).
@@ -9,7 +9,7 @@ import { STANDARD_SOURCE } from '@/utils/shoppingListLine'
 //                                      recept-id, alleen source_label is "… (variatie: …)")
 //   geen recipe_id, wel source_label → een verwijderd recept (de database zette recipe_id
 //                                      op NULL; de naam staat nog in source_label)
-//   anders                          → los of van de standaardlijst
+//   anders                          → los (source_label "los") of van de standaardlijst
 // Een receptregel die ook van de standaardlijst kwam ("melk 200 ml +1") hoort bij het recept.
 
 export const LOOSE_TITLE = 'Los / standaardlijst'
@@ -17,7 +17,7 @@ export const LOOSE_TITLE = 'Los / standaardlijst'
 // Een sleutel per recept, of null voor een losse regel.
 export function recipeKeyOf(item) {
   if (item.recipe_id != null) return `recept-${item.recipe_id}`
-  if (item.source_label && item.source_label !== STANDARD_SOURCE)
+  if (item.source_label && ![STANDARD_SOURCE, LOOSE_SOURCE].includes(item.source_label))
     return `label-${item.source_label}`
   return null
 }
@@ -51,9 +51,10 @@ function byRecipe(items) {
   return groups
 }
 
-// Het hoogste id: de laatst toegevoegde regel.
+// Het hoogste id: de laatst toegevoegde regel. Een regel die nog op sync wacht (id
+// "tmp:…") is de nieuwste.
 function lastId(items) {
-  return Math.max(...items.map((item) => item.id))
+  return Math.max(...items.map((item) => (typeof item.id === 'number' ? item.id : Infinity)))
 }
 
 // Het vakje "Recepten op je lijst": één rij per recept met minstens één open regel,

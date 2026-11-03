@@ -6,13 +6,19 @@ import { registerSW } from 'virtual:pwa-register'
 
 import App from './App.vue'
 import router from './router'
+import { initOffline } from './offline'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
 
-app.mount('#app')
+// Eerst de offline opslag (IndexedDB) in het geheugen, dan pas de app: de stores lezen de
+// kopieën en de outbox daarna gewoon synchroon (src/offline/storage.js). Een paar
+// milliseconden; mislukt het, dan start de app zonder kopie.
+initOffline()
+  .catch(() => {})
+  .finally(() => app.mount('#app'))
 
 // De service worker (vite.config.js). Bij een nieuwe deploy wordt de nieuwe meteen actief
 // en herlaadt registerSW() de pagina met de nieuwe bundel. Elke keer dat je terugkomt naar

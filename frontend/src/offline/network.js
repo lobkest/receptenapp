@@ -2,6 +2,9 @@
 // betekent "er is een netwerk", niet "de server is bereikbaar". Daarom kijken we ook
 // naar mislukte requests (isNetworkError).
 
+// Bij knoppen die zonder verbinding uit staan (components/OfflineHint.vue, title-attribuut).
+export const OFFLINE_TEXT = 'Niet beschikbaar zonder verbinding'
+
 export function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }

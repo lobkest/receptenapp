@@ -155,7 +155,7 @@ describe('RecipeDetailView: tags en variaties', () => {
     await flushPromises()
 
     const post = fetch.mock.calls.find(([url]) => url.endsWith('add_to_shopping_list'))
-    expect(JSON.parse(post[1].body)).toEqual({ servings: 3 })
+    expect(JSON.parse(post[1].body)).toEqual({ servings: 3, client_action_id: expect.any(String) })
     expect(wrapper.find('section.variations [role="status"]').text()).toBe(
       '"Met kip" staat op je boodschappenlijst.',
     )

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useShoppingListStore } from '../stores/shoppingList'
 import { fakeServer, jsonResponse, mockFetch } from './helpers'
-import { clearMemoryStorage } from '../offline/storage'
+import { clearMemoryStorage, readJson } from '../offline/storage'
 
 const PANCAKES = { label: 'Pannenkoeken', recipeId: 1 }
 const WAFFLES = { label: 'Wafels', recipeId: 2 }
@@ -31,9 +31,17 @@ function bodyOf(call) {
   return JSON.parse(call[1].body)
 }
 
-// De offline wachtrij zoals die in localStorage staat.
+// De outbox zoals die in de opslag staat (src/offline/outbox.js), zonder id en tijdstip.
 function queued() {
-  return JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:queue') ?? '[]')
+  return (readJson('outbox')?.actions ?? []).map(({ type, target, payload }) => ({
+    type,
+    target,
+    payload,
+  }))
+}
+
+function snapshotOf() {
+  return readJson('shoppingList:snapshot')
 }
 
 // Een request die pas antwoordt als de test dat zegt.
@@ -195,7 +203,9 @@ describe('boodschappenlijst-store', () => {
 
       expect(list.items[0].checked).toBe(false)
       expect(list.offline).toBe(true)
-      expect(queued()).toEqual([{ item_id: 3, checked: false, at: expect.any(String) }])
+      expect(queued()).toEqual([
+        { type: 'shopping.check', target: 'shopping:3', payload: { checked: false } },
+      ])
     })
 
     it('haalt de regel weg als iemand anders hem al verwijderde', async () => {
@@ -275,9 +285,6 @@ describe('boodschappenlijst-store', () => {
   })
 
   describe('offline', () => {
-    const QUEUE_KEY = 'receptenapp:offline:shoppingList:queue'
-    const SNAPSHOT_KEY = 'receptenapp:offline:shoppingList:snapshot'
-
     function goOffline() {
       vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     }
@@ -295,7 +302,7 @@ describe('boodschappenlijst-store', () => {
       fakeServer({ shopping: [BLOEM, MELK] })
       const list = await loadedStore()
 
-      const snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_KEY))
+      const snapshot = snapshotOf()
       expect(snapshot.savedAt).toBe(1_000)
       expect(snapshot.data.map((i) => i.name)).toEqual(['bloem', 'melk'])
       expect(list.savedAt).toBe(1_000)
@@ -305,8 +312,7 @@ describe('boodschappenlijst-store', () => {
     it('werkt de snapshot ook bij na afvinken, toevoegen en verwijderen', async () => {
       fakeServer({ shopping: [BLOEM, ZOUT] })
       const list = await loadedStore()
-      const snapshotNames = () =>
-        JSON.parse(localStorage.getItem(SNAPSHOT_KEY)).data.map((i) => [i.name, i.checked])
+      const snapshotNames = () => snapshotOf().data.map((i) => [i.name, i.checked])
 
       await list.toggle(1)
       expect(snapshotNames()).toEqual([
@@ -388,9 +394,9 @@ describe('boodschappenlijst-store', () => {
       expect(list.items.map((i) => i.checked)).toEqual([false, true])
       expect(list.openCount).toBe(1)
       expect(requestsOf(fetch, 'PATCH')).toHaveLength(0)
-      expect(JSON.parse(localStorage.getItem(QUEUE_KEY))).toEqual([
-        { item_id: 2, checked: true, at: expect.any(String) },
-        { item_id: 1, checked: false, at: expect.any(String) },
+      expect(queued()).toEqual([
+        { type: 'shopping.check', target: 'shopping:2', payload: { checked: true } },
+        { type: 'shopping.check', target: 'shopping:1', payload: { checked: false } },
       ])
     })
 
@@ -429,7 +435,7 @@ describe('boodschappenlijst-store', () => {
       expect(shoppingDb.map((i) => i.checked)).toEqual([false, true, false])
       expect(list.items.map((i) => i.checked)).toEqual([false, true, false])
       expect(list.offline).toBe(false)
-      expect(localStorage.getItem(QUEUE_KEY)).toBe('[]')
+      expect(queued()).toEqual([])
     })
 
     it('slaat een regel die intussen verwijderd is (404) over', async () => {
@@ -444,7 +450,7 @@ describe('boodschappenlijst-store', () => {
       await list.load()
 
       expect(list.items.map((i) => [i.name, i.checked])).toEqual([['zout', true]])
-      expect(JSON.parse(localStorage.getItem(QUEUE_KEY))).toEqual([])
+      expect(queued()).toEqual([])
     })
 
     it('houdt de wachtrij en de offline stand als de server weer stuk is', async () => {
@@ -461,7 +467,7 @@ describe('boodschappenlijst-store', () => {
       await list.load()
 
       expect(list.items[0].checked).toBe(true)
-      expect(JSON.parse(localStorage.getItem(QUEUE_KEY))).toHaveLength(1)
+      expect(queued()).toHaveLength(1)
     })
 
     it('stuurt een oudere offline actie niet meer als je online opnieuw afvinkt', async () => {
@@ -481,7 +487,7 @@ describe('boodschappenlijst-store', () => {
       expect(shoppingDb[0].checked).toBe(false)
     })
 
-    it('werkt zonder localStorage: alles blijft in het geheugen tot herladen', async () => {
+    it('werkt zonder IndexedDB en localStorage: alles blijft in het geheugen tot herladen', async () => {
       for (const method of ['getItem', 'setItem', 'removeItem']) {
         vi.spyOn(Storage.prototype, method).mockImplementation(() => {
           throw new DOMException('Opslag uitgezet', 'SecurityError')
@@ -697,7 +703,10 @@ describe('boodschappenlijst-store', () => {
       })
       const list = await loadedStore()
 
-      const lines = await list.addStandardItems([1, 2])
+      const lines = await list.addStandardItems([
+        { id: 1, name: 'melk' },
+        { id: 2, name: 'kaas' },
+      ])
 
       expect(lines.map((l) => [l.id, l.standard_count])).toEqual([
         [6, 1],
@@ -709,9 +718,7 @@ describe('boodschappenlijst-store', () => {
       ])
       expect(shoppingDb).toHaveLength(2)
       // De offline kopie heeft de teller ook.
-      expect(
-        JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:snapshot')).data,
-      ).toEqual(list.items)
+      expect(snapshotOf().data).toEqual(list.items)
     })
   })
 
@@ -741,9 +748,7 @@ describe('boodschappenlijst-store', () => {
       expect(patches).toHaveLength(1)
       expect(bodyOf(patches[0])).toEqual({ shopping_list_item: { count: 4 } })
       expect(shoppingDb[0].count).toBe(4)
-      expect(
-        JSON.parse(localStorage.getItem('receptenapp:offline:shoppingList:snapshot')).data[0].count,
-      ).toBe(4)
+      expect(snapshotOf().data[0].count).toBe(4)
     })
 
     it('zet bij een fout het aantal van vóór de eerste tik terug en gooit de fout door', async () => {
@@ -762,7 +767,7 @@ describe('boodschappenlijst-store', () => {
       expect(shoppingDb[0].count).toBe(2)
     })
 
-    it('zonder verbinding: terug naar het oude aantal, en de lijst is offline', async () => {
+    it('zonder verbinding: het aantal blijft staan en gaat in de outbox', async () => {
       fakeServer({ shopping: [line({ id: 5, name: 'melk', source_label: 'standaard' })] })
       const list = await loadedStore()
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
@@ -770,9 +775,12 @@ describe('boodschappenlijst-store', () => {
       const saving = list.setCount(5, 2)
       vi.advanceTimersByTime(400)
 
-      await expect(saving).rejects.toMatchObject({ kind: 'network' })
-      expect(list.items[0].count).toBe(1)
+      await saving
+      expect(list.items[0].count).toBe(2)
       expect(list.offline).toBe(true)
+      expect(queued()).toEqual([
+        { type: 'shopping.count', target: 'shopping:5', payload: { count: 2 } },
+      ])
     })
 
     it('een regel die al weg is (404) verdwijnt hier ook', async () => {

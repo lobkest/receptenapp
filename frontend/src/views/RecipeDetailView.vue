@@ -90,10 +90,13 @@ async function load(id, { keepServings = false } = {}) {
   error.value = null
   snapshot.restore()
   const cached = snapshot.recipe(id)
+  // Dezelfde pagina ververst (de verse versie na de kopie): de porties die je intussen koos
+  // blijven staan, ook als je tikte terwijl de server nog antwoordde.
   const show = (loaded) => {
-    const keep = (keepServings || recipe.value?.id === loaded.id) && chosen
+    const current = recipe.value?.id === loaded.id ? servings.value : null
+    const keep = current ?? (keepServings ? chosen : null)
     recipe.value = { ...loaded, variations: loaded.variations ?? [] }
-    servings.value = keep ? chosen : loaded.servings
+    servings.value = keep ?? loaded.servings
   }
   if (cached && recipe.value?.id !== cached.id) show(cached)
   else if (!cached) recipe.value = null

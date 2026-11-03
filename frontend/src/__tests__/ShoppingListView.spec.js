@@ -300,7 +300,7 @@ describe('ShoppingListView', () => {
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
       // Verwijderen en het aantal gaan offline via de outbox.
       expect(wrapper.find('.items .remove').attributes('disabled')).toBeUndefined()
-      expect(wrapper.find('.items .stepper input').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('.items .step.up').attributes('disabled')).toBeUndefined()
       expect(buttonWithText(wrapper, 'Afgevinkte wissen').attributes('disabled')).toBeDefined()
       expect(buttonWithText(wrapper, 'Alles wissen').attributes('disabled')).toBeDefined()
       expect(wrapper.find('.items input[type="checkbox"]').attributes('disabled')).toBeUndefined()
@@ -416,7 +416,7 @@ describe('ShoppingListView', () => {
     }
 
     function countOf(wrapper, id) {
-      return rowOf(wrapper, id).find('.stepper input').element.value
+      return rowOf(wrapper, id).find('.stepper .value').text()
     }
 
     function patchBodies() {
@@ -435,7 +435,7 @@ describe('ShoppingListView', () => {
       expect(rowOf(wrapper, 2).find('.remove').exists()).toBe(true)
       // Afgevinkt: de stepper staat uit.
       expect(rowOf(wrapper, 3).find('.step.up').attributes('disabled')).toBeDefined()
-      expect(rowOf(wrapper, 3).find('.stepper input').attributes('disabled')).toBeDefined()
+      expect(rowOf(wrapper, 3).find('.stepper').classes()).toContain('disabled')
     })
 
     it('+ op een regel met hoeveelheid: meteen "200 g yoghurt (×2)", na 400 ms één PATCH', async () => {
@@ -455,22 +455,6 @@ describe('ShoppingListView', () => {
       expect(patchBodies()).toEqual([{ count: 2 }])
       expect(server.shoppingDb[1].count).toBe(2)
       expect(listLines(wrapper)[1]).toBe('200 g yoghurt (×2)')
-    })
-
-    it('intypen en Enter slaat het getypte aantal op', async () => {
-      ;({ wrapper } = await mountApp())
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-
-      const input = rowOf(wrapper, 1).find('.stepper input')
-      await input.trigger('focus')
-      await input.setValue('12')
-      await input.trigger('keydown', { key: 'Enter' })
-      await input.trigger('blur')
-      vi.advanceTimersByTime(400)
-      await flushPromises()
-
-      expect(patchBodies()).toEqual([{ count: 12 }])
-      expect(countOf(wrapper, 1)).toBe('12')
     })
 
     it('mislukt het opslaan, dan staat het oude aantal terug met een melding', async () => {

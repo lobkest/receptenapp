@@ -199,11 +199,11 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await add.fill(`${PREFIX}appels 2`)
   await add.press('Enter')
   await expect(shoppingRow(page, `${PREFIX}appels`)).toHaveCount(1)
-  await expect(shoppingRow(page, `${PREFIX}appels`).locator('.stepper input')).toHaveValue('4')
+  await expect(shoppingRow(page, `${PREFIX}appels`).locator('.stepper .value')).toHaveText('4')
   await expect(shoppingRow(page, '500 g bloem').locator('.pending-mark')).toHaveText(
     'wacht op sync',
   )
-  await expect(shoppingRow(page, `${PREFIX}thee`).locator('.stepper input')).toHaveValue('2')
+  await expect(shoppingRow(page, `${PREFIX}thee`).locator('.stepper .value')).toHaveText('2')
   // Recept (1), standaarditem (1, de bewerking zit erin), thee (1), appels (1).
   await expect(pendingText(page)).toHaveText('4 wijzigingen wachten op verbinding')
   await expect(page.locator('.clear-all')).toBeDisabled()
@@ -275,7 +275,7 @@ test('los item: een suggestie koppelt aan het ingrediënt, vrije tekst niet; off
   await add.fill(`${PREFIX}zeep`)
   await add.press('Enter')
   await expect(pendingText(page)).toHaveText('2 wijzigingen wachten op verbinding')
-  await expect(shoppingRow(page, /^melk$/).locator('.stepper input')).toHaveValue('2')
+  await expect(shoppingRow(page, /^melk$/).locator('.stepper .value')).toHaveText('2')
 
   await context.setOffline(false)
   await expect(page.locator('.pending-mark')).toHaveCount(0)

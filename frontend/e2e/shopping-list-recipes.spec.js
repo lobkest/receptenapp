@@ -260,7 +260,7 @@ test('g) offline: groeperen werkt op de opgeslagen lijst, recept verwijderen nie
   // De regel met standaarddeel staat bij het recept, niet bij "Los / standaardlijst".
   await expect(sectionLines(page, 'Groep-orzo')).toContainText(['400 ml melk (×2)'])
   // Afvinken en het aantal gaan offline via de outbox; een heel recept weghalen niet.
-  await expect(page.locator('.items .stepper input').first()).toBeEnabled()
+  await expect(page.locator('.items .stepper .step.up').first()).toBeEnabled()
   await expect(page.locator('.items input[type="checkbox"]').first()).toBeEnabled()
   for (const button of await page.locator('.remove-recipe').all()) {
     await expect(button).toBeDisabled()

@@ -65,9 +65,9 @@ export function shoppingRow(page, text) {
   return page.locator('.items li').filter({ has: page.locator('.line', { hasText: text }) })
 }
 
-// Het getal in de stepper van die regel (een invoerveld).
-export function countInput(page, text) {
-  return shoppingRow(page, text).locator('.stepper input')
+// Het getal in de stepper van die regel (gewone tekst).
+export function countValue(page, text) {
+  return shoppingRow(page, text).locator('.stepper .value')
 }
 
 export function sorted(texts) {

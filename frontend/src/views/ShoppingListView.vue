@@ -252,7 +252,7 @@ async function clearAll() {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  column-gap: var(--space-2);
+  column-gap: var(--space-1);
   padding: 2px 0;
   border-bottom: 1px solid var(--color-border);
 }
@@ -290,9 +290,11 @@ async function clearAll() {
   min-width: 0;
 }
 
+/* Een lange naam loopt door over meerdere regels (ook een lang woord breekt af). */
 .line {
   flex-shrink: 0;
   max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .sources {
@@ -304,16 +306,22 @@ async function clearAll() {
   white-space: nowrap;
 }
 
+/* Stepper en ✕ zo smal mogelijk, zodat de naam de ruimte krijgt. De ✕ staat vlak naast de
+   stepper (het glyph links in zijn knop); het tikvlak (44×44) loopt onzichtbaar door in de binnenrand van de kaart
+   (negatieve marge), zodat hij in de regel maar weinig plek inneemt. */
 .line-actions {
   display: flex;
   align-items: center;
+  margin-right: calc(-1 * var(--space-3));
 }
 
-/* Net zo groot als de knoppen van de stepper (minstens 44×44). */
 .remove {
+  justify-content: flex-start;
   width: max(var(--tap), 44px);
+  min-width: max(var(--tap), 44px);
   min-height: max(var(--tap), 44px);
-  padding: 0;
+  padding: 0 0 0 var(--space-1);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
   background: transparent;
   border-color: transparent;

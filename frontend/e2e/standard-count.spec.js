@@ -3,7 +3,7 @@ import { RAILS_URL } from './env.js'
 import {
   addFromRecipe,
   collectErrors,
-  countInput,
+  countValue,
   ingredientRow,
   openShoppingList,
   shoppingList,
@@ -110,7 +110,7 @@ test('a) [+] wordt "✓ op lijst"; nog eens tikken geeft één regel "melk" met 
 
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText(['melk'])
-  await expect(countInput(page, 'melk')).toHaveValue('2')
+  await expect(countValue(page, 'melk')).toHaveText('2')
   expect(errors).toEqual([])
 })
 
@@ -124,9 +124,9 @@ test('b) − telt af tot 1 en staat dan uit; ✕ haalt de regel weg, de standaar
   await expect(page.getByRole('status')).toContainText('Nog een kaas')
 
   await openShoppingList(page)
-  await expect(countInput(page, 'kaas')).toHaveValue('2')
+  await expect(countValue(page, 'kaas')).toHaveText('2')
   await page.getByRole('button', { name: 'Eén kaas minder' }).click()
-  await expect(countInput(page, 'kaas')).toHaveValue('1')
+  await expect(countValue(page, 'kaas')).toHaveText('1')
   await expect(page.getByRole('button', { name: 'Eén kaas minder' })).toBeDisabled()
   await expect.poll(async () => (await shoppingList(api))[0]?.count).toBe(1)
   await page.getByRole('button', { name: 'kaas verwijderen' }).click()
@@ -184,7 +184,7 @@ test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "(×2)"; recept-
   })
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText(['melk'])
-  await expect(countInput(page, 'melk')).toHaveValue('1')
+  await expect(countValue(page, 'melk')).toHaveText('1')
   expect(errors).toEqual([])
 })
 
@@ -235,7 +235,7 @@ test('f) selectiemodus met een mix: wat er al op staat één meer, de rest een n
 
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText(['400 ml melk (×2)', 'yoghurt', 'wc-papier'])
-  await expect(countInput(page, 'yoghurt')).toHaveValue('2')
+  await expect(countValue(page, 'yoghurt')).toHaveText('2')
 })
 
 test('screenshots: standaardlijst (mix ✓ en [+]) en boodschappenlijst (steppers) op een iPhone', async ({

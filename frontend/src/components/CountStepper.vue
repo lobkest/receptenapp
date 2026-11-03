@@ -1,12 +1,10 @@
 <script setup>
-import { ref, useTemplateRef } from 'vue'
 import { MAX_COUNT } from '@/utils/shoppingListLine'
 
-// Het aantal van een regel op de boodschappenlijst: [−] 2 [+]. Het getal is een invoerveld:
-// tik erop om te typen; Enter of ergens anders tikken slaat op, Escape laat het zoals het was. Het
-// component bewaart zelf niets: het meldt een nieuw aantal (change) en toont wat count zegt.
-// Bij 1 kan − niet: weghalen gaat alleen met het ✕ ernaast, zodat je niet per ongeluk een
-// regel kwijtraakt.
+// Het aantal van een regel op de boodschappenlijst: [− 2 +]. Aanpassen gaat alleen met − en +;
+// het getal zelf is gewone tekst. Het component bewaart zelf niets: het meldt een nieuw aantal
+// (change) en toont wat count zegt. Bij 1 kan − niet: weghalen gaat alleen met het ✕ ernaast,
+// zodat je niet per ongeluk een regel kwijtraakt.
 const props = defineProps({
   count: { type: Number, required: true },
   // Voor de aria-labels: "Eén melk minder".
@@ -16,43 +14,14 @@ const props = defineProps({
 
 const emit = defineEmits(['change'])
 
-// Tijdens het typen staat in het veld wat je typt (draft); anders het aantal.
-const editing = ref(false)
-const draft = ref('')
-const input = useTemplateRef('input')
-
 function change(count) {
   const next = Math.min(Math.max(count, 1), MAX_COUNT)
   if (next !== props.count) emit('change', next)
 }
-
-// Een tik in het veld: het getal staat geselecteerd, zodat je meteen overtypt.
-function startEditing() {
-  draft.value = String(props.count)
-  editing.value = true
-  input.value.select()
-}
-
-// Alleen hele getallen; 0 wordt 1 en meer dan 99 wordt 99. Leeg of geen getal: niets.
-function commit() {
-  if (!editing.value) return
-  editing.value = false
-  const text = draft.value.trim()
-  if (/^\d+$/.test(text)) change(Number(text))
-}
-
-function finish() {
-  input.value.blur()
-}
-
-function cancel() {
-  editing.value = false
-  input.value.blur()
-}
 </script>
 
 <template>
-  <div class="stepper" role="group" :aria-label="`Aantal ${name}`">
+  <div class="stepper" :class="{ disabled }" role="group" :aria-label="`Aantal ${name}`">
     <button
       type="button"
       class="step down"
@@ -62,23 +31,8 @@ function cancel() {
     >
       −
     </button>
-    <input
-      ref="input"
-      class="value"
-      type="text"
-      inputmode="numeric"
-      pattern="[0-9]*"
-      maxlength="2"
-      enterkeyhint="done"
-      :value="editing ? draft : count"
-      :disabled="disabled"
-      :aria-label="`Aantal ${name}`"
-      @focus="startEditing"
-      @input="draft = $event.target.value"
-      @keydown.enter.prevent="finish"
-      @keydown.esc.prevent="cancel"
-      @blur="commit"
-    />
+    <!-- aria-live: een schermlezer leest het nieuwe aantal voor na − of +. -->
+    <span class="value" aria-live="polite">{{ count }}</span>
     <button
       type="button"
       class="step up"
@@ -92,46 +46,52 @@ function cancel() {
 </template>
 
 <style scoped>
-/* Minstens 44×44 per knop (de richtlijn van Apple voor aanraakvakken), ook het getal. */
+/* Eén smal blokje: een pil met − n + erin. De knoppen zijn 44 px breed en hoog (de richtlijn
+   van Apple voor aanraakvakken), maar de pil die je ziet is smaller: hij begint en eindigt
+   een stukje binnen de knoppen (::before), zodat de buitenkant van elk tikvlak onzichtbaar
+   buiten de pil valt. Het getal is gewone tekst zonder eigen kader. */
 .stepper {
   --step: max(var(--tap), 44px);
+  --inset: 10px;
 
+  position: relative;
   display: flex;
   align-items: center;
 }
 
-.step,
-.value {
-  width: var(--step);
-  min-width: var(--step);
-  height: var(--step);
-  min-height: var(--step);
-  padding: 0;
+.stepper::before {
+  position: absolute;
+  inset: 6px var(--inset);
+  content: '';
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  pointer-events: none;
 }
 
 .step {
-  font-size: var(--text-xl);
+  position: relative;
+  height: var(--step);
+  min-height: var(--step);
+  padding: 0;
+  width: var(--step);
+  min-width: var(--step);
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--color-accent-text);
   background: transparent;
   border-color: transparent;
 }
 
+/* Gewone tekst, net breed genoeg voor twee cijfers (99). */
 .value {
+  width: 2ch;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
   text-align: center;
-  background: transparent;
-  border-color: var(--color-border);
-}
-
-/* De lettergrootte blijft --text-input (16px, uit main.css), anders zoomt iOS in zodra je
-   erin tikt. Tijdens het typen een groene rand. */
-.value:focus {
-  border-color: var(--color-brand);
 }
 
 .step:disabled,
-.value:disabled {
+.disabled .value {
   opacity: 0.35;
 }
 </style>

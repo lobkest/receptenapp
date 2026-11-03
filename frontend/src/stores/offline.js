@@ -58,7 +58,11 @@ const SENDERS = {
   'standard.create': ({ id: clientId, payload }) =>
     createStandardItem({ name: payload.name, category: payload.category, client_id: clientId }),
   'standard.update': ({ payload }, { id }) =>
-    updateStandardItem(id, { name: payload.name, category: payload.category }),
+    updateStandardItem(id, {
+      name: payload.name,
+      category: payload.category,
+      ...(payload.temporary === false && { temporary: false }),
+    }),
   'standard.delete': (_action, { id }) => deleteStandardItem(id),
 }
 

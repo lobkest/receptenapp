@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, reactive, ref, useId, useTemplateRef } from 'vue'
+import { TEMPORARY_NAME, isTemporary } from '@/utils/temporaryItems'
 
 // Eén formulier voor toevoegen (leeg) en bewerken (initial = een bestaand item).
 // Alleen naam en categorie; de server normaliseert ("  Zuivel " → "zuivel").
@@ -24,11 +25,15 @@ const uid = useId()
 // Waarde van de keuze "Nieuwe categorie…". Kan niet botsen met een echte categorie:
 // die zijn genormaliseerd en hebben dus geen hoofdletters.
 const NEW_CATEGORY = 'NEW'
+// Een tijdelijk item (Tijdelijk op de standaardlijst) begint met de keuze "Tijdelijk": zo
+// blijft het tijdelijk. Een categorie of "Geen categorie" maakt het permanent.
+const TEMPORARY = 'TEMPORARY'
+const temporary = isTemporary(props.initial)
 
 const form = reactive({
   name: props.initial.name ?? '',
   // '' = geen categorie.
-  category: props.initial.category ?? '',
+  category: temporary ? TEMPORARY : (props.initial.category ?? ''),
   newCategory: '',
 })
 
@@ -73,8 +78,13 @@ function onSubmit() {
   clientErrors.value = validate()
   if (Object.keys(clientErrors.value).length) return
 
+  if (form.category === TEMPORARY) {
+    emit('save', { name: form.name, category: null })
+    return
+  }
   const category = form.category === NEW_CATEGORY ? form.newCategory : form.category
-  emit('save', { name: form.name, category: category.trim() || null })
+  const fields = { name: form.name, category: category.trim() || null }
+  emit('save', temporary ? { ...fields, temporary: false } : fields)
 }
 </script>
 
@@ -104,6 +114,7 @@ function onSubmit() {
         class="category"
         @change="onCategoryChange"
       >
+        <option v-if="temporary" :value="TEMPORARY">{{ TEMPORARY_NAME }}</option>
         <option value="">Geen categorie</option>
         <option v-for="category in options" :key="category" :value="category">
           {{ category }}

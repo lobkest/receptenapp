@@ -22,9 +22,14 @@ export const SLOW_MS = 2_000
 export const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000]
 
 let retryTimer = null
+let slowTimer = null
 let attempt = 0
 // Een lopende check(), zodat start, 'online' en terug naar het tabblad niet dubbel pingen.
 let pendingCheck = null
+// Nummer van de laatst gestarte ping. Alleen het antwoord van die ping telt: valt de
+// verbinding weg terwijl een ping onderweg is (markOffline), dan komt het antwoord van vóór
+// dat moment soms nog binnen. Dat mag de status niet meer op 'online' zetten.
+let latestPing = 0
 
 // Eén ping: 'online', 'waking' (5xx of time-out) of 'offline' (fetch faalt meteen:
 // geen netwerk, server onbereikbaar).
@@ -74,17 +79,23 @@ export const useServerStatusStore = defineStore('serverStatus', {
         this.scheduleRetry()
         return
       }
-      const slowTimer =
+      const id = ++latestPing
+      clearTimeout(slowTimer)
+      slowTimer =
         this.status === 'online' ? setTimeout(() => (this.status = 'waking'), SLOW_MS) : null
-      pendingCheck = ping()
+      const check = ping()
         .then((result) => {
+          if (id !== latestPing) return
           clearTimeout(slowTimer)
           this.status = result
           if (result === 'online') attempt = 0
           else this.scheduleRetry()
         })
-        .finally(() => (pendingCheck = null))
-      return pendingCheck
+        .finally(() => {
+          if (pendingCheck === check) pendingCheck = null
+        })
+      pendingCheck = check
+      return check
     },
 
     scheduleRetry() {
@@ -100,8 +111,12 @@ export const useServerStatusStore = defineStore('serverStatus', {
       attempt = 0
     },
 
-    // De browser meldt dat de verbinding weg is ('offline'-event).
+    // De browser meldt dat de verbinding weg is ('offline'-event). Een ping die nog onderweg
+    // is, telt niet meer; de volgende check() start een nieuwe.
     markOffline() {
+      latestPing++
+      pendingCheck = null
+      clearTimeout(slowTimer)
       this.browserOffline = true
       this.status = 'offline'
     },
@@ -111,7 +126,10 @@ export const useServerStatusStore = defineStore('serverStatus', {
 // Voor tests: alles terug naar het begin.
 export function resetServerStatus() {
   clearTimeout(retryTimer)
+  clearTimeout(slowTimer)
   retryTimer = null
+  slowTimer = null
+  latestPing = 0
   attempt = 0
   pendingCheck = null
 }

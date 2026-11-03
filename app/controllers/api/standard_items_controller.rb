@@ -7,7 +7,10 @@ class Api::StandardItemsController < ApplicationController
   before_action :set_standard_item, only: %i[ update destroy ]
 
   # GET /api/standard_items
+  # Temporary items unused for StandardItem::TEMPORARY_LIFETIME are removed first (no
+  # scheduled job needed).
   def index
+    StandardItem.remove_expired!
     render json: StandardItem.order(:name).map { |item| serialize(item) }
   end
 
@@ -24,7 +27,9 @@ class Api::StandardItemsController < ApplicationController
     save_and_render(status: :created)
   end
 
-  # PATCH/PUT /api/standard_items/1
+  # PATCH/PUT /api/standard_items/1  { "standard_item": { "name": "melk", "category": "zuivel" } }
+  # A temporary item becomes permanent with a category, or with "temporary": false (moved
+  # to "Geen categorie"). See StandardItem.
   def update
     @standard_item.assign_attributes(standard_item_params)
     save_and_render(status: :ok)
@@ -77,9 +82,10 @@ class Api::StandardItemsController < ApplicationController
       @standard_item = StandardItem.find(params[:id])
     end
 
-    # client_id only on create (see create), never changed afterwards.
+    # client_id only on create (see create), never changed afterwards. temporary: only
+    # false does something (StandardItem#temporary=).
     def standard_item_params
-      params.expect(standard_item: [ :name, :category ])
+      params.expect(standard_item: [ :name, :category, :temporary ])
     end
 
     # The unique index also catches two requests that pass the validation at the same time.
@@ -95,6 +101,6 @@ class Api::StandardItemsController < ApplicationController
     end
 
     def serialize(item)
-      item.slice("id", "name", "category")
+      StandardItem.serialize(item)
     end
 end

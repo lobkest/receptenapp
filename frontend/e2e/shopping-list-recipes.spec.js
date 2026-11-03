@@ -251,7 +251,7 @@ test('g) offline: groeperen werkt op de opgeslagen lijst, recept verwijderen nie
   await context.setOffline(true)
   await page.reload()
   await expect(page.locator('.offline-notice')).toContainText(
-    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, Offline/,
+    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d(?!,)/,
   )
 
   await page.getByLabel('Groepeer per recept').check()

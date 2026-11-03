@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useTraitSaver } from '@/composables/useTraitSaver'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { automaticTagList, toggleTrait, traitConsequence } from '@/utils/traits'
 
 // De kenmerken van een ingrediënt (vlees, gluten, ...) op het bewerkscherm. Los van het
@@ -17,6 +18,9 @@ const props = defineProps({
 
 // Na opslaan: { traits, traits_checked } zoals de server ze nu heeft.
 const emit = defineEmits(['saved'])
+
+// Zonder verbinding: vinkjes en "Gecontroleerd" uit (ze slaan meteen op).
+const server = useServerStatusStore()
 
 const traitNames = ref([])
 const traitError = ref(null)
@@ -81,6 +85,7 @@ function markTraitsChecked() {
         <input
           type="checkbox"
           :checked="traitNames.includes(trait.name)"
+          :disabled="server.offline"
           @change="onTraitToggle(trait.name)"
         />
         <span>{{ trait.name }}</span>
@@ -93,6 +98,7 @@ function markTraitsChecked() {
       v-if="!ingredient.traits_checked"
       type="button"
       class="btn-primary mark-checked"
+      :disabled="server.offline"
       @click="markTraitsChecked"
     >
       Gecontroleerd

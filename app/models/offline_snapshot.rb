@@ -36,7 +36,7 @@ class OfflineSnapshot
       "tags" => Tag.counts(evaluator),
       "categories" => Category.ordered.map { |category| RecipeSerializer.category(category) },
       "ingredients" => Ingredient.order(:name).pluck(:id, :name).map { |id, name| { "id" => id, "name" => name } },
-      "standard_items" => StandardItem.order(:name).map { |item| item.slice("id", "name", "category") },
+      "standard_items" => StandardItem.order(:name).map { |item| StandardItem.serialize(item) },
       "pantry" => PantrySerializer.pantry(**PantryItem.overview)
     }
   end

@@ -6,6 +6,7 @@ import { useOfflineStore } from '@/stores/offline'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { useSnapshotStore } from '@/stores/snapshot'
 import { byName, groupByCategory } from '@/utils/grouping'
+import { TEMPORARY_NAME, isExpired, isTemporary } from '@/utils/temporaryItems'
 
 // De vaste boodschappen, via de openbare API: iedereen met de link ziet en wijzigt
 // dezelfde lijst. Fouten (ApiError) gooien we door, zodat de pagina de melding kan tonen.
@@ -16,6 +17,10 @@ import { byName, groupByCategory } from '@/utils/grouping'
 
 // Zoals StandardItem op de server: spaties weg, kleine letters, maximaal MAX_LENGTH.
 const MAX_LENGTH = 100
+function withoutExpired(items) {
+  const now = Date.now()
+  return items.filter((item) => !isExpired(item, now))
+}
 
 function normalize(value) {
   return String(value ?? '')
@@ -28,6 +33,18 @@ function target(id) {
   return `standard:${id}`
 }
 
+// Een bewerking zoals de server hem bewaart: een categorie of temporary: false maakt een
+// tijdelijk item permanent.
+function updated(item, { name, category, temporary }) {
+  const permanent = category != null || temporary === false
+  return {
+    ...item,
+    name,
+    category,
+    temporary_last_used_at: permanent ? null : (item.temporary_last_used_at ?? null),
+  }
+}
+
 // De outbox-acties voor de standaardlijst over items heen (de stand van de server).
 function withQueuedActions(items) {
   let result = items
@@ -38,7 +55,7 @@ function withQueuedActions(items) {
     if (action.type === 'standard.create') {
       result = [...result, { id: itemId, ...action.payload, pending: true }]
     } else if (action.type === 'standard.update') {
-      result = result.map((item) => (item.id === itemId ? { ...item, ...action.payload } : item))
+      result = result.map((item) => (item.id === itemId ? updated(item, action.payload) : item))
     } else if (action.type === 'standard.delete') {
       result = result.filter((item) => item.id !== itemId)
     }
@@ -55,14 +72,29 @@ export const useStandardItemsStore = defineStore('standardItems', {
   }),
 
   getters: {
-    // Per categorie op alfabet, "overig" (null) achteraan; binnen een groep op naam.
-    groups: (state) => groupByCategory(state.items.toSorted(byName), (item) => item.category),
+    // Per categorie op alfabet, "overig" (null) daarna en "Tijdelijk" altijd als laatste
+    // (temporary: true); binnen een groep op naam.
+    groups: (state) => {
+      const sorted = state.items.toSorted(byName)
+      const groups = groupByCategory(
+        sorted.filter((item) => !isTemporary(item)),
+        (item) => item.category,
+      )
+      const temporary = sorted.filter(isTemporary)
+      if (temporary.length) groups.push({ category: null, temporary: true, items: temporary })
+      return groups
+    },
 
     // Voor de keuzelijst in het formulier: elke categorie één keer, op alfabet.
     categories: (state) =>
-      [...new Set(state.items.map((item) => item.category).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, 'nl'),
-      ),
+      [
+        ...new Set(
+          state.items
+            .filter((item) => !isTemporary(item))
+            .map((item) => item.category)
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, 'nl')),
   },
 
   actions: {
@@ -72,7 +104,7 @@ export const useStandardItemsStore = defineStore('standardItems', {
       const snapshot = useSnapshotStore()
       snapshot.restore()
       if (!this.loaded && snapshot.data?.standard_items) {
-        this.items = withQueuedActions(snapshot.data.standard_items)
+        this.items = withQueuedActions(withoutExpired(snapshot.data.standard_items))
         this.loaded = true
       }
       if (isOffline()) {
@@ -83,7 +115,7 @@ export const useStandardItemsStore = defineStore('standardItems', {
       try {
         await useOfflineStore().sync()
         const items = await api.fetchStandardItems()
-        this.items = withQueuedActions(items)
+        this.items = withQueuedActions(withoutExpired(items))
         this.loaded = true
         this.offline = false
         snapshot.patch('standard_items', items)
@@ -113,13 +145,19 @@ export const useStandardItemsStore = defineStore('standardItems', {
       else if (this.items.some((item) => item.id !== id && item.name === name)) {
         message = 'is al in gebruik'
       }
-      if (message) {
+      const category = normalize(fields.category) || null
+      const errors = {}
+      if (message) errors.name = [message]
+      if (category === TEMPORARY_NAME.toLowerCase()) {
+        errors.category = [`kan niet "${TEMPORARY_NAME}" zijn, die naam is gereserveerd`]
+      }
+      if (Object.keys(errors).length) {
         throw new ApiError('validation', 'Controleer de ingevulde velden.', {
           status: 422,
-          errors: { name: [message] },
+          errors,
         })
       }
-      return { name, category: normalize(fields.category) || null }
+      return { name, category }
     },
 
     // fields: { name, category }. De server normaliseert en geeft het nette item terug.
@@ -150,16 +188,15 @@ export const useStandardItemsStore = defineStore('standardItems', {
       }
     },
 
+    // fields: { name, category, temporary? }; temporary: false maakt een tijdelijk item
+    // permanent zonder categorie ("Geen categorie" in het formulier).
     async update(id, fields) {
       const queue = () => {
         const current = this.items.find((i) => i.id === id)
-        const item = { ...current, ...this.checkOffline(fields, id) }
-        this.enqueue({
-          type: 'standard.update',
-          kind: 'set',
-          target: target(id),
-          payload: { name: item.name, category: item.category },
-        })
+        const payload = { ...this.checkOffline(fields, id) }
+        if (fields.temporary === false) payload.temporary = false
+        const item = updated(current, payload)
+        this.enqueue({ type: 'standard.update', kind: 'set', target: target(id), payload })
         this.items = this.items.map((i) => (i.id === id ? item : i))
         return item
       }

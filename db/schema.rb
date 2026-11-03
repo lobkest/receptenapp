@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -191,8 +191,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_100001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.uuid "client_id"
+    t.datetime "temporary_last_used_at"
     t.index ["client_id"], name: "index_standard_items_on_client_id", unique: true
     t.index ["name"], name: "index_standard_items_on_name", unique: true
+    t.index ["temporary_last_used_at"], name: "index_standard_items_on_temporary_last_used_at"
   end
 
   create_table "steps", force: :cascade do |t|

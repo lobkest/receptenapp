@@ -6,9 +6,12 @@ import IngredientMergeSection from '@/components/IngredientMergeSection.vue'
 import IngredientNevoPicker from '@/components/IngredientNevoPicker.vue'
 import IngredientStaple from '@/components/IngredientStaple.vue'
 import IngredientTraits from '@/components/IngredientTraits.vue'
+import OfflineHint from '@/components/OfflineHint.vue'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import { fetchIngredient, fetchTraits, updateIngredient } from '@/api/ingredients'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
 import { useAdminStore } from '@/stores/admin'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { formatDecimal } from '@/utils/format'
 import { NUTRIENTS } from '@/utils/nutrition'
 
@@ -22,6 +25,9 @@ const props = defineProps({
 })
 
 const admin = useAdminStore()
+// Offline: de melding bovenaan; het formulier blijft staan, maar opslaan (ook de vinkjes
+// en samenvoegen, die meteen opslaan) staat uit.
+const server = useServerStatusStore()
 // Eén bevestigingsvenster voor de pagina; IngredientMergeSection gebruikt het.
 provideConfirmDialog(useTemplateRef('confirmDialog'))
 
@@ -150,6 +156,7 @@ async function send(body, done) {
 }
 
 function save() {
+  if (server.offline) return
   send(fields(), 'Opgeslagen.')
 }
 
@@ -174,6 +181,8 @@ watch(() => props.id, load, { immediate: true })
 </script>
 
 <template>
+  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+
   <p><RouterLink to="/ingredienten" class="back-link top">← Alle ingrediënten</RouterLink></p>
 
   <p v-if="loading" class="muted">Ingrediënt laden…</p>
@@ -197,7 +206,12 @@ watch(() => props.id, load, { immediate: true })
         <strong>Te controleren.</strong> Dit ingrediënt is automatisch gekoppeld. Klopt het
         NEVO-product en de omrekening?
       </p>
-      <button type="button" class="btn-primary" :disabled="saving" @click="confirmReview">
+      <button
+        type="button"
+        class="btn-primary"
+        :disabled="saving || server.offline"
+        @click="confirmReview"
+      >
         Klopt
       </button>
     </div>
@@ -299,7 +313,10 @@ watch(() => props.id, load, { immediate: true })
         </div>
       </section>
 
-      <button type="submit" class="btn-primary btn-block" :disabled="saving">Opslaan</button>
+      <button type="submit" class="btn-primary btn-block" :disabled="saving || server.offline">
+        Opslaan
+      </button>
+      <OfflineHint v-if="server.offline" />
     </form>
 
     <IngredientMergeSection :ingredient="ingredient" @merged="onMerged" />

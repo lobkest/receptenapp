@@ -1,9 +1,11 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { RouterLink, onBeforeRouteLeave, useRouter } from 'vue-router'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import RecipeForm from '@/components/RecipeForm.vue'
 import { fetchRecipe, updateRecipe } from '@/api/recipes'
 import { useRecipesStore } from '@/stores/recipes'
+import { useServerStatusStore } from '@/stores/serverStatus'
 
 // Iedereen mag bewerken. Komt uit de route /recepten/:id/bewerken dankzij props: true.
 const props = defineProps({
@@ -11,6 +13,9 @@ const props = defineProps({
 })
 
 const router = useRouter()
+// Offline: de melding bovenaan; het formulier blijft staan, opslaan staat uit (RecipeForm
+// met offline).
+const server = useServerStatusStore()
 // De bestaande tags en categorieën voor het formulier, en de melding op de receptpagina
 // na opslaan.
 const recipes = useRecipesStore()
@@ -99,6 +104,8 @@ watch(() => props.id, load, { immediate: true })
 </script>
 
 <template>
+  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+
   <h1>Recept bewerken</h1>
 
   <p v-if="loading" class="muted">Recept laden…</p>
@@ -120,6 +127,7 @@ watch(() => props.id, load, { immediate: true })
       :initial="recipe"
       :errors="errors"
       :submitting="submitting"
+      :offline="server.offline"
       :available-tags="recipes.manualTagNames"
       :reserved-tags="recipes.automaticTagNames"
       :available-categories="recipes.categories"

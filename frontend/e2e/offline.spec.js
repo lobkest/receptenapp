@@ -78,9 +78,9 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   // Geen verbinding, en de pagina herladen: de app en de lijst komen uit de opslag.
   await context.setOffline(true)
   await page.reload()
-  // Echt offline: "Offline" in plaats van "bijwerken…".
+  // Echt offline: alleen de titel, zonder ", bijwerken…".
   await expect(page.locator('.offline-notice')).toContainText(
-    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, Offline/,
+    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d(?!,)/,
   )
   await expect.poll(sortedLines).toEqual(['250 g bloem', '500 ml melk', 'wc-papier'])
 

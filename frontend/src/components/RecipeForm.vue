@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
 import CategoryPicker from '@/components/CategoryPicker.vue'
+import OfflineHint from '@/components/OfflineHint.vue'
 import RecipeFormIngredientRow from '@/components/RecipeFormIngredientRow.vue'
 import RecipeFormStepRow from '@/components/RecipeFormStepRow.vue'
 import TagPicker from '@/components/TagPicker.vue'
@@ -18,6 +19,9 @@ import { DEFAULT_UNIT, numberText } from '@/utils/quantity'
 const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
+  // Geen verbinding (serverStatus.offline): het formulier blijft staan met wat je invulde,
+  // maar versturen staat uit.
+  offline: { type: Boolean, default: false },
   // Beginwaarden, bijv. een bestaand recept (met ingredients en steps) bij bewerken.
   // Leeg bij toevoegen.
   initial: { type: Object, default: () => ({}) },
@@ -274,6 +278,8 @@ watch(dirty, (value) => emit('dirty-change', value))
 const sentKeys = ref({ recipe_ingredients: [], steps: [], alternatives: {} })
 
 function onSubmit() {
+  // Ook Enter in een veld verstuurt het formulier.
+  if (props.offline) return
   // "Nieuwe categorie…" zonder naam zou stilletjes "geen categorie" worden.
   if (categoryPicker.value && !categoryPicker.value.validate()) return
 
@@ -463,9 +469,10 @@ function invalidOf(row) {
     <!-- Blijft onderaan in beeld zolang je in het formulier bent (sticky), en staat aan
          het eind gewoon op zijn eigen plek, dus er verdwijnt nooit iets onder. -->
     <div class="submit-bar">
-      <button type="submit" class="btn-primary btn-block" :disabled="submitting">
+      <button type="submit" class="btn-primary btn-block" :disabled="submitting || offline">
         {{ submitting ? 'Versturen…' : submitLabel }}
       </button>
+      <OfflineHint v-if="offline" />
     </div>
   </form>
 </template>

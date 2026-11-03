@@ -54,7 +54,19 @@ function standardRoutes(initial) {
     if (db.some((other) => other !== item && other.name === name)) {
       return jsonResponse({ errors: { name: ['is al in gebruik'] } }, 422)
     }
-    Object.assign(item, { name, category: normalize(fields.category) || null })
+    if (normalize(fields.category) === 'tijdelijk') {
+      return jsonResponse(
+        { errors: { category: ['kan niet "Tijdelijk" zijn, die naam is gereserveerd'] } },
+        422,
+      )
+    }
+    const category = normalize(fields.category) || null
+    Object.assign(item, { name, category })
+    // Zoals StandardItem: een categorie of temporary: false maakt een tijdelijk item
+    // permanent. Alleen voor items met dat veld, zodat oudere tests hetzelfde item zien.
+    if (item.temporary_last_used_at && (category != null || fields.temporary === false)) {
+      item.temporary_last_used_at = null
+    }
     return null
   }
 

@@ -2,7 +2,10 @@
 import { ref, useTemplateRef, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import OfflineHint from '@/components/OfflineHint.vue'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import { useAdminStore } from '@/stores/admin'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { formatDate } from '@/utils/format'
 
 // Alle bewaarde versies van één recept (maximaal 50), nieuwste eerst. De bovenste is
@@ -13,6 +16,8 @@ const props = defineProps({
 })
 
 const admin = useAdminStore()
+// Offline: de melding bovenaan; de versies blijven staan, terugzetten staat uit.
+const server = useServerStatusStore()
 const router = useRouter()
 const confirmDialog = useTemplateRef('confirmDialog')
 
@@ -44,6 +49,7 @@ async function load() {
 }
 
 async function restore(version) {
+  if (server.offline) return
   const sure = await confirmDialog.value.ask({
     title: 'Deze versie terugzetten?',
     text: `Het recept wordt weer zoals op ${formatDate(version.created_at)}: titel, ingrediënten, stappen en tags. De huidige versie blijft bewaard.`,
@@ -80,6 +86,8 @@ watch(() => props.id, load, { immediate: true })
 </script>
 
 <template>
+  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+
   <h1>Versies</h1>
 
   <p v-if="loading && !recipe" class="muted">Versies laden…</p>
@@ -99,6 +107,7 @@ watch(() => props.id, load, { immediate: true })
 
     <p v-if="message" class="notice notice-success" role="status">{{ message }}</p>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+    <OfflineHint v-if="server.offline && versions.some((version) => !version.current)" />
 
     <p v-if="versions.length === 0" class="empty card">
       Nog geen versies: dit recept is niet meer gewijzigd sinds de versiegeschiedenis bestaat.
@@ -115,7 +124,7 @@ watch(() => props.id, load, { immediate: true })
           v-if="!version.current"
           type="button"
           class="restore"
-          :disabled="busy"
+          :disabled="busy || server.offline"
           @click="restore(version)"
         >
           Deze versie terugzetten

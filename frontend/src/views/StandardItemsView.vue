@@ -7,12 +7,14 @@ import StandardItemRow from '@/components/StandardItemRow.vue'
 import StandardItemsBottomBar from '@/components/StandardItemsBottomBar.vue'
 import { useHouseStatus } from '@/composables/useHouseStatus'
 import { useTimedMessage } from '@/composables/useTimedMessage'
+import { oldestSavedAt } from '@/offline'
 import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { useSnapshotStore } from '@/stores/snapshot'
 import { useStandardItemsStore } from '@/stores/standardItems'
+import { TEMPORARY_NAME } from '@/utils/temporaryItems'
 import { skippedMessage, splitInHouse } from '@/utils/inHouse'
 
 // De items staan op de server (via de store), openbaar: iedereen met de link ziet en
@@ -233,6 +235,15 @@ watch(
 </script>
 
 <template>
+  <!-- Wat je ziet komt uit de snapshot (de lijst en de voorraad voor het huisje) en uit de
+       boodschappenlijst ("op lijst"): het oudste van die twee tijdstippen. -->
+  <OfflineNotice
+    v-if="standard.loaded && (standard.offline || server.offline || offline.pending > 0)"
+    :saved-at="oldestSavedAt(snapshot.savedAt, shoppingList.savedAt)"
+    :offline="server.browserOffline"
+    :pending="offline.pending"
+  />
+
   <div class="title-row">
     <h1 class="page-title">Standaardboodschappen</h1>
     <!-- Rond en gevuld groen: anders dan de lichte [+] ("op lijst") op elke rij. -->
@@ -252,13 +263,6 @@ watch(
       </svg>
     </button>
   </div>
-
-  <OfflineNotice
-    v-if="standard.loaded && (standard.offline || offline.pending > 0)"
-    :saved-at="snapshot.savedAt"
-    :offline="server.browserOffline"
-    :pending="offline.pending"
-  />
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
@@ -296,8 +300,15 @@ watch(
     <span v-else class="muted">Kies items</span>
   </div>
 
-  <section v-for="group in standard.groups" :key="group.category ?? ''" class="group">
-    <h2>{{ group.category ?? 'overig' }}</h2>
+  <!-- "Tijdelijk" (group.temporary) is geen categorie: losse items van de boodschappenlijst,
+       altijd als laatste. Verplaatsen naar een categorie (bewerken) maakt ze permanent. -->
+  <section
+    v-for="group in standard.groups"
+    :key="group.temporary ? 'temporary' : (group.category ?? '')"
+    class="group"
+    :class="{ 'group-temporary': group.temporary }"
+  >
+    <h2>{{ group.temporary ? TEMPORARY_NAME : (group.category ?? 'overig') }}</h2>
     <ul class="items card">
       <li v-for="item in group.items" :key="item.id" :data-id="item.id">
         <StandardItemForm

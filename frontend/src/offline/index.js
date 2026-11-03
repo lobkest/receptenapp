@@ -14,6 +14,7 @@ export {
   isNetworkError,
   watchConnectivity,
   formatSavedAt,
+  oldestSavedAt,
   OFFLINE_TEXT,
 } from './network'
 

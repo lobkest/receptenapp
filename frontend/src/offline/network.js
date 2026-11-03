@@ -25,15 +25,32 @@ export function watchConnectivity({ onOnline = () => {}, onOffline = () => {} })
   }
 }
 
-const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+const DAY_MS = 24 * 60 * 60 * 1000
 
-// "28 okt om 14:05": wanneer een snapshot van de server kwam, voor de offline-melding. Met
-// datum, want een kopie van gisteren is iets anders dan een van vanochtend. Het jaartal
-// alleen als het niet dit jaar is ("3 dec 2025 om 09:41"). De maanden staan hier zelf,
-// zodat het in elke browser hetzelfde is (toLocaleDateString geeft soms "okt.").
+// Middernacht (lokale tijd) van de dag waarop timestamp valt.
+function startOfDay(timestamp) {
+  const date = new Date(timestamp)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+// Wanneer een kopie van de server kwam, voor de offline-melding:
+// - dezelfde kalenderdag: "vandaag 18:00"
+// - de dag ervoor: "gisteren 18:00"
+// - ouder: "2 dagen geleden", "3 dagen geleden", … (zonder tijd)
+// In kalenderdagen in de lokale tijd van het apparaat, niet in blokken van 24 uur: om 00:10
+// is een kopie van 23:50 al "gisteren". Math.round vangt de zomer- en wintertijd op (een dag
+// van 23 of 25 uur). Een tijdstip in de toekomst (klok verzet) telt als vandaag.
 export function formatSavedAt(savedAt, now = Date.now()) {
+  const days = Math.round((startOfDay(now) - startOfDay(savedAt)) / DAY_MS)
+  if (days >= 2) return `${days} dagen geleden`
   const date = new Date(savedAt)
-  const time = date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
-  const year = date.getFullYear() === new Date(now).getFullYear() ? '' : ` ${date.getFullYear()}`
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}${year} om ${time}`
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return `${days === 1 ? 'gisteren' : 'vandaag'} ${time}`
+}
+
+// Het oudste tijdstip van de opgeslagen datasets die een pagina toont (null telt niet mee),
+// of null als er geen enkele is.
+export function oldestSavedAt(...savedAts) {
+  const known = savedAts.filter((savedAt) => typeof savedAt === 'number')
+  return known.length ? Math.min(...known) : null
 }

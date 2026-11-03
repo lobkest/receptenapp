@@ -1,4 +1,5 @@
-import { expect } from '@playwright/test'
+import { devices, expect } from '@playwright/test'
+import { PWA_URL } from './env.js'
 
 // Wat meerdere specs nodig hebben. API-hulpjes krijgen de request-context van de spec mee
 // (api, zie traits.js); pagina-hulpjes de page.
@@ -85,6 +86,47 @@ export async function sortedLines(page) {
 export function isServerRequest(url) {
   const { pathname } = new URL(url)
   return pathname === '/up' || pathname.startsWith('/api/')
+}
+
+// --- Offline (de gebouwde app met service worker) ---
+
+// Een nieuw iPhone-venster op de gebouwde app (PWA_URL), met de service worker.
+export async function iphone(browser) {
+  const context = await browser.newContext({
+    ...devices['iPhone 13'],
+    colorScheme: 'dark',
+    baseURL: PWA_URL,
+  })
+  const page = await context.newPage()
+  return { context, page }
+}
+
+// Online openen: de app (service worker), de lijst en de offline snapshot worden bewaard.
+export async function openOnline(page) {
+  await page.goto('/boodschappen')
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await page.goto('/')
+  await expect(page.locator('.recipe-card').first()).toBeVisible()
+  // De snapshot staat in IndexedDB (src/offline/storage.js).
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            const open = indexedDB.open('receptenapp')
+            open.onsuccess = () => {
+              const request = open.result
+                .transaction('offline')
+                .objectStore('offline')
+                .get('app:snapshot')
+              request.onsuccess = () => resolve(Boolean(request.result))
+              request.onerror = () => resolve(false)
+            }
+            open.onerror = () => resolve(false)
+          }),
+      ),
+    )
+    .toBe(true)
 }
 
 // --- API ---

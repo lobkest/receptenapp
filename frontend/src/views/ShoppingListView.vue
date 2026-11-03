@@ -97,10 +97,18 @@ async function clearAll() {
 </script>
 
 <template>
-  <h1>Boodschappen</h1>
-
+  <!-- De offline-melding staat op elke pagina als eerste, boven de kop. Nog geen kopie en
+       geen verbinding: dan is er niets te tonen. -->
   <OfflineNotice
-    v-if="(list.loaded && (!list.fresh || list.offline)) || offline.pending > 0"
+    v-if="loading && server.offline"
+    no-copy
+    :offline="server.browserOffline"
+    unavailable="Boodschappen"
+  />
+  <OfflineNotice
+    v-else-if="
+      (list.loaded && (!list.fresh || list.offline || server.offline)) || offline.pending > 0
+    "
     :saved-at="list.savedAt"
     :offline="server.browserOffline"
     :pending="offline.pending"
@@ -111,12 +119,14 @@ async function clearAll() {
     </template>
   </OfflineNotice>
 
+  <h1>Boodschappen</h1>
+
   <ShoppingListAddField v-if="list.loaded || !loading" @add="addLoose" />
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
-  <!-- Nog geen kopie om te tonen: dezelfde melding als op de receptenpagina. -->
-  <ServerWaiting v-if="loading && !server.online" />
+  <!-- Nog geen kopie en de server start op: dezelfde melding als op de receptenpagina. -->
+  <ServerWaiting v-if="loading && !server.online && !server.offline" />
 
   <p v-else-if="loading" class="muted">Boodschappenlijst laden…</p>
 

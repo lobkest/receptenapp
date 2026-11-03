@@ -18,18 +18,21 @@ import { useAdminStore } from '@/stores/admin'
 // ingevuld formulier niet verdwijnt als de server even slaapt.
 // meta.offline: de pagina kan uit de offline snapshot (stores/snapshot.js); is die er,
 // dan wacht hij niet op de server maar toont hij meteen de kopie.
+// meta.onlineOnly: zonder verbinding (serverStatus.offline) toont App.vue alleen de
+// offline-melding met "… is offline niet beschikbaar", ook als er een snapshot is.
+// meta.offlineName: de paginanaam in die regel ("In huis is offline niet beschikbaar").
 export const routes = [
   {
     path: '/',
     name: 'recipes',
     component: RecipeListView,
-    meta: { needsServer: true, offline: true },
+    meta: { needsServer: true, offline: true, offlineName: 'Recepten' },
   },
   {
     path: '/recepten/nieuw',
     name: 'recipe-new',
     component: RecipeNewView,
-    meta: { needsServer: true, keepMounted: true },
+    meta: { needsServer: true, keepMounted: true, offlineName: 'Recept toevoegen' },
   },
   // props: true geeft :id als prop door aan het component, in plaats van via useRoute().
   { path: '/recepten/:id', name: 'recipe', component: RecipeDetailView, props: true },
@@ -40,25 +43,31 @@ export const routes = [
     path: '/standaard',
     name: 'standard-items',
     component: StandardItemsView,
-    meta: { needsServer: true, offline: true },
+    meta: { needsServer: true, offline: true, offlineName: 'Standaardboodschappen' },
   },
   // Wat je in huis hebt, en welke recepten je daarmee kunt maken.
   {
     path: '/in-huis',
     name: 'pantry',
     component: PantryView,
-    meta: { needsServer: true, offline: true },
+    // offline: tijdens het opstarten van de server de kopie; zonder verbinding niets.
+    meta: { needsServer: true, offline: true, onlineOnly: true, offlineName: 'In huis' },
   },
   // Koppelen aan NEVO voor de voedingswaarde; iedereen mag dit, zoals recepten bewerken.
   {
     path: '/ingredienten',
     name: 'ingredients',
     component: IngredientsView,
-    meta: { needsServer: true },
+    meta: { needsServer: true, offlineName: 'Ingrediënten' },
   },
   { path: '/ingredienten/:id', name: 'ingredient', component: IngredientEditView, props: true },
   // /beheer toont zelf het inlogscherm als je niet ingelogd bent, dus geen guard nodig.
-  { path: '/beheer', name: 'admin', component: AdminView },
+  {
+    path: '/beheer',
+    name: 'admin',
+    component: AdminView,
+    meta: { onlineOnly: true, offlineName: 'Beheer' },
+  },
   {
     path: '/beheer/recepten/:id/versies',
     name: 'admin-recipe-versions',

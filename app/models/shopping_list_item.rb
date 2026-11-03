@@ -58,9 +58,10 @@ class ShoppingListItem < ApplicationRecord
   # preferring a line that only came from the standard list, otherwise the oldest. Not on
   # the list: a new standard line.
   # Standard items have no ingredient, so this matches on name, like the browser does.
-  # Returns the line.
+  # Returns the line. A temporary standard item is used again (StandardItem.note_used!).
   def self.add_standard!(name)
     name = name.to_s.squish.downcase
+    StandardItem.note_used!(name, add_new: false)
     matching = unchecked.where(name: name).order(:id).to_a
     line = matching.find(&:standard_only?) || matching.first
     return create!(name: name, source_label: STANDARD_SOURCE, standard_count: 1) if line.nil?
@@ -76,9 +77,18 @@ class ShoppingListItem < ApplicationRecord
   # count more on that line, so "uien" twice is "uien ×2". Otherwise a new loose line.
   # checked: ticked off offline before it was ever sent; then always its own line, ticked
   # off (an update, so it goes in the house like any tick). Returns the line.
+  # Also on the standard list, under "Tijdelijk" (StandardItem.note_used!): here, and not in
+  # the browser, so a loose item added offline gets there when the outbox is sent. In one
+  # transaction: an invalid line (count 0) adds nothing to the standard list either.
   def self.add_loose!(name:, ingredient: nil, count: 1, checked: false)
     count = Integer(count.to_s, exception: false) || 0
     name = ingredient&.name || name.to_s.squish.downcase
+    transaction do
+      add_loose_line!(name, ingredient, count, checked).tap { StandardItem.note_used!(name) }
+    end
+  end
+
+  def self.add_loose_line!(name, ingredient, count, checked)
     unless checked
       matching = unchecked.where(quantity: nil).where(ingredient ? { ingredient: ingredient } : { name: name })
       line = matching.order(:id).first
@@ -92,6 +102,7 @@ class ShoppingListItem < ApplicationRecord
     line.update!(checked: true) if checked
     line
   end
+  private_class_method :add_loose_line!
 
   # Only from the standard list: no recipe part (and so no quantity).
   def standard_only?

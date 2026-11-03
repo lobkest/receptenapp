@@ -2,12 +2,13 @@ import { test, expect } from '@playwright/test'
 import { PWA_URL } from './env.js'
 import { collectErrors, isServerRequest } from './helpers.js'
 
-// Elk tabblad dat de server nodig heeft, toont in dezelfde drie toestanden precies dezelfde
-// gedeelde melding (ServerWaiting in App.vue), en verder niets: geen kop, geen chips, geen
-// invoer. (a) offline, (b) laden (net geopend) en (c) een trage start (> 5 s). Boodschappen
-// hoort er bewust niet bij: die toont offline meteen de opgeslagen lijst. Recepten, In huis
-// en Standaard (meta.offline) ook niet zodra er een offline snapshot is: die tonen dan de
-// kopie (zie e2e/offline-sync.spec.js).
+// Elk tabblad dat de server nodig heeft, toont bij (b) laden (net geopend) en (c) een trage
+// start (> 5 s) precies dezelfde gedeelde melding (ServerWaiting in App.vue), en verder
+// niets: geen kop, geen chips, geen invoer. (a) Offline is dat de offline-melding
+// (OfflineNotice) met "… is offline niet beschikbaar". Boodschappen hoort er bewust niet bij:
+// die toont offline meteen de opgeslagen lijst. Recepten en Standaard (meta.offline) ook
+// niet zodra er een offline snapshot is: die tonen dan de kopie (zie
+// e2e/offline-banner.spec.js en e2e/offline-sync.spec.js).
 //
 // Op de gebouwde app zonder service worker, net als e2e/server-status.spec.js: zo vangt
 // page.route() elk verzoek zelf op. Screenshots in e2e/screenshots/laadstatus-*.png.
@@ -15,7 +16,6 @@ import { collectErrors, isServerRequest } from './helpers.js'
 test.use({ baseURL: PWA_URL, serviceWorkers: 'block' })
 
 const WAKING = 'Server wordt wakker, ophalen… (kan ~1 minuut duren)'
-const OFFLINE = 'Offline. Zodra er weer verbinding is, wordt alles opgehaald.'
 
 // [naam in screenshots, adres, link in het menu of de footer]
 const TABS = [
@@ -27,12 +27,14 @@ const TABS = [
 ]
 
 // Deze tonen offline de kopie uit de snapshot in plaats van de melding.
-const OFFLINE_TABS = ['recepten', 'in-huis', 'standaard']
+const OFFLINE_TABS = ['recepten', 'standaard']
 
 // Alleen de gedeelde melding in beeld; de screenshot van <main> komt terug om te vergelijken.
+// text: de laadmelding; null voor de offline-melding (die controleert de test zelf).
 async function expectOnlyNotice(page, text, name) {
   const main = page.locator('main')
-  await expect(main.locator('.server-waiting')).toHaveText(text)
+  if (text) await expect(main.locator('.server-waiting')).toHaveText(text)
+  else await expect(main.locator('.server-waiting')).toHaveCount(0)
   await expect(main.locator('h1:visible')).toHaveCount(0)
   await expect(main.locator('.filter-chip:visible')).toHaveCount(0)
   await expect(main.locator('input:visible, textarea:visible, select:visible')).toHaveCount(0)
@@ -60,7 +62,7 @@ function expectSameNotice(shots) {
   }
 }
 
-test('(a) offline: op elk tabblad alleen de gedeelde melding, daarna haalt In huis zelf op', async ({
+test('(a) offline: op elk tabblad alleen de offline-melding, daarna haalt In huis zelf op', async ({
   page,
   context,
 }) => {
@@ -69,19 +71,21 @@ test('(a) offline: op elk tabblad alleen de gedeelde melding, daarna haalt In hu
   await expect(page.getByRole('heading', { name: 'Recepten' })).toBeVisible()
 
   await context.setOffline(true)
-  const shots = []
   for (const [name, , link] of TABS) {
     await page.getByRole('link', { name: link, exact: true }).click()
     if (OFFLINE_TABS.includes(name)) {
       // De snapshot van het openen hierboven: de pagina zelf, met de offline-melding.
       await expect(page.locator('main .server-waiting')).toHaveCount(0)
       await expect(page.locator('main h1')).toBeVisible()
+      await expect(page.locator('main .offline-notice')).toBeVisible()
       continue
     }
-    shots.push([name, await expectOnlyNotice(page, OFFLINE, `${name}-offline`)])
-    await expect(page.locator('.server-waiting .spinner')).toHaveCount(0)
+    const notice = page.locator('main .offline-notice')
+    await expect(notice.locator('.offline-unavailable')).toHaveText(
+      `${link} is offline niet beschikbaar`,
+    )
+    await expectOnlyNotice(page, null, `${name}-offline`)
   }
-  expectSameNotice(shots)
 
   // Weer verbinding: In huis opent en haalt de voorraad op, zonder te herladen.
   await page.getByRole('link', { name: 'In huis', exact: true }).click()

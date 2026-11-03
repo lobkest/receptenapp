@@ -136,6 +136,45 @@ describe('serverStatus-store', () => {
     expect(server.browserOffline).toBe(true)
   })
 
+  it('een ping die vertrok vóór de verbinding wegviel, zet de status niet meer op online', async () => {
+    let answer
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise((resolve) => (answer = resolve))),
+    )
+    const check = server.start()
+
+    // De verbinding valt weg; daarna komt het antwoord van de oude ping toch nog binnen.
+    server.markOffline()
+    answer(new Response('', { status: 200 }))
+    await check
+
+    expect(server.status).toBe('offline')
+    expect(server.offline).toBe(true)
+  })
+
+  it('na markOffline start de volgende check een nieuwe ping, en die telt wel', async () => {
+    const pending = []
+    const fetch = vi.fn(() => new Promise((resolve) => pending.push(resolve)))
+    vi.stubGlobal('fetch', fetch)
+    const stale = server.start()
+    server.markOffline()
+
+    // De verbinding is terug ('online'-event → start): niet de oude, hangende ping hergebruiken.
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    const fresh = server.start()
+    expect(fetch).toHaveBeenCalledTimes(2)
+
+    pending[1](new Response('', { status: 200 }))
+    await fresh
+    expect(server.status).toBe('online')
+
+    // Het late antwoord van de oude ping verandert niets meer.
+    pending[0](new Response('', { status: 503 }))
+    await stale
+    expect(server.status).toBe('online')
+  })
+
   it('pingt maar één keer als start twee keer tegelijk komt', async () => {
     const fetch = fakeUp('ok')
 

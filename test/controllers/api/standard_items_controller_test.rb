@@ -57,9 +57,9 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_equal [
-      { "id" => standard_items(:kaas).id, "name" => "kaas", "category" => "zuivel" },
-      { "id" => @melk.id, "name" => "melk", "category" => "zuivel" },
-      { "id" => standard_items(:wc_papier).id, "name" => "wc-papier", "category" => nil }
+      { "id" => standard_items(:kaas).id, "name" => "kaas", "category" => "zuivel", "temporary_last_used_at" => nil },
+      { "id" => @melk.id, "name" => "melk", "category" => "zuivel", "temporary_last_used_at" => nil },
+      { "id" => standard_items(:wc_papier).id, "name" => "wc-papier", "category" => nil, "temporary_last_used_at" => nil }
     ], response.parsed_body
   end
 
@@ -71,7 +71,8 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    assert_equal({ "name" => "banaan", "category" => "groente" }, response.parsed_body.except("id"))
+    assert_equal({ "name" => "banaan", "category" => "groente", "temporary_last_used_at" => nil },
+      response.parsed_body.except("id"))
   end
 
   test "create refuses a duplicate name with a Dutch message" do
@@ -96,7 +97,8 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
     patch api_standard_item_url(@melk), params: { standard_item: { name: "Volle melk", category: "" } }, as: :json
 
     assert_response :ok
-    assert_equal({ "id" => @melk.id, "name" => "volle melk", "category" => nil }, response.parsed_body)
+    assert_equal({ "id" => @melk.id, "name" => "volle melk", "category" => nil, "temporary_last_used_at" => nil },
+      response.parsed_body)
     assert_equal "volle melk", @melk.reload.name
   end
 

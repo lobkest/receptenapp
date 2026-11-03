@@ -8,6 +8,8 @@
 class Api::OfflineSnapshotsController < ApplicationController
   # stale? sets the ETag and, when it matches If-None-Match, answers 304 itself.
   def show
+    # Before the ETag: a removed item changes it, so the browser drops it too.
+    StandardItem.remove_expired!
     render json: OfflineSnapshot.to_h if stale?(etag: [ AppVersion.current, OfflineSnapshot.version ])
   end
 end

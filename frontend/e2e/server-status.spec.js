@@ -127,7 +127,7 @@ test('(a) trage server: Recepten en Boodschappen tonen meteen de bewaarde kopie'
 
   await page.goto('/boodschappen')
   await expect(page.locator('.offline-notice')).toHaveText(
-    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
+    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/,
   )
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.server-waiting')).toHaveCount(0)
@@ -160,20 +160,16 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await page.reload()
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   const notice = page.locator('.offline-notice')
-  await expect(notice).toContainText(
-    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
-  )
+  await expect(notice).toContainText(/^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/)
   await expect(notice).toContainText('Afvinken, het aantal, verwijderen en toevoegen kan gewoon')
   await page.locator('.items input[type="checkbox"]').first().check()
   await expect(notice).toContainText('1 wijziging wacht op verbinding')
   await expect(page.getByRole('alert')).toHaveCount(0)
   await checkLayout(page, errors, shot('b-boodschappen-api-onbereikbaar'))
 
-  // Echt offline (navigator.onLine false): "Offline" in plaats van "bijwerken…".
+  // Echt offline (navigator.onLine false): alleen de titel, zonder ", bijwerken…".
   await context.setOffline(true)
-  await expect(notice).toContainText(
-    /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, Offline/,
-  )
+  await expect(notice).toContainText(/^Offline kopie van (vandaag|gisteren) \d\d:\d\d(?!,)/)
   await page.locator('.items input[type="checkbox"]').nth(1).check()
   await expect(notice).toContainText('2 wijzigingen wachten op verbinding')
   await checkLayout(page, errors, shot('b-boodschappen-offline'))

@@ -292,9 +292,9 @@ describe('ShoppingListView', () => {
       // Opnieuw openen zonder verbinding (een nieuwe Pinia is een herladen pagina).
       ;({ wrapper } = await mountApp())
 
-      // Echt offline (navigator.onLine false): "Offline" in plaats van "bijwerken…".
+      // Echt offline (navigator.onLine false): alleen de titel, zonder ", bijwerken…".
       expect(wrapper.find('.offline-notice').text()).toMatch(
-        /^Offline kopie van 16 okt om 09:41, Offline/,
+        /^Offline kopie van vandaag 09:41(?!,)/,
       )
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
@@ -374,7 +374,7 @@ describe('ShoppingListView', () => {
 
       // Wel netwerk, maar geen server: we blijven proberen.
       expect(wrapper.find('.offline-notice').text()).toMatch(
-        /^Offline kopie van \d{1,2} [a-z]{3}( \d{4})? om \d\d:\d\d, bijwerken…/,
+        /^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/,
       )
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     })

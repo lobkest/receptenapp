@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { fetchIngredients } from '@/api/ingredients'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useAdminStore } from '@/stores/admin'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { findIngredients } from '@/utils/ingredientSearch'
 
 // "Samenvoegen met…" op het bewerkscherm van een ingrediënt. Met de beheercode, zoals
@@ -25,6 +26,9 @@ const mergeQuery = ref('')
 const allIngredients = ref([])
 const mergeError = ref(null)
 const mergeBusy = ref(false)
+
+// Zonder verbinding uit (samenvoegen gaat meteen naar de server).
+const server = useServerStatusStore()
 
 async function startMerge() {
   merging.value = true
@@ -106,7 +110,13 @@ async function mergeInto(target) {
       Staat dit ingrediënt er dubbel in (bijv. "trostomaten" en "trostomaat")? Voeg het samen met
       het goede; dit ingrediënt verdwijnt daarna. Hiervoor is de beheercode nodig.
     </p>
-    <button v-if="!merging" type="button" class="start-merge" @click="startMerge">
+    <button
+      v-if="!merging"
+      type="button"
+      class="start-merge"
+      :disabled="server.offline"
+      @click="startMerge"
+    >
       Samenvoegen met…
     </button>
     <template v-else>
@@ -128,7 +138,7 @@ async function mergeInto(target) {
           </div>
           <button
             type="button"
-            :disabled="mergeBusy"
+            :disabled="mergeBusy || server.offline"
             :aria-label="`Samenvoegen met ${other.name}`"
             @click="mergeInto(other)"
           >

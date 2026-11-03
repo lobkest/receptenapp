@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import OfflineNotice from '@/components/OfflineNotice.vue'
 import PantryRecipeGroups from '@/components/PantryRecipeGroups.vue'
 import PantryStock from '@/components/PantryStock.vue'
 import RecipeFilterChips from '@/components/RecipeFilterChips.vue'
@@ -10,7 +9,6 @@ import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
-import { useSnapshotStore } from '@/stores/snapshot'
 import { filterRecipes } from '@/utils/categories'
 
 // "In huis": wat je in huis hebt, en welke recepten je daarmee (bijna) kunt maken. De
@@ -22,8 +20,8 @@ const recipes = useRecipesStore()
 const shoppingList = useShoppingListStore()
 const server = useServerStatusStore()
 const confirmDialog = useTemplateRef('confirmDialog')
-// Offline: voorraad en recepten uit de snapshot; alleen bekijken (PantryStock staat uit).
-const snapshot = useSnapshotStore()
+// Zonder verbinding toont App.vue alleen de offline-melding (meta.onlineOnly in de router);
+// tijdens het opstarten van de server komen voorraad en recepten uit de snapshot.
 
 // Hetzelfde filter als op het receptenoverzicht, in de URL. Tags filtert de server; de
 // categorie gebeurt hier, net als daar, zodat de categorie-chips blijven staan.
@@ -136,12 +134,6 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
 
 <template>
   <h1>In huis</h1>
-
-  <OfflineNotice
-    v-if="server.offline && pantry.pantry"
-    :saved-at="snapshot.savedAt"
-    :offline="server.browserOffline"
-  />
 
   <!-- Chips en voorraad pas als de voorraad er is; daarvoor alleen een laadregel, zoals
        "Recepten laden…" op het overzicht. -->

@@ -195,5 +195,6 @@ nl:
     messages:
       too_many: "heeft te veel regels (maximaal %{count})"
       too_many_rows: "heeft te veel regels"
-      # Category: "Overig" is the heading for recipes without a category.
+      # Category: "Overig" is the heading for recipes without a category. StandardItem:
+      # "Tijdelijk" is the heading for temporary items, not a category.
       reserved: "kan niet \"%{name}\" zijn, die naam is gereserveerd"

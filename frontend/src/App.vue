@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
 import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
@@ -23,13 +24,25 @@ const route = useRoute()
 // Met meta.offline (recepten, standaardlijst, In huis) niet als er een offline snapshot is:
 // die pagina's tonen dan meteen de kopie en verversen zodra de server antwoordt.
 snapshot.restore()
-const waitingForServer = computed(
-  () =>
-    Boolean(route.meta.needsServer) &&
-    !server.online &&
-    !(route.meta.offline && snapshot.available),
+// Heeft deze pagina nu de server nodig? Niet met meta.offline en een snapshot.
+const needsServer = computed(
+  () => Boolean(route.meta.needsServer) && !(route.meta.offline && snapshot.available),
 )
-const keepPage = computed(() => !waitingForServer.value || Boolean(route.meta.keepMounted))
+const waitingForServer = computed(() => needsServer.value && !server.online)
+// Zonder verbinding: pagina's met meta.onlineOnly (In huis, Beheer) en pagina's die op de
+// server wachten tonen alleen de offline-melding (hetzelfde component als op de andere
+// pagina's), met "… is offline niet beschikbaar". Met een snapshot (In huis) met het
+// tijdstip daarvan, anders "Offline: geen verbinding met de server".
+// Op server.offline, niet op !server.online: een server die nog wakker wordt, is niet
+// offline (dan ServerWaiting).
+const offlineUnavailable = computed(
+  () => server.offline && (needsServer.value || Boolean(route.meta.onlineOnly)),
+)
+const unavailableSavedAt = computed(() =>
+  route.meta.offline && snapshot.available ? snapshot.savedAt : null,
+)
+const pageHidden = computed(() => waitingForServer.value || offlineUnavailable.value)
+const keepPage = computed(() => !pageHidden.value || Boolean(route.meta.keepMounted))
 
 // De lijst is gedeeld: iemand anders kan hem intussen hebben aangepast. Daarom halen we
 // hem op bij het starten en elke keer dat je terugschakelt naar de app (tabblad of app
@@ -155,10 +168,17 @@ onUnmounted(() => {
       </button>
     </p>
     <RouterView v-slot="{ Component }">
-      <ServerWaiting v-if="waitingForServer" />
+      <OfflineNotice
+        v-if="offlineUnavailable"
+        :saved-at="unavailableSavedAt"
+        :no-copy="unavailableSavedAt == null"
+        :offline="server.browserOffline"
+        :unavailable="route.meta.offlineName"
+      />
+      <ServerWaiting v-else-if="waitingForServer" />
       <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
            root-elementen. display: contents, zodat hij de opmaak niet verandert. -->
-      <div v-if="keepPage" v-show="!waitingForServer" class="route-page">
+      <div v-if="keepPage" v-show="!pageHidden" class="route-page">
         <component :is="Component" />
       </div>
     </RouterView>

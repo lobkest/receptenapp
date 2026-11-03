@@ -1,10 +1,12 @@
 import { gzipSync } from 'node:zlib'
-import { test, expect, devices } from '@playwright/test'
-import { PWA_URL, RAILS_URL } from './env.js'
+import { test, expect } from '@playwright/test'
+import { RAILS_URL } from './env.js'
 import {
   checkLayout,
   collectErrors,
   ingredientRow,
+  iphone,
+  openOnline,
   postRecipe,
   setInHouse,
   shoppingList,
@@ -44,44 +46,6 @@ async function standardItem(name) {
   const response = await api.post('/api/standard_items', { data: { standard_item: { name } } })
   expect(response.status(), await response.text()).toBe(201)
   return response.json()
-}
-
-async function iphone(browser) {
-  const context = await browser.newContext({
-    ...devices['iPhone 13'],
-    colorScheme: 'dark',
-    baseURL: PWA_URL,
-  })
-  const page = await context.newPage()
-  return { context, page }
-}
-
-// Online openen: de app (service worker), de lijst en de offline snapshot worden bewaard.
-async function openOnline(page) {
-  await page.goto('/boodschappen')
-  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
-  await page.goto('/')
-  await expect(page.locator('.recipe-card').first()).toBeVisible()
-  // De snapshot staat in IndexedDB (src/offline/storage.js).
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          new Promise((resolve) => {
-            const open = indexedDB.open('receptenapp')
-            open.onsuccess = () => {
-              const request = open.result
-                .transaction('offline')
-                .objectStore('offline')
-                .get('app:snapshot')
-              request.onsuccess = () => resolve(Boolean(request.result))
-              request.onerror = () => resolve(false)
-            }
-            open.onerror = () => resolve(false)
-          }),
-      ),
-    )
-    .toBe(true)
 }
 
 function pendingText(page) {
@@ -148,7 +112,9 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await context.setOffline(true)
   await page.goto(`/recepten/${recipe.id}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(RECIPE.title)
-  await expect(page.locator('.offline-notice')).toContainText(/^Offline kopie van .* om \d\d:\d\d/)
+  await expect(page.locator('.offline-notice')).toContainText(
+    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d/,
+  )
 
   // Porties schalen werkt in de browser: 8 porties is alles × 2.
   await page.getByRole('button', { name: 'Meer porties' }).click()

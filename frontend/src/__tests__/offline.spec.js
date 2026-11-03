@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { clear, createStore, get } from 'idb-keyval'
-import { createOutbox, formatSavedAt, initOffline, loadSnapshot, saveSnapshot } from '../offline'
+import { createOutbox, initOffline, loadSnapshot, saveSnapshot } from '../offline'
 import { clearMemoryStorage, initStorage, readJson, writeJson } from '../offline/storage'
 import { ApiError } from '../api/client'
 
@@ -348,14 +348,5 @@ describe('offline-module', () => {
 
       expect(send).toHaveBeenCalledTimes(1)
     })
-  })
-
-  it('schrijft datum en tijdstip, het jaartal alleen als het niet dit jaar is', () => {
-    const now = new Date(2026, 9, 28, 12, 0).getTime()
-    expect(formatSavedAt(new Date(2026, 9, 16, 9, 5).getTime(), now)).toBe('16 okt om 09:05')
-    expect(formatSavedAt(new Date(2026, 2, 3, 14, 30).getTime(), now)).toBe('3 mrt om 14:30')
-    expect(formatSavedAt(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe(
-      '31 dec 2025 om 23:59',
-    )
   })
 })

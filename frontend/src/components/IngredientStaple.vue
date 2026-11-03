@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { updateIngredientStaple } from '@/api/ingredients'
+import { useServerStatusStore } from '@/stores/serverStatus'
 
 // "Basis" op het bewerkscherm van een ingrediënt (voor "In huis"). Ook los van het
 // NEVO-formulier: meteen opgeslagen, zonder lock_version (de laatste wint).
@@ -14,6 +15,9 @@ const emit = defineEmits(['saved'])
 const stapleError = ref(null)
 const stapleMessage = ref(null)
 const stapleSaving = ref(false)
+
+// Zonder verbinding uit: het vinkje slaat meteen op.
+const server = useServerStatusStore()
 
 async function onStapleToggle(event) {
   const staple = event.target.checked
@@ -40,7 +44,7 @@ async function onStapleToggle(event) {
         id="staple"
         type="checkbox"
         :checked="ingredient.staple"
-        :disabled="stapleSaving"
+        :disabled="stapleSaving || server.offline"
         @change="onStapleToggle"
       />
       <span>

@@ -20,9 +20,9 @@ const SOUP = {
   variations: [],
 }
 
-function saveSnapshot(recipe) {
+function saveSnapshot(recipe, savedAt = Date.now()) {
   return writeJson('app:snapshot', {
-    savedAt: Date.now(),
+    savedAt,
     etag: 'W/"x"',
     data: {
       recipes: [recipe],
@@ -83,6 +83,30 @@ describe('receptpagina uit de offline snapshot', () => {
     expect(wrapper.find('.recipe-actions .edit').attributes('disabled')).toBeDefined()
     expect(wrapper.find('.recipe-actions .offline-hint').text()).toBe(
       'Niet beschikbaar zonder verbinding',
+    )
+    wrapper.unmount()
+  })
+
+  // Het recept komt uit de snapshot, "op lijst" uit de boodschappenlijst: de melding
+  // toont het oudste van die twee tijdstippen.
+  it.each([
+    ['het recept', new Date(2026, 10, 2, 18, 0), new Date(2026, 10, 3, 8, 0), 'gisteren 18:00'],
+    ['de lijst', new Date(2026, 10, 3, 8, 0), new Date(2026, 10, 1, 10, 0), '2 dagen geleden'],
+  ])('offline: bovenaan de melding met het oudste tijdstip (%s)', async (_, app, list, text) => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date(2026, 10, 3, 20, 0).getTime())
+    await saveSnapshot(SOUP, app.getTime())
+    await writeJson('shoppingList:snapshot', { savedAt: list.getTime(), data: [] })
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    mockFetch(() => jsonResponse([]))
+    const { wrapper } = await mountRoute('/recepten/5')
+    await flushPromises()
+
+    const notice = wrapper.find('.offline-notice')
+    expect(notice.find('strong').text()).toBe(`Offline kopie van ${text}`)
+    expect(notice.find('.sync-state').exists()).toBe(false)
+    // Als eerste op de pagina, boven de titel.
+    expect(wrapper.element.querySelector('.offline-notice, h1').className).toContain(
+      'offline-notice',
     )
     wrapper.unmount()
   })

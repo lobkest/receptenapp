@@ -16,6 +16,8 @@ export {
   formatSavedAt,
   oldestSavedAt,
   OFFLINE_TEXT,
+  OFFLINE_TITLE,
+  pendingText,
 } from './network'
 
 // De sleutel van de outbox van de hele app (stores/offline.js).

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import ServerWaiting from '@/components/ServerWaiting.vue'
+import { NETWORK_ERROR_EVENT } from '@/api/client'
 import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
 import { useServerStatusStore } from '@/stores/serverStatus'
@@ -31,15 +32,12 @@ const needsServer = computed(
 const waitingForServer = computed(() => needsServer.value && !server.online)
 // Zonder verbinding: pagina's met meta.onlineOnly (In huis, Beheer) en pagina's die op de
 // server wachten tonen alleen de offline-melding (hetzelfde component als op de andere
-// pagina's), met "… is offline niet beschikbaar". Met een snapshot (In huis) met het
-// tijdstip daarvan, anders "Offline: geen verbinding met de server".
-// Op server.offline, niet op !server.online: een server die nog wakker wordt, is niet
-// offline (dan ServerWaiting).
+// pagina's), met "… is offline niet beschikbaar" als tweede regel.
+// Op server.offline, niet op !server.online: een server die nog wakker wordt (5xx), is niet
+// offline (dan ServerWaiting). Een /up die blijft hangen telt na PING_TIMEOUT_MS wel als
+// offline (stores/serverStatus.js).
 const offlineUnavailable = computed(
   () => server.offline && (needsServer.value || Boolean(route.meta.onlineOnly)),
-)
-const unavailableSavedAt = computed(() =>
-  route.meta.offline && snapshot.available ? snapshot.savedAt : null,
 )
 const pageHidden = computed(() => waitingForServer.value || offlineUnavailable.value)
 const keepPage = computed(() => !pageHidden.value || Boolean(route.meta.keepMounted))
@@ -70,6 +68,12 @@ function onVisibilityChange() {
   if (pantry.pantry) pantry.loadPantry().catch(() => {})
 }
 
+// Een API-verzoek kwam niet aan (time-out of netwerkfout), maar de browser meldt geen
+// 'offline': opnieuw pingen. Hangt de verbinding, dan is de app na PING_TIMEOUT_MS offline.
+function onNetworkError() {
+  if (server.online) server.check()
+}
+
 // Is de server (weer) online en is de lijst nog niet vers, haal hem dan nu op.
 watch(
   () => server.online,
@@ -84,6 +88,7 @@ onMounted(() => {
   server.start()
   refreshShoppingList()
   document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener(NETWORK_ERROR_EVENT, onNetworkError)
   stopWatchingConnectivity = watchConnectivity({
     onOnline: () => {
       server.start()
@@ -98,6 +103,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener(NETWORK_ERROR_EVENT, onNetworkError)
   stopWatchingConnectivity?.()
   server.stopRetrying()
 })
@@ -168,13 +174,7 @@ onUnmounted(() => {
       </button>
     </p>
     <RouterView v-slot="{ Component }">
-      <OfflineNotice
-        v-if="offlineUnavailable"
-        :saved-at="unavailableSavedAt"
-        :no-copy="unavailableSavedAt == null"
-        :offline="server.browserOffline"
-        :unavailable="route.meta.offlineName"
-      />
+      <OfflineNotice v-if="offlineUnavailable" :unavailable="route.meta.offlineName" />
       <ServerWaiting v-else-if="waitingForServer" />
       <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
            root-elementen. display: contents, zodat hij de opmaak niet verandert. -->

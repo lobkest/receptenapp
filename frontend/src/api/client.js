@@ -15,10 +15,36 @@ export class ApiError extends Error {
   }
 }
 
+// Zonder antwoord na zoveel ms geeft een verzoek een netwerkfout, zoals zonder verbinding.
+// Een telefoon zonder bereik laat een verzoek anders minutenlang hangen (fetch faalt dan
+// niet); met de fout tonen de pagina's hun offline kopie of de offline-melding.
+export const REQUEST_TIMEOUT_MS = 20_000
+
+// fetch met REQUEST_TIMEOUT_MS. Gooit bij een time-out net als fetch zonder netwerk.
+export async function fetchWithTimeout(path, options = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(path, { signal: controller.signal, ...options })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// Een verzoek kwam niet aan. Meldt het ook aan de app (NETWORK_ERROR_EVENT): valt het bereik
+// weg zonder 'offline'-event van de browser, dan pingt App.vue meteen opnieuw en geldt de app
+// zo snel mogelijk als offline (stores/serverStatus.js).
+export const NETWORK_ERROR_EVENT = 'receptenapp:network-error'
+
+export function networkError() {
+  window.dispatchEvent(new Event(NETWORK_ERROR_EVENT))
+  return new ApiError('network', 'Kan de server niet bereiken.')
+}
+
 export async function request(path, options = {}) {
   let response
   try {
-    response = await fetch(path, {
+    response = await fetchWithTimeout(path, {
       // Altijd vers van de server, nooit uit de HTTP-cache van de browser. De service
       // worker cachet /api ook niet (vite.config.js); de app bewaart zelf een kopie voor
       // offline (src/offline/, in IndexedDB).
@@ -31,9 +57,9 @@ export async function request(path, options = {}) {
       },
     })
   } catch {
-    // fetch gooit alleen bij netwerkproblemen (server uit, geen internet),
+    // fetch gooit alleen bij netwerkproblemen (server uit, geen internet, time-out),
     // niet bij HTTP-fouten zoals 404 of 500.
-    throw new ApiError('network', 'Kan de server niet bereiken.')
+    throw networkError()
   }
 
   // Een nieuwere deploy op de server? Dan herlaadt de pagina met de nieuwe bundel.

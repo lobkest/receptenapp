@@ -292,10 +292,8 @@ describe('ShoppingListView', () => {
       // Opnieuw openen zonder verbinding (een nieuwe Pinia is een herladen pagina).
       ;({ wrapper } = await mountApp())
 
-      // Echt offline (navigator.onLine false): alleen de titel, zonder ", bijwerken…".
-      expect(wrapper.find('.offline-notice').text()).toMatch(
-        /^Offline kopie van vandaag 09:41(?!,)/,
-      )
+      // Echt offline (navigator.onLine false): de melding met het tijdstip van de kopie.
+      expect(wrapper.find('.offline-notice .offline-detail').text()).toBe('kopie van vandaag 09:41')
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
       // Verwijderen en het aantal gaan offline via de outbox.
@@ -336,12 +334,10 @@ describe('ShoppingListView', () => {
       const checkboxes = wrapper.findAll('.items input[type="checkbox"]')
       await checkboxes[0].setValue(true)
       await flushPromises()
-      expect(wrapper.find('.offline-notice .pending').text()).toBe(
-        '1 wijziging wacht op verbinding',
-      )
+      expect(wrapper.find('.offline-extra .pending').text()).toBe('1 wijziging wacht op verbinding')
       await checkboxes[1].setValue(true)
       await flushPromises()
-      expect(wrapper.find('.offline-notice .pending').text()).toBe(
+      expect(wrapper.find('.offline-extra .pending').text()).toBe(
         '2 wijzigingen wachten op verbinding',
       )
 
@@ -372,9 +368,12 @@ describe('ShoppingListView', () => {
       setVisibility('visible')
       await flushPromises()
 
-      // Wel netwerk, maar geen server: we blijven proberen.
-      expect(wrapper.find('.offline-notice').text()).toMatch(
-        /^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/,
+      // Wel netwerk, maar de server is niet te bereiken: dezelfde offline-melding.
+      expect(wrapper.find('.offline-notice .offline-title').text()).toBe(
+        'Offline: geen verbinding met de server',
+      )
+      expect(wrapper.find('.offline-notice .offline-detail').text()).toMatch(
+        /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
       )
       expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     })

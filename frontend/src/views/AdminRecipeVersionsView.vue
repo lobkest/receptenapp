@@ -83,10 +83,16 @@ watch(
 )
 
 watch(() => props.id, load, { immediate: true })
+
+// Lukte laden niet (offline geopend)? Dan opnieuw zodra de server er weer is.
+watch(
+  () => server.online,
+  (online) => online && !recipe.value && error.value && load(),
+)
 </script>
 
 <template>
-  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+  <OfflineNotice v-if="server.offline" editing />
 
   <h1>Versies</h1>
 
@@ -133,7 +139,8 @@ watch(() => props.id, load, { immediate: true })
     </ol>
   </template>
 
-  <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+  <!-- Offline geopend: de offline-melding zegt het al; zodra er verbinding is, laden we opnieuw. -->
+  <p v-else-if="error && !server.offline" class="notice notice-error" role="alert">{{ error }}</p>
 
   <p><RouterLink to="/beheer" class="back-link">← Terug naar beheer</RouterLink></p>
 

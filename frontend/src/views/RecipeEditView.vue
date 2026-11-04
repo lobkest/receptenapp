@@ -101,10 +101,16 @@ onBeforeRouteLeave(() => {
 })
 
 watch(() => props.id, load, { immediate: true })
+
+// Lukte laden niet (offline geopend)? Dan opnieuw zodra de server er weer is.
+watch(
+  () => server.online,
+  (online) => online && loadError.value && load(props.id),
+)
 </script>
 
 <template>
-  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+  <OfflineNotice v-if="server.offline" editing />
 
   <h1>Recept bewerken</h1>
 
@@ -112,7 +118,10 @@ watch(() => props.id, load, { immediate: true })
 
   <p v-else-if="notFound">Dit recept bestaat niet (meer).</p>
 
-  <p v-else-if="loadError" class="notice notice-error" role="alert">{{ loadError }}</p>
+  <!-- Offline geopend: de offline-melding zegt het al; zodra er verbinding is, laden we opnieuw. -->
+  <p v-else-if="loadError && !server.offline" class="notice notice-error" role="alert">
+    {{ loadError }}
+  </p>
 
   <template v-else-if="recipe">
     <div v-if="message" class="message notice notice-error" role="alert">

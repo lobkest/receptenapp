@@ -97,23 +97,20 @@ async function clearAll() {
 </script>
 
 <template>
-  <!-- De offline-melding staat op elke pagina als eerste, boven de kop. Nog geen kopie en
-       geen verbinding: dan is er niets te tonen. -->
+  <!-- De offline-melding staat op elke pagina als eerste, boven de kop, alleen zonder
+       verbinding. Nog geen kopie: dan is er niets te tonen. De uitleg en de wachtende
+       wijzigingen staan eronder (OfflineNotice). -->
   <OfflineNotice
-    v-if="loading && server.offline"
-    no-copy
-    :offline="server.browserOffline"
+    v-if="server.offline && !list.loaded"
     unavailable="Boodschappen"
+    :pending="offline.pending"
   />
   <OfflineNotice
-    v-else-if="
-      (list.loaded && (!list.fresh || list.offline || server.offline)) || offline.pending > 0
-    "
+    v-else-if="server.offline || list.offline"
     :saved-at="list.savedAt"
-    :offline="server.browserOffline"
     :pending="offline.pending"
   >
-    <template v-if="list.offline" #default>
+    <template #default>
       Afvinken, het aantal, verwijderen en toevoegen kan gewoon; dat gaat naar de server zodra je
       weer verbinding hebt. Wissen kan pas weer online.
     </template>

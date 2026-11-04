@@ -49,7 +49,7 @@ async function standardItem(name) {
 }
 
 function pendingText(page) {
-  return page.locator('.offline-notice .pending')
+  return page.locator('.offline-extra .pending')
 }
 
 test.beforeAll(async ({ playwright }) => {
@@ -112,8 +112,8 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await context.setOffline(true)
   await page.goto(`/recepten/${recipe.id}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(RECIPE.title)
-  await expect(page.locator('.offline-notice')).toContainText(
-    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d/,
+  await expect(page.locator('.offline-notice .offline-detail')).toHaveText(
+    /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
   )
 
   // Porties schalen werkt in de browser: 8 porties is alles × 2.

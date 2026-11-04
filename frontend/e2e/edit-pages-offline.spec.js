@@ -7,7 +7,8 @@ import { checkLayout, collectErrors, ingredientId, iphone, postRecipe } from './
 // invulde, en opslaan staat uit. Op een iPhone-scherm (gebouwde app); screenshots in
 // e2e/screenshots/offline-bewerken-*.png.
 
-const NO_COPY = 'Offline: geen verbinding met de server'
+const TITLE = 'Offline: geen verbinding met de server'
+const EDITING = 'opslaan kan weer zodra er verbinding is'
 const RECIPE = {
   title: 'Bewerk-offline-pannenkoeken',
   servings: 2,
@@ -39,7 +40,8 @@ async function offlineAfterTyping(context, page, path, fill) {
   await context.setOffline(true)
   const notice = page.locator('main .offline-notice')
   await expect(notice).toHaveCount(1)
-  await expect(notice.locator('strong')).toHaveText(NO_COPY)
+  await expect(notice.locator('.offline-title')).toHaveText(TITLE)
+  await expect(notice.locator('.offline-detail')).toHaveText(EDITING)
   return notice
 }
 

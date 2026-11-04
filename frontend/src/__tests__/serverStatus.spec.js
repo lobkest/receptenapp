@@ -101,17 +101,21 @@ describe('serverStatus-store', () => {
     expect(server.status).toBe('offline')
   })
 
-  it('geeft elk verzoek een time-out: zonder antwoord blijft hij waking en probeert opnieuw', async () => {
+  it('een ping die blijft hangen (geen bereik): na de time-out offline, en opnieuw proberen', async () => {
     const fetch = fakeUp('hang', 'ok')
 
     server.start()
     await vi.advanceTimersByTimeAsync(PING_TIMEOUT_MS - 1)
     expect(server.status).toBe('waking')
+    expect(server.offline).toBe(false)
     expect(fetch).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(1)
     expect(fetch.mock.calls[0][1].signal.aborted).toBe(true)
-    expect(server.status).toBe('waking')
+    expect(server.status).toBe('offline')
+    expect(server.offline).toBe(true)
+    // De browser zegt nog steeds online: alleen de time-out maakt het offline.
+    expect(server.browserOffline).toBe(false)
 
     await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
     expect(fetch).toHaveBeenCalledTimes(2)

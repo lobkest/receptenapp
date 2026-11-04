@@ -5,6 +5,16 @@
 // Bij knoppen die zonder verbinding uit staan (components/OfflineHint.vue, title-attribuut).
 export const OFFLINE_TEXT = 'Niet beschikbaar zonder verbinding'
 
+// Regel 1 van de offline-melding (components/OfflineNotice.vue), op elke pagina gelijk.
+export const OFFLINE_TITLE = 'Offline: geen verbinding met de server'
+
+// "1 wijziging wacht op verbinding", "3 wijzigingen wachten op verbinding".
+export function pendingText(count) {
+  return count === 1
+    ? '1 wijziging wacht op verbinding'
+    : `${count} wijzigingen wachten op verbinding`
+}
+
 export function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }

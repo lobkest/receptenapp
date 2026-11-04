@@ -7,14 +7,18 @@ import { isOffline } from '@/offline'
 // (App.vue); de boodschappenlijst toont dan zijn offline kopie.
 //
 // status:
-// - 'waking':  nog geen antwoord (of een 5xx/time-out): de server start op
+// - 'waking':  nog geen antwoord, of een 5xx: de server start op
 // - 'online':  GET /up (de health check van Rails) gaf 200
-// - 'offline': geen verbinding (de browser meldt offline, of de server is onbereikbaar)
+// - 'offline': geen verbinding: de browser meldt offline, fetch faalt meteen, of /up blijft
+//              PING_TIMEOUT_MS hangen. Dat laatste is een telefoon zonder bereik (requests
+//              blijven hangen in plaats van te falen). Een slapende Render-server laat /up
+//              ook hangen; de browser ziet geen verschil (Rails serveert ook de frontend).
+//              Dan tonen we eerlijk "geen verbinding" en zodra hij antwoordt is hij online.
 // Zolang hij niet online is, proberen we het opnieuw, steeds wat later (backoff).
 
 const UP_URL = '/up'
-// Per verzoek: een slapende server houdt het verzoek vast; na zoveel ms proberen we opnieuw.
-export const PING_TIMEOUT_MS = 10_000
+// Per ping: zonder antwoord na zoveel ms geldt de app als offline, en proberen we opnieuw.
+export const PING_TIMEOUT_MS = 8_000
 // Was hij al online (terug naar het tabblad)? Dan blijft de pagina staan, tenzij het
 // antwoord zo lang uitblijft: dan sliep hij intussen.
 export const SLOW_MS = 2_000
@@ -31,8 +35,8 @@ let pendingCheck = null
 // dat moment soms nog binnen. Dat mag de status niet meer op 'online' zetten.
 let latestPing = 0
 
-// Eén ping: 'online', 'waking' (5xx of time-out) of 'offline' (fetch faalt meteen:
-// geen netwerk, server onbereikbaar).
+// Eén ping: 'online', 'waking' (5xx) of 'offline' (fetch faalt, of geen antwoord binnen
+// PING_TIMEOUT_MS: geen netwerk, geen bereik, server onbereikbaar).
 async function ping() {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS)
@@ -40,7 +44,7 @@ async function ping() {
     const response = await fetch(UP_URL, { cache: 'no-store', signal: controller.signal })
     return response.ok ? 'online' : 'waking'
   } catch {
-    return controller.signal.aborted ? 'waking' : 'offline'
+    return 'offline'
   } finally {
     clearTimeout(timer)
   }

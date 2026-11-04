@@ -78,9 +78,8 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   // Geen verbinding, en de pagina herladen: de app en de lijst komen uit de opslag.
   await context.setOffline(true)
   await page.reload()
-  // Echt offline: alleen de titel, zonder ", bijwerken…".
-  await expect(page.locator('.offline-notice')).toContainText(
-    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d(?!,)/,
+  await expect(page.locator('.offline-notice .offline-detail')).toHaveText(
+    /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
   )
   await expect.poll(sortedLines).toEqual(['250 g bloem', '500 ml melk', 'wc-papier'])
 
@@ -91,7 +90,7 @@ test('boodschappen: offline afvinken, daarna online naar de database', async ({ 
   await expect(row('melk')).toHaveClass(/checked/)
   await expect(row('bloem')).not.toHaveClass(/checked/)
   await expect(page.locator('.shopping-link')).toContainText('Boodschappen (2)')
-  await expect(page.locator('.offline-notice')).toContainText('2 wijzigingen wachten op verbinding')
+  await expect(page.locator('.offline-extra')).toContainText('2 wijzigingen wachten op verbinding')
   await expect(page.locator('.items .remove').first()).toBeEnabled()
   await expect(page.locator('.clear-checked')).toBeDisabled()
   await expect(page.locator('.clear-all')).toBeDisabled()

@@ -105,11 +105,7 @@ onMounted(() => {
 
 <template>
   <!-- De offline-melding staat op elke pagina als eerste, boven de kop. -->
-  <OfflineNotice
-    v-if="store.offline || server.offline"
-    :saved-at="snapshot.savedAt"
-    :offline="server.browserOffline"
-  />
+  <OfflineNotice v-if="server.offline || store.offline" :saved-at="snapshot.savedAt" />
 
   <h1>Recepten</h1>
 

@@ -83,7 +83,7 @@ describe('los item op de boodschappenlijst', () => {
 
     expect(listLines(wrapper)).toEqual(['appels'])
     expect(wrapper.find('.items li.pending .pending-mark').exists()).toBe(true)
-    expect(wrapper.find('.offline-notice .pending').text()).toBe('1 wijziging wacht op verbinding')
+    expect(wrapper.find('.offline-extra .pending').text()).toBe('1 wijziging wacht op verbinding')
     expect(addRequests(server.fetch)).toEqual([])
   })
 })

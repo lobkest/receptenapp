@@ -81,4 +81,14 @@ test('nieuwe deploy: bij opnieuw openen komt de nieuwe versie, zonder tabbladen 
     return { waiting: registration.waiting != null }
   })
   expect(state.waiting).toBe(false)
+
+  // Daarna offline (ook na opnieuw openen): de nieuwe versie staat in de precache en draait,
+  // te zien aan het bouwnummer klein in de offline-melding.
+  await page.context().setOffline(true)
+  const build = page.locator('.offline-notice .offline-build')
+  await expect(build).toHaveText('versie versie-b')
+  await page.reload()
+  await expect(build).toHaveText('versie versie-b')
+  expect(await bundleOf(page)).not.toBe(oldBundle)
+  await page.context().setOffline(false)
 })

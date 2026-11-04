@@ -126,11 +126,18 @@ test('(a) trage server: Recepten en Boodschappen tonen meteen de bewaarde kopie'
   await checkLayout(page, errors, shot('a-recepten-wakker-worden'))
 
   await page.goto('/boodschappen')
-  await expect(page.locator('.offline-notice')).toHaveText(
-    /^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/,
-  )
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.server-waiting')).toHaveCount(0)
+  // Een slapende server laat /up hangen, net als geen bereik: na de time-out van de ping
+  // (8 s) zegt de melding eerlijk dat er geen verbinding is, met het tijdstip van de kopie.
+  const notice = page.locator('.offline-notice')
+  await expect(notice.locator('.offline-title')).toHaveText(
+    'Offline: geen verbinding met de server',
+    { timeout: 15_000 },
+  )
+  await expect(notice.locator('.offline-detail')).toHaveText(
+    /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
+  )
   await checkLayout(page, errors, shot('a-boodschappen-kopie'))
 
   // Wakker: de verse lijst vervangt de kopie, en Recepten laat de recepten zien.
@@ -160,25 +167,36 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
   await page.reload()
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   const notice = page.locator('.offline-notice')
-  await expect(notice).toContainText(/^Offline kopie van (vandaag|gisteren) \d\d:\d\d, bijwerken…/)
-  await expect(notice).toContainText('Afvinken, het aantal, verwijderen en toevoegen kan gewoon')
+  const extra = page.locator('.offline-extra')
+  await expect(notice.locator('.offline-title')).toHaveText(
+    'Offline: geen verbinding met de server',
+  )
+  await expect(notice.locator('.offline-detail')).toHaveText(
+    /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
+  )
+  // De uitleg en de wachtende wijzigingen staan onder het blok, niet erin.
+  await expect(extra).toContainText('Afvinken, het aantal, verwijderen en toevoegen kan gewoon')
   await page.locator('.items input[type="checkbox"]').first().check()
-  await expect(notice).toContainText('1 wijziging wacht op verbinding')
+  await expect(extra).toContainText('1 wijziging wacht op verbinding')
   await expect(page.getByRole('alert')).toHaveCount(0)
   await checkLayout(page, errors, shot('b-boodschappen-api-onbereikbaar'))
 
-  // Echt offline (navigator.onLine false): alleen de titel, zonder ", bijwerken…".
+  // Echt offline (navigator.onLine false): dezelfde melding.
   await context.setOffline(true)
-  await expect(notice).toContainText(/^Offline kopie van (vandaag|gisteren) \d\d:\d\d(?!,)/)
+  await expect(notice.locator('.offline-detail')).toHaveText(
+    /^kopie van (vandaag|gisteren) \d\d:\d\d$/,
+  )
   await page.locator('.items input[type="checkbox"]').nth(1).check()
-  await expect(notice).toContainText('2 wijzigingen wachten op verbinding')
+  await expect(extra).toContainText('2 wijzigingen wachten op verbinding')
   await checkLayout(page, errors, shot('b-boodschappen-offline'))
 
   // Recepten toont offline de kopie uit de snapshot, met de offline-melding.
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
   await expect(page.locator('.server-waiting')).toHaveCount(0)
   await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
-  await expect(page.locator('.offline-notice')).toContainText('Offline')
+  await expect(page.locator('.offline-notice .offline-title')).toHaveText(
+    'Offline: geen verbinding met de server',
+  )
   await checkLayout(page, errors, shot('b-recepten-offline'))
 
   // (c) Weer verbinding en de server bereikbaar: de wachtrij gaat naar de server en de

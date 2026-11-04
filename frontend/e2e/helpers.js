@@ -91,14 +91,45 @@ export function isServerRequest(url) {
 // --- Offline (de gebouwde app met service worker) ---
 
 // Een nieuw iPhone-venster op de gebouwde app (PWA_URL), met de service worker.
-export async function iphone(browser) {
+// options: extra voor newContext, bijv. { timezoneId: 'Europe/Amsterdam' }.
+export async function iphone(browser, options = {}) {
   const context = await browser.newContext({
     ...devices['iPhone 13'],
     colorScheme: 'dark',
     baseURL: PWA_URL,
+    ...options,
   })
   const page = await context.newPage()
   return { context, page }
+}
+
+// Een verbinding zonder bereik: elk verzoek naar de server (/up en /api) blijft hangen, zoals
+// op een telefoon zonder bereik (fetch faalt dan niet, maar krijgt nooit antwoord). De app
+// zelf komt uit de service worker. Geeft een functie die de verbinding weer herstelt.
+export async function hangServer(context) {
+  const hang = (route) => {
+    // Nooit beantwoorden.
+    void route
+  }
+  await context.route(/\/(up|api\/.*)$/, hang)
+  return () => context.unroute(/\/(up|api\/.*)$/, hang)
+}
+
+// Een trage verbinding: elk verzoek naar de server pas na ms.
+export async function slowServer(context, ms) {
+  await context.route(/\/(up|api\/.*)$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, ms))
+    await route.continue().catch(() => {})
+  })
+}
+
+// Naar een pagina zonder herladen (de router, zoals een link): offline werkt page.goto ook
+// (de service worker), maar dan start de app opnieuw.
+export async function navigateInApp(page, path) {
+  await page.evaluate((to) => {
+    history.pushState({}, '', to)
+    dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
 }
 
 // Online openen: de app (service worker), de lijst en de offline snapshot worden bewaard.

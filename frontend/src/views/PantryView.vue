@@ -8,6 +8,7 @@ import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useServerStatusStore } from '@/stores/serverStatus'
+import { isNetworkError } from '@/offline'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { filterRecipes } from '@/utils/categories'
 
@@ -95,8 +96,9 @@ async function resetToDefault() {
 
 // Deze pagina opent pas als de server online is (meta.needsServer in de router); tot dan
 // toont App.vue de gedeelde laad- of offlinemelding, en daarna opent hij opnieuw en laadt
-// hij vers. Mislukt het laden toch, dan kijkt de serverstatus opnieuw: is de server weg,
-// dan neemt die gedeelde melding het over. Antwoordt de server wel maar met een fout
+// hij vers. Mislukt het laden toch, dan kijkt de serverstatus opnieuw (bij een netwerkfout
+// doet App.vue dat al, bij elk verzoek): is de server weg, dan neemt die gedeelde melding
+// het over. Antwoordt de server wel maar met een fout
 // (bijv. een 500), dan staat die melding op de plek van "In huis laden…".
 const loadError = ref(null)
 
@@ -104,7 +106,7 @@ function load() {
   loadError.value = null
   pantry.load(selectedTags.value).catch((e) => {
     loadError.value = e.message
-    server.check()
+    if (!isNetworkError(e)) server.check()
   })
 }
 

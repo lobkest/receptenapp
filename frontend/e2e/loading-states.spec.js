@@ -81,7 +81,7 @@ test('(a) offline: op elk tabblad alleen de offline-melding, daarna haalt In hui
       continue
     }
     const notice = page.locator('main .offline-notice')
-    await expect(notice.locator('.offline-unavailable')).toHaveText(
+    await expect(notice.locator('.offline-detail')).toHaveText(
       `${link} is offline niet beschikbaar`,
     )
     await expectOnlyNotice(page, null, `${name}-offline`)

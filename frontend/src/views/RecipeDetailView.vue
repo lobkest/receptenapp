@@ -141,7 +141,6 @@ watch(
   <OfflineNotice
     v-if="server.offline"
     :saved-at="oldestSavedAt(snapshot.savedAt, shoppingList.savedAt)"
-    :offline="server.browserOffline"
   />
 
   <p v-if="loading" class="muted">Recept laden…</p>

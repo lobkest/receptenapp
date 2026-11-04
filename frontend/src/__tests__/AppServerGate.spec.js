@@ -46,7 +46,8 @@ function sleepingServer() {
 // pagina zelf is weg of verborgen (Recept toevoegen houdt het formulier, zie keepMounted).
 function expectOfflineOnly(wrapper, name) {
   const notice = wrapper.find('.offline-notice')
-  expect(notice.find('.offline-unavailable').text()).toBe(`${name} is offline niet beschikbaar`)
+  expect(notice.find('.offline-title').text()).toBe('Offline: geen verbinding met de server')
+  expect(notice.find('.offline-detail').text()).toBe(`${name} is offline niet beschikbaar`)
   expect(wrapper.findAll('.offline-notice')).toHaveLength(1)
   expect(wrapper.find('.server-waiting').exists()).toBe(false)
   expect(wrapper.find('.notice-error').exists()).toBe(false)
@@ -55,10 +56,9 @@ function expectOfflineOnly(wrapper, name) {
   return notice
 }
 
-// Op een pagina zonder offline data: geen kopie, geen tijd, geen "bijwerken…".
+// Op een pagina zonder offline data: geen kopie en geen tijd.
 function expectNoCopy(notice) {
-  expect(notice.find('strong').text()).toBe('Offline: geen verbinding met de server')
-  expect(notice.find('.sync-state').exists()).toBe(false)
+  expect(notice.text()).not.toContain('kopie')
 }
 
 async function mountApp(path) {
@@ -187,9 +187,8 @@ describe('App: wachten op de server', () => {
       )
       wrapper = await mountApp('/in-huis')
 
-      const notice = expectOfflineOnly(wrapper, 'In huis')
-      expect(notice.find('strong').text()).toBe('Offline kopie van gisteren 18:00')
-      expect(notice.find('.sync-state').exists()).toBe(false)
+      // Ook met een snapshot: regel 2 zegt dat In huis offline niet werkt, geen tijdstip.
+      expectNoCopy(expectOfflineOnly(wrapper, 'In huis'))
       expect(wrapper.find('h1').exists()).toBe(false)
       expect(wrapper.find('.filter-chip').exists()).toBe(false)
       expect(wrapper.find('input').exists()).toBe(false)
@@ -284,7 +283,7 @@ describe('App: wachten op de server', () => {
     expect(wrapper.find('.route-page').attributes('style') ?? '').not.toContain('display: none')
   })
 
-  it('toont op Boodschappen meteen de offline kopie, met "bijwerken…", tot de verse lijst er is', async () => {
+  it('toont op Boodschappen meteen de bewaarde kopie, zonder offline-melding zolang de server wakker wordt', async () => {
     saveSnapshot(
       'shoppingList',
       [{ ...ITEMS[0], name: 'oude melk' }],
@@ -294,9 +293,8 @@ describe('App: wachten op de server', () => {
     wrapper = await mountApp('/boodschappen')
 
     expect(wrapper.find('.server-waiting').exists()).toBe(false)
-    expect(wrapper.find('.offline-notice').text()).toMatch(
-      /^Offline kopie van \d+ dagen geleden, bijwerken…/,
-    )
+    // De server wordt wakker (geen time-out): dat is niet offline, dus geen melding.
+    expect(wrapper.find('.offline-notice').exists()).toBe(false)
     expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['oude melk'])
 
     wakeUp()

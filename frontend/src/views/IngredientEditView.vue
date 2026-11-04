@@ -178,10 +178,16 @@ async function onMerged(notice) {
 
 // Van /ingredienten/1 naar /ingredienten/2 hergebruikt Vue dit component; daarom op het id.
 watch(() => props.id, load, { immediate: true })
+
+// Lukte laden niet (offline geopend)? Dan opnieuw zodra de server er weer is.
+watch(
+  () => server.online,
+  (online) => online && !ingredient.value && error.value && load(),
+)
 </script>
 
 <template>
-  <OfflineNotice v-if="server.offline" no-copy :offline="server.browserOffline" />
+  <OfflineNotice v-if="server.offline" editing />
 
   <p><RouterLink to="/ingredienten" class="back-link top">← Alle ingrediënten</RouterLink></p>
 
@@ -322,7 +328,8 @@ watch(() => props.id, load, { immediate: true })
     <IngredientMergeSection :ingredient="ingredient" @merged="onMerged" />
   </template>
 
-  <p v-else-if="error" class="notice notice-error" role="alert">{{ error }}</p>
+  <!-- Offline geopend: de offline-melding zegt het al; zodra er verbinding is, laden we opnieuw. -->
+  <p v-else-if="error && !server.offline" class="notice notice-error" role="alert">{{ error }}</p>
 
   <ConfirmDialog ref="confirmDialog" />
 </template>

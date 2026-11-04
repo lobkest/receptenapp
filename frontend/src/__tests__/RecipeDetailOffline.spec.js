@@ -102,8 +102,8 @@ describe('receptpagina uit de offline snapshot', () => {
     await flushPromises()
 
     const notice = wrapper.find('.offline-notice')
-    expect(notice.find('strong').text()).toBe(`Offline kopie van ${text}`)
-    expect(notice.find('.sync-state').exists()).toBe(false)
+    expect(notice.find('.offline-title').text()).toBe('Offline: geen verbinding met de server')
+    expect(notice.find('.offline-detail').text()).toBe(`kopie van ${text}`)
     // Als eerste op de pagina, boven de titel.
     expect(wrapper.element.querySelector('.offline-notice, h1').className).toContain(
       'offline-notice',

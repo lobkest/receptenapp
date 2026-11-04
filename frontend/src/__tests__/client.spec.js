@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { request } from '../api/client'
+import { REQUEST_TIMEOUT_MS, request } from '../api/client'
 import { jsonResponse, mockFetch } from './helpers'
 
 // Welke HTTP-status welke ApiError (kind + melding) geeft.
@@ -10,6 +10,29 @@ async function errorFor(response) {
 
 describe('api/client request', () => {
   afterEach(() => vi.unstubAllGlobals())
+
+  it('een verzoek dat blijft hangen (geen bereik): na REQUEST_TIMEOUT_MS een netwerkfout', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url, { signal }) =>
+            new Promise((_resolve, reject) =>
+              signal.addEventListener('abort', () =>
+                reject(new DOMException('Aborted', 'AbortError')),
+              ),
+            ),
+        ),
+      )
+      const result = request('/api/x').catch((e) => e)
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS)
+      const error = await result
+      expect(error.kind).toBe('network')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('geeft de body terug bij een geslaagd antwoord', async () => {
     mockFetch(() => jsonResponse({ id: 1 }))

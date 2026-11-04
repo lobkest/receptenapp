@@ -238,9 +238,8 @@ watch(
   <!-- Wat je ziet komt uit de snapshot (de lijst en de voorraad voor het huisje) en uit de
        boodschappenlijst ("op lijst"): het oudste van die twee tijdstippen. -->
   <OfflineNotice
-    v-if="standard.loaded && (standard.offline || server.offline || offline.pending > 0)"
+    v-if="server.offline || (standard.loaded && standard.offline)"
     :saved-at="oldestSavedAt(snapshot.savedAt, shoppingList.savedAt)"
-    :offline="server.browserOffline"
     :pending="offline.pending"
   />
 

@@ -44,6 +44,11 @@ describe('formatSavedAt', () => {
     expect(formatSavedAt(at(2026, 10, 3, 0, 1))).toBe('gisteren 00:01')
   })
 
+  it('opgeslagen 3 nov 23:30 lokale tijd, getoond 4 nov 00:10: "gisteren 23:30"', () => {
+    vi.setSystemTime(new Date(2026, 10, 4, 0, 10))
+    expect(formatSavedAt(at(2026, 10, 3, 23, 30))).toBe('gisteren 23:30')
+  })
+
   it('over de jaargrens en de wisseling naar wintertijd heen', () => {
     vi.setSystemTime(new Date(2027, 0, 1, 0, 30))
     expect(formatSavedAt(at(2026, 11, 31, 22, 0))).toBe('gisteren 22:00')

@@ -23,7 +23,8 @@ class ShoppingListItem < ApplicationRecord
   belongs_to :recipe, optional: true
   # The ingredient, so ticking the line off puts it in the house (PantryItem). Set by "op
   # lijst" from a recipe; a line typed by hand or from the standard list gets the
-  # ingredient with the same name, if there is one. Not sent by the browser.
+  # ingredient with the same name, if there is one, or the ingredient the standard item
+  # with that name is linked to. Not sent by the browser.
   belongs_to :ingredient, optional: true
 
   before_validation :normalize_fields
@@ -57,12 +58,17 @@ class ShoppingListItem < ApplicationRecord
   # name, whatever its source): one more on an existing line (count, up to MAX_COUNT),
   # preferring a line that only came from the standard list, otherwise the oldest. Not on
   # the list: a new standard line.
-  # Standard items have no ingredient, so this matches on name, like the browser does.
-  # Returns the line. A temporary standard item is used again (StandardItem.note_used!).
+  # Matches on name, like the browser does, and also on the ingredient when the standard
+  # item is linked to one ("uien" is the ingredient "ui": an open "ui" from a recipe gets
+  # one more). Returns the line. A temporary standard item is used again
+  # (StandardItem.note_used!).
   def self.add_standard!(name)
     name = name.to_s.squish.downcase
     StandardItem.note_used!(name, add_new: false)
-    matching = unchecked.where(name: name).order(:id).to_a
+    ingredient_id = StandardItem.where(name: name).pick(:ingredient_id)
+    lines = unchecked.where(name: name)
+    lines = lines.or(unchecked.where(ingredient_id: ingredient_id)) if ingredient_id
+    matching = lines.order(:id).to_a
     line = matching.find(&:standard_only?) || matching.first
     return create!(name: name, source_label: STANDARD_SOURCE, standard_count: 1) if line.nil?
 
@@ -164,8 +170,10 @@ class ShoppingListItem < ApplicationRecord
       new_record? ? ingredient_id.nil? : will_save_change_to_name? && !pantry_changed
     end
 
+    # The ingredient with this name, or else the one the standard item with this name is
+    # linked to ("uien" → "ui", StandardItem#link_to!).
     def link_ingredient_by_name
-      self.ingredient = Ingredient.find_by(name: name)
+      self.ingredient = Ingredient.find_by(name: name) || StandardItem.find_by(name: name)&.ingredient
     end
 
     # Ticked off: bought, so in the house. pantry_changed remembers whether that changed

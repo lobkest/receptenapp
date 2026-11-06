@@ -135,10 +135,15 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Een effen strook achter de statusbalk, zodat inhoud die je omhoog scrolt er niet
-   doorheen schijnt. Zonder notch is de hoogte 0 en zie je niets. */
-body::before {
-  content: '';
+/* Een effen strook achter de statusbalk (#status-bar-backdrop in index.html), zodat inhoud
+   die je omhoog scrolt er niet doorheen schijnt. Zonder notch is de hoogte 0 en zie je niets.
+   iOS 26 (geïnstalleerde app) legt zelf een "scroll edge"-blur over de bovenrand, ook
+   bovenaan de pagina, waardoor de h1 vaag wordt. WebKit slaat die blur over als de
+   bovenrand op een vast, schermbreed en ondoorzichtig element valt. Daarom: een echt
+   element (geen ::before), een volledig dekkende kleur, en GEEN backdrop-filter, mask,
+   opacity < 1, transparante kleur of pointer-events: none: dan tekent iOS de blur weer.
+   z-index 20: boven de pagina en het menu (10), onder dialogen (showModal = top layer). */
+#status-bar-backdrop {
   position: fixed;
   top: 0;
   left: 0;
@@ -146,6 +151,12 @@ body::before {
   z-index: 20;
   height: env(safe-area-inset-top);
   background: var(--color-bg);
+}
+
+/* Gescrold (App.vue zet de klasse): een dun lijntje onder de strook. min(): zonder notch
+   (hoogte 0) ook geen lijntje bovenaan het scherm. Bewust geen blur. */
+#status-bar-backdrop.is-scrolled {
+  border-bottom: min(1px, env(safe-area-inset-top)) solid var(--color-border);
 }
 
 h1,

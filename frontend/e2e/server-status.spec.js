@@ -6,6 +6,8 @@ import {
   checkLayout,
   collectErrors,
   isServerRequest,
+  sleepServer,
+  snapshotSaved,
   sorted,
   sortedLines,
 } from './helpers.js'
@@ -88,17 +90,6 @@ test.beforeEach(async () => {
   expect(created.status()).toBe(201)
 })
 
-// Een slapende server: elk verzoek blijft hangen tot wakeUp().
-async function sleepServer(page) {
-  const held = []
-  const handler = (route) => held.push(route)
-  await page.route(isServerRequest, handler)
-  return async function wakeUp() {
-    await page.unroute(isServerRequest, handler)
-    for (const route of held.splice(0)) await route.continue().catch(() => {})
-  }
-}
-
 // Een onbereikbare server: elk verzoek faalt meteen (zoals zonder verbinding).
 async function cutServer(page) {
   const handler = (route) => route.abort('internetdisconnected')
@@ -116,18 +107,17 @@ test('(a) trage server: Recepten en Boodschappen tonen meteen de bewaarde kopie'
   await page.goto('/boodschappen')
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
   await expect(page.locator('.offline-notice')).toHaveCount(0)
+  await snapshotSaved(page)
 
   // De server slaapt: geen antwoord op /up of /api.
   const wakeUp = await sleepServer(page)
   await page.goto('/')
   // Met een snapshot geen laadmelding maar meteen de recepten (stale-while-revalidate).
   await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
-  await expect(page.locator('.server-waiting')).toHaveCount(0)
   await checkLayout(page, errors, shot('a-recepten-wakker-worden'))
 
   await page.goto('/boodschappen')
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
-  await expect(page.locator('.server-waiting')).toHaveCount(0)
   // Een slapende server laat /up hangen, net als geen bereik: na de time-out van de ping
   // (8 s) zegt de melding eerlijk dat er geen verbinding is, met het tijdstip van de kopie.
   const notice = page.locator('.offline-notice')
@@ -150,7 +140,6 @@ test('(a) trage server: Recepten en Boodschappen tonen meteen de bewaarde kopie'
 
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
   await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
-  await expect(page.locator('.server-waiting')).toHaveCount(0)
 })
 
 test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvrij"', async ({
@@ -161,6 +150,8 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
 
   await page.goto('/boodschappen')
   await expect.poll(() => sortedLines(page)).toEqual(sorted(['500 ml melk', 'eieren']))
+  // Recepten komen straks uit de snapshot: die moet eerst bewaard zijn.
+  await snapshotSaved(page)
 
   // (b) De API is onbereikbaar: de offline kopie, en afvinken gaat in de wachtrij.
   const restore = await cutServer(page)
@@ -192,7 +183,6 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
 
   // Recepten toont offline de kopie uit de snapshot, met de offline-melding.
   await page.locator('nav').getByRole('link', { name: 'Recepten' }).click()
-  await expect(page.locator('.server-waiting')).toHaveCount(0)
   await expect(page.locator('.recipe-card', { hasText: RICE })).toBeVisible()
   await expect(page.locator('.offline-notice .offline-title')).toHaveText(
     'Offline: geen verbinding met de server',

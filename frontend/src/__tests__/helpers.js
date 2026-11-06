@@ -1,4 +1,40 @@
 import { vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { isOffline } from '../offline'
+import { useServerStatusStore } from '../stores/serverStatus'
+
+// De serverstatus zoals App.vue hem zou zetten (stores/serverStatus.js): alleen 'online'
+// is online; tot /up antwoordt is de app offline en gaat alles via de outbox.
+//   setOffline(): de browser meldt geen netwerk ('offline'-event → markOffline)
+//   setOnline():  het netwerk is terug en /up gaf meteen 200
+// Herstel navigator.onLine met vi.restoreAllMocks().
+export function setOffline() {
+  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  useServerStatusStore().markOffline()
+}
+
+export function setOnline() {
+  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+  const server = useServerStatusStore()
+  server.browserOffline = false
+  server.setStatus('online')
+}
+
+// Na een nieuwe Pinia (een herladen pagina) zonder App: doen alsof /up meteen antwoordde,
+// zoals mockFetch hieronder; offline als de browser offline is. Een status die de test al
+// zelf zette, blijft staan.
+export function serverOnlineUnlessOffline() {
+  const server = useServerStatusStore()
+  if (server.status !== 'waking') return
+  if (isOffline()) server.markOffline()
+  else server.setStatus('online')
+}
+
+// De verbinding valt weg terwijl de pagina open is ('offline'-event → markOffline).
+export async function goOffline() {
+  setOffline()
+  await flushPromises()
+}
 
 export function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -307,15 +343,20 @@ function etagOf(value) {
 // offline snapshot (GET /api/offline_snapshot, met ETag en 304). Zonder presentIds heeft de
 // snapshot geen voorraad (dan geen huisjes, zoals in de tests van vóór de snapshot).
 // ingredients ([{ id, name }]): GET /api/ingredients en de namen in de snapshot.
+// linkPairs ([['uien', 'ui']]): wat "Mogelijk hetzelfde" zou vinden (standaarditem- en
+// ingrediëntnaam); de nep-server laat gekoppelde items en afgewezen paren weg, zoals
+// StandardItemLinkSuggestions.
 export function fakeServer({
   standard = [],
   shopping = [],
   recipes = [],
   presentIds = null,
   ingredients = [],
+  linkPairs = [],
 } = {}) {
   const standardServer = standardRoutes(standard)
   const shoppingServer = shoppingRoutes(shopping)
+  const rejected = new Set()
 
   // Zoals Recipe#shopping_list_items: zonder ingredient_ids alles behalve de optionele, en
   // met skip_in_house zonder wat nu in huis is. Geschaald, zonder afronding (de tests
@@ -338,8 +379,54 @@ export function fakeServer({
       )
   }
 
+  // Zoals Api::StandardItemsController#link_suggestions: per item de kandidaten.
+  function linkSuggestions() {
+    const result = []
+    for (const [itemName, ingredientName] of linkPairs) {
+      const item = standardServer.db.find((i) => i.name === itemName)
+      const ingredient = ingredients.find((i) => i.name === ingredientName)
+      if (!item || !ingredient || item.ingredient_id != null) continue
+      if (rejected.has(`${item.id}-${ingredient.id}`)) continue
+      let row = result.find((r) => r.standard_item.id === item.id)
+      if (!row) result.push((row = { standard_item: structuredClone(item), candidates: [] }))
+      row.candidates.push({ id: ingredient.id, name: ingredient.name })
+    }
+    return result
+  }
+
+  // link, unlink en reject_link op een item; null als de URL daar niet over gaat.
+  function linkRoute(method, url, body) {
+    if (url === `${STANDARD_BASE}/link_suggestions` && method === 'GET') {
+      return jsonResponse(linkSuggestions())
+    }
+    const match = url.match(/^\/api\/standard_items\/(\d+)\/(link|unlink|reject_link)$/)
+    if (!match || method !== 'POST') return null
+    const item = standardServer.db.find((i) => i.id === Number(match[1]))
+    if (!item) return jsonResponse({ error: 'Niet gevonden.' }, 404)
+    if (match[2] === 'unlink') {
+      item.ingredient_id = null
+      return jsonResponse(structuredClone(item))
+    }
+    const ingredient = ingredients.find((i) => i.id === body.ingredient_id)
+    if (!ingredient) return jsonResponse({ error: 'Niet gevonden.' }, 404)
+    if (match[2] === 'reject_link') {
+      rejected.add(`${item.id}-${ingredient.id}`)
+      return new Response(null, { status: 204 })
+    }
+    // Zoals StandardItem#link_to!: ook de open regels met die naam zonder ingrediënt.
+    item.ingredient_id = ingredient.id
+    for (const line of shoppingServer.db) {
+      if (!line.checked && line.name === item.name && line.ingredient_id == null) {
+        line.ingredient_id = ingredient.id
+      }
+    }
+    return jsonResponse(structuredClone(item))
+  }
+
   const fetch = mockFetch((method, url, options) => {
     const body = options.body ? JSON.parse(options.body) : {}
+    const linked = linkRoute(method, url, body)
+    if (linked) return linked
     if (url === '/api/offline_snapshot' && method === 'GET') {
       const data = {
         recipes,

@@ -2,25 +2,30 @@ import { defineStore } from 'pinia'
 import { isOffline } from '@/offline'
 
 // Is de server er? De gratis Render-server slaapt na een kwartier zonder bezoek; het eerste
-// verzoek daarna wacht tot hij wakker is (soms een minuut). Zolang hij niet online is,
-// tonen de pagina's met meta.needsServer (router) een laadmelding in plaats van oude data
-// (App.vue); de boodschappenlijst toont dan zijn offline kopie.
+// verzoek daarna wacht tot hij wakker is (soms een minuut). Zolang hij niet online is, geldt
+// de app als offline (getter offline): elke pagina toont de offline-melding met een teller
+// (components/OfflineNotice.vue, offlineSince), de pagina's tonen hun offline kopie, en wat
+// je toevoegt of afvinkt gaat meteen via de outbox (stores/offline.js), zonder netwerkverzoek.
+// Pas als /up 200 geeft, gaat de outbox naar de server (App.vue).
 //
 // status:
-// - 'waking':  nog geen antwoord, of een 5xx: de server start op
+// - 'waking':  nog geen antwoord, of een 5xx: de server start op (ook bij het starten van de
+//              app, en terug naar de app als de ping langer dan SLOW_MS duurt)
 // - 'online':  GET /up (de health check van Rails) gaf 200
 // - 'offline': geen verbinding: de browser meldt offline, fetch faalt meteen, of /up blijft
 //              PING_TIMEOUT_MS hangen. Dat laatste is een telefoon zonder bereik (requests
 //              blijven hangen in plaats van te falen). Een slapende Render-server laat /up
 //              ook hangen; de browser ziet geen verschil (Rails serveert ook de frontend).
 //              Dan tonen we eerlijk "geen verbinding" en zodra hij antwoordt is hij online.
+// Alleen 'online' is online; 'waking' en 'offline' tellen allebei als offline. Het verschil
+// zit alleen in de tekst van de teller (browserOffline: "geen internet op dit toestel").
 // Zolang hij niet online is, proberen we het opnieuw, steeds wat later (backoff).
 
 const UP_URL = '/up'
 // Per ping: zonder antwoord na zoveel ms geldt de app als offline, en proberen we opnieuw.
 export const PING_TIMEOUT_MS = 8_000
-// Was hij al online (terug naar het tabblad)? Dan blijft de pagina staan, tenzij het
-// antwoord zo lang uitblijft: dan sliep hij intussen.
+// Was hij al online (terug naar het tabblad)? Dan blijft hij online, tenzij het antwoord zo
+// lang uitblijft: dan sliep hij intussen en is de app offline tot /up antwoordt.
 export const SLOW_MS = 2_000
 // Wachttijd vóór de 1e, 2e, ... herhaling; daarna steeds de laatste.
 export const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000]
@@ -53,6 +58,9 @@ async function ping() {
 export const useServerStatusStore = defineStore('serverStatus', {
   state: () => ({
     status: 'waking',
+    // Sinds wanneer (Date.now(), ms) de server niet online is, voor de teller in de
+    // offline-melding; null zolang hij online is. Bij het starten: meteen (status 'waking').
+    offlineSince: Date.now(),
     // navigator.onLine === false, bijgehouden via de 'online'/'offline'-events (App.vue).
     // Alleen dan is het echt "Offline"; anders proberen we nog.
     browserOffline: isOffline(),
@@ -60,13 +68,22 @@ export const useServerStatusStore = defineStore('serverStatus', {
 
   getters: {
     online: (state) => state.status === 'online',
-    // Geen verbinding (de browser meldt offline, of de server is niet te bereiken): dan
-    // zijn knoppen die iets op de server moeten veranderen uit, behalve wat via de outbox
-    // kan (stores/offline.js). Een server die nog wakker wordt telt niet als offline.
-    offline: (state) => state.browserOffline || state.status === 'offline',
+    // Alles wat niet online is: geen verbinding, de server is niet te bereiken, of hij wordt
+    // nog wakker (ook in de eerste ogenblikken na het starten, tot /up antwoordt). Dan zijn
+    // knoppen die iets op de server moeten veranderen uit, behalve wat via de outbox kan
+    // (stores/offline.js), en tonen de pagina's de offline-melding.
+    offline: (state) => state.status !== 'online',
   },
 
   actions: {
+    // De status zetten, en offlineSince mee: gezet zodra hij niet meer online is (een al
+    // lopende teller blijft doorlopen), gewist bij online.
+    setStatus(status) {
+      this.status = status
+      if (status === 'online') this.offlineSince = null
+      else this.offlineSince ??= Date.now()
+    },
+
     // Bij het starten, terug naar het tabblad en als de verbinding terugkomt: meteen
     // pingen, met de backoff weer vanaf het begin.
     start() {
@@ -79,19 +96,19 @@ export const useServerStatusStore = defineStore('serverStatus', {
       clearTimeout(retryTimer)
       this.browserOffline = isOffline()
       if (this.browserOffline) {
-        this.status = 'offline'
+        this.setStatus('offline')
         this.scheduleRetry()
         return
       }
       const id = ++latestPing
       clearTimeout(slowTimer)
       slowTimer =
-        this.status === 'online' ? setTimeout(() => (this.status = 'waking'), SLOW_MS) : null
+        this.status === 'online' ? setTimeout(() => this.setStatus('waking'), SLOW_MS) : null
       const check = ping()
         .then((result) => {
           if (id !== latestPing) return
           clearTimeout(slowTimer)
-          this.status = result
+          this.setStatus(result)
           if (result === 'online') attempt = 0
           else this.scheduleRetry()
         })
@@ -122,7 +139,7 @@ export const useServerStatusStore = defineStore('serverStatus', {
       pendingCheck = null
       clearTimeout(slowTimer)
       this.browserOffline = true
-      this.status = 'offline'
+      this.setStatus('offline')
     },
   },
 })

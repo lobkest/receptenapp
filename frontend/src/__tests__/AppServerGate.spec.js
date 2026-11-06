@@ -8,7 +8,6 @@ import { mountRoute } from './mount'
 
 const RECIPES = [{ id: 1, title: 'Pannenkoeken', tags: ['glutenvrij'], category_id: null }]
 const ITEMS = [{ id: 1, name: 'melk', quantity: null, unit: null, checked: false }]
-const WAKING = 'Server wordt wakker, ophalen… (kan ~1 minuut duren)'
 const PANTRY = { in_house: [], staples: [{ id: 1, name: 'zout', present: true }], suggestions: [] }
 const PANTRY_RECIPES = [0, 1, 2].map((count) => ({
   missing_count: count,
@@ -42,18 +41,24 @@ function sleepingServer() {
   return { fetch, wakeUp }
 }
 
-// Zonder verbinding: alleen de offline-melding met "… is offline niet beschikbaar"; de
+// Zonder verbinding, of zolang de server nog wakker wordt (ook offline, zie
+// stores/serverStatus.js): alleen de offline-melding met "… is offline niet beschikbaar"; de
 // pagina zelf is weg of verborgen (Recept toevoegen houdt het formulier, zie keepMounted).
 function expectOfflineOnly(wrapper, name) {
   const notice = wrapper.find('.offline-notice')
   expect(notice.find('.offline-title').text()).toBe('Offline: geen verbinding met de server')
   expect(notice.find('.offline-detail').text()).toBe(`${name} is offline niet beschikbaar`)
   expect(wrapper.findAll('.offline-notice')).toHaveLength(1)
-  expect(wrapper.find('.server-waiting').exists()).toBe(false)
   expect(wrapper.find('.notice-error').exists()).toBe(false)
   const page = wrapper.find('.route-page')
-  if (page.exists()) expect(page.attributes('style')).toContain('display: none')
+  const hidden = !page.exists() || (page.attributes('style') ?? '').includes('display: none')
+  expect(hidden).toBe(true)
   return notice
+}
+
+// De server antwoordt nog niet (geen netwerkfout): de teller zegt "wachten op verbinding".
+function expectWaiting(notice) {
+  expect(notice.find('.offline-counter').text()).toMatch(/^wachten op verbinding… \d+ s/)
 }
 
 // Op een pagina zonder offline data: geen kopie en geen tijd.
@@ -84,11 +89,11 @@ describe('App: wachten op de server', () => {
     vi.restoreAllMocks()
   })
 
-  it('toont op Recepten een laadmelding en geen data zolang de server slaapt', async () => {
+  it('toont op Recepten (zonder kopie) de offline-melding en geen data zolang de server slaapt', async () => {
     const { fetch, wakeUp } = sleepingServer()
     wrapper = await mountApp('/')
 
-    expect(wrapper.find('.server-waiting').text()).toBe(WAKING)
+    expectWaiting(expectOfflineOnly(wrapper, 'Recepten'))
     expect(wrapper.find('h1').exists()).toBe(false)
     // De receptenpagina vraagt nog niets: die opent pas als de server er is.
     expect(fetch.mock.calls.some(([url]) => url.startsWith('/api/recipes'))).toBe(false)
@@ -96,23 +101,26 @@ describe('App: wachten op de server', () => {
     wakeUp()
     await flushPromises()
 
-    expect(wrapper.find('.server-waiting').exists()).toBe(false)
+    expect(wrapper.find('.offline-notice').exists()).toBe(false)
     expect(wrapper.find('h1').text()).toBe('Recepten')
     expect(wrapper.find('.recipe-card').text()).toContain('Pannenkoeken')
   })
 
-  it.each([['/standaard'], ['/ingredienten']])('toont de laadmelding ook op %s', async (path) => {
+  it.each([
+    ['/standaard', 'Standaardboodschappen'],
+    ['/ingredienten', 'Ingrediënten'],
+  ])('toont de offline-melding ook op %s', async (path, name) => {
     sleepingServer()
     wrapper = await mountApp(path)
 
-    expect(wrapper.find('.server-waiting').text()).toBe(WAKING)
+    expectWaiting(expectOfflineOnly(wrapper, name))
     expect(wrapper.find('h1').exists()).toBe(false)
   })
 
   describe('In huis', () => {
     // Alleen de gedeelde melding: geen kop, geen chips, geen voorraad-invoer.
-    function expectOnlyNotice(text) {
-      expect(wrapper.find('.server-waiting').text()).toBe(text)
+    function expectOnlyNotice() {
+      expectWaiting(expectOfflineOnly(wrapper, 'In huis'))
       expect(wrapper.find('h1').exists()).toBe(false)
       expect(wrapper.find('.filter-chip').exists()).toBe(false)
       expect(wrapper.find('input').exists()).toBe(false)
@@ -123,14 +131,14 @@ describe('App: wachten op de server', () => {
       const { fetch, wakeUp } = sleepingServer()
       wrapper = await mountApp('/in-huis')
 
-      expectOnlyNotice(WAKING)
+      expectOnlyNotice()
       // De pagina vraagt nog niets: die opent pas als de server er is.
       expect(fetch.mock.calls.some(([url]) => url.startsWith('/api/pantry'))).toBe(false)
 
       wakeUp()
       await flushPromises()
 
-      expect(wrapper.find('.server-waiting').exists()).toBe(false)
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
       expect(wrapper.find('h1').text()).toBe('In huis')
       expect(wrapper.find('.filter-chip').exists()).toBe(true)
       expect(wrapper.text()).toContain('Pannenkoeken')
@@ -150,7 +158,7 @@ describe('App: wachten op de server', () => {
       window.dispatchEvent(new Event('online'))
       await flushPromises()
 
-      expect(wrapper.find('.server-waiting').exists()).toBe(false)
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
       expect(fetch.mock.calls.some(([url]) => url === '/api/pantry')).toBe(true)
       expect(wrapper.find('h1').text()).toBe('In huis')
       expect(wrapper.text()).toContain('Pannenkoeken')
@@ -230,7 +238,9 @@ describe('App: wachten op de server', () => {
       )
       wrapper = await mountApp(path)
 
-      expectNoCopy(expectOfflineOnly(wrapper, name))
+      const notice = expectOfflineOnly(wrapper, name)
+      expectNoCopy(notice)
+      expect(notice.find('.offline-counter').text()).toMatch(/^geen internet op dit toestel · /)
     })
 
     it('Recept toevoegen houdt offline het formulier, verborgen, tot de verbinding terug is', async () => {
@@ -267,11 +277,11 @@ describe('App: wachten op de server', () => {
     })
   })
 
-  it('verbergt Recept toevoegen achter de laadmelding, maar houdt het formulier', async () => {
+  it('verbergt Recept toevoegen achter de offline-melding, maar houdt het formulier', async () => {
     sleepingServer()
     wrapper = await mountApp('/recepten/nieuw')
 
-    expect(wrapper.find('.server-waiting').text()).toBe(WAKING)
+    expectWaiting(expectOfflineOnly(wrapper, 'Recept toevoegen'))
     // Een half ingevuld formulier mag niet verdwijnen als de server even slaapt.
     expect(wrapper.find('h1').exists()).toBe(true)
     expect(wrapper.find('.route-page').attributes('style')).toContain('display: none')
@@ -279,23 +289,26 @@ describe('App: wachten op de server', () => {
     wakeUp()
     await flushPromises()
 
-    expect(wrapper.find('.server-waiting').exists()).toBe(false)
+    expect(wrapper.find('.offline-notice').exists()).toBe(false)
     expect(wrapper.find('.route-page').attributes('style') ?? '').not.toContain('display: none')
   })
 
-  it('toont op Boodschappen meteen de bewaarde kopie, zonder offline-melding zolang de server wakker wordt', async () => {
+  it('toont op Boodschappen meteen de bewaarde kopie met de offline-melding zolang de server wakker wordt', async () => {
     saveSnapshot(
       'shoppingList',
       [{ ...ITEMS[0], name: 'oude melk' }],
       new Date(2026, 9, 16, 9, 41).getTime(),
     )
-    const { wakeUp } = sleepingServer()
+    const { fetch, wakeUp } = sleepingServer()
     wrapper = await mountApp('/boodschappen')
 
-    expect(wrapper.find('.server-waiting').exists()).toBe(false)
-    // De server wordt wakker (geen time-out): dat is niet offline, dus geen melding.
-    expect(wrapper.find('.offline-notice').exists()).toBe(false)
+    // De server wordt wakker: dat telt als offline, dus de melding met de kopie en de teller.
+    const notice = wrapper.find('.offline-notice')
+    expect(notice.find('.offline-detail').text()).toMatch(/^kopie van /)
+    expectWaiting(notice)
     expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['oude melk'])
+    // Met een kopie vraagt de lijst nog niets: pas als /up antwoordt.
+    expect(fetch.mock.calls.some(([url]) => url.startsWith('/api/shopping_list_items'))).toBe(false)
 
     wakeUp()
     await flushPromises()
@@ -304,10 +317,13 @@ describe('App: wachten op de server', () => {
     expect(wrapper.findAll('.items .line').map((l) => l.text())).toEqual(['melk'])
   })
 
-  it('toont op Boodschappen zonder kopie de laadmelding', async () => {
+  it('toont op Boodschappen zonder kopie alleen de offline-melding', async () => {
     sleepingServer()
     wrapper = await mountApp('/boodschappen')
 
-    expect(wrapper.find('.server-waiting').text()).toBe(WAKING)
+    const notice = wrapper.find('.offline-notice')
+    expect(notice.find('.offline-detail').text()).toBe('Boodschappen is offline niet beschikbaar')
+    expectWaiting(notice)
+    expect(wrapper.text()).not.toContain('laden…')
   })
 })

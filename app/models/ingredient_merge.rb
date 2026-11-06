@@ -7,7 +7,8 @@
 # What refers to an ingredient:
 # - by id: recipe_ingredients and recipe_ingredient_alternatives;
 # - by name: added ingredients of variations, shopping list lines and standard list items;
-# - by id as well: shopping list lines (ingredient_id) and the stock ("In huis", PantryItem).
+# - by id as well: shopping list lines and linked standard list items (ingredient_id) and
+#   the stock ("In huis", PantryItem).
 #   The stock of the target wins: a row of the source only moves when the target has none.
 #
 # A recipe that contains both (as rows, or one as an alternative of the other) cannot simply
@@ -110,10 +111,13 @@ class IngredientMerge
       end
     end
 
-    # Before the source can be deleted: its pantry row would go with it (on_delete: :cascade).
+    # Before the source can be deleted: its pantry row would go with it (on_delete: :cascade),
+    # and lines and standard items would lose their ingredient (on_delete: :nullify).
     # A moved row that says what the target's default says is not needed (see PantryItem).
     def move_shopping_list_and_pantry
       ShoppingListItem.where(ingredient_id: @source.id).update_all(ingredient_id: @target.id, updated_at: Time.current)
+      # Linked by hand ("uien" is "ui"): now the target. Rejected pairs of the source go with it.
+      StandardItem.where(ingredient_id: @source.id).update_all(ingredient_id: @target.id, updated_at: Time.current)
 
       row = PantryItem.find_by(ingredient_id: @source.id)
       return if row.nil?

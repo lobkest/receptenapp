@@ -69,7 +69,8 @@ async function handleSubmit(values) {
     await updateRecipe(props.id, { ...values, lock_version: recipe.value.lock_version })
     dirty.value = false
     recipes.setNotice(`"${values.title}" is opgeslagen.`)
-    router.push({ name: 'recipe', params: { id: props.id } })
+    // replace: browser-terug vanaf het recept gaat dan niet terug naar het formulier.
+    router.replace({ name: 'recipe', params: { id: props.id } })
   } catch (e) {
     if (e.kind === 'validation') {
       errors.value = e.errors
@@ -114,7 +115,8 @@ watch(
 
   <h1>Recept bewerken</h1>
 
-  <p v-if="loading" class="muted">Recept laden…</p>
+  <!-- Offline zegt de offline-melding het al; een hangend verzoek geeft anders lang "laden…". -->
+  <p v-if="loading && !server.offline" class="muted">Recept laden…</p>
 
   <p v-else-if="notFound">Dit recept bestaat niet (meer).</p>
 

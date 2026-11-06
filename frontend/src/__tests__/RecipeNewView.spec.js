@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
-import { jsonResponse, mockFetch } from './helpers'
+import { jsonResponse, mockFetch, serverOnlineUnlessOffline } from './helpers'
 
 const TAGS = [
   { name: 'snel', count: 3 },
@@ -36,6 +36,7 @@ function postedRecipe(fetch) {
 let router
 
 async function mountView() {
+  serverOnlineUnlessOffline()
   router = createRouter({ history: createMemoryHistory(), routes })
   await router.push('/recepten/nieuw')
   const wrapper = mount(RouterView, { global: { plugins: [router] } })

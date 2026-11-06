@@ -2,9 +2,9 @@
 # link can see and change it. Writes are rate limited (PublicWriteRateLimit).
 class Api::StandardItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy bulk_destroy add_to_shopping_list ]
+  limit_public_writes only: %i[ create update destroy bulk_destroy add_to_shopping_list link unlink reject_link ]
 
-  before_action :set_standard_item, only: %i[ update destroy ]
+  before_action :set_standard_item, only: %i[ update destroy link unlink reject_link ]
 
   # GET /api/standard_items
   # Temporary items unused for StandardItem::TEMPORARY_LIFETIME are removed first (no
@@ -75,6 +75,38 @@ class Api::StandardItemsController < ApplicationController
     end
 
     render json: ShoppingListItemSerializer.items(lines)
+  end
+
+  # GET /api/standard_items/link_suggestions
+  # [ { "standard_item": { "id": 3, "name": "uien", … }, "candidates": [ { "id": 7, "name": "ui" } ] } ]
+  # Items that are not linked, with at most three ingredients that are probably the same
+  # (StandardItemLinkSuggestions). A rejected pair is not in it.
+  def link_suggestions
+    render json: StandardItemLinkSuggestions.call.map { |suggestion|
+      { standard_item: serialize(suggestion[:item]),
+        candidates: suggestion[:candidates].map { |ingredient| ingredient.slice("id", "name") } }
+    }
+  end
+
+  # POST /api/standard_items/1/link  { "ingredient_id": 7 }
+  # "Ja, hetzelfde": the item is that ingredient from now on, and so are its open lines on
+  # the shopping list (StandardItem#link_to!). Returns the item. Unknown ingredient: 404.
+  def link
+    @standard_item.link_to!(Ingredient.find(params.expect(:ingredient_id)))
+    render json: serialize(@standard_item)
+  end
+
+  # POST /api/standard_items/1/unlink
+  def unlink
+    @standard_item.unlink!
+    render json: serialize(@standard_item)
+  end
+
+  # POST /api/standard_items/1/reject_link  { "ingredient_id": 7 }
+  # "Nee, niet hetzelfde": the pair is not suggested again.
+  def reject_link
+    @standard_item.reject_link!(Ingredient.find(params.expect(:ingredient_id)))
+    head :no_content
   end
 
   private

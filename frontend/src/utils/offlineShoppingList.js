@@ -189,9 +189,11 @@ export function applyShoppingAction(items, action, { categoryOf = () => null } =
 }
 
 // Zoals ShoppingListItem.add_standard!: één erbij op een open regel met die naam (liefst
-// een die alleen van de standaardlijst komt), anders een nieuwe standaardregel.
+// een die alleen van de standaardlijst komt), anders een nieuwe standaardregel. Ook op een
+// regel die zelf nog op sync wacht (locked, bijv. een eerdere [+] van offline): de server
+// telt daar straks ook bij op, dus twee keer [+] is één regel met aantal 2, geen twee.
 function addStandard(items, name, action, categoryOf) {
-  const matching = items.filter((item) => !item.checked && item.name === name && !item.locked)
+  const matching = items.filter((item) => !item.checked && item.name === name)
   const line = matching.find(isStandardOnly) ?? matching[0]
   if (line) {
     return items.map((item) =>

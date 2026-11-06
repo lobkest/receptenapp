@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import OfflineNotice from '../components/OfflineNotice.vue'
 import { TICK_MS } from '../composables/useNow'
 import { OFFLINE_TITLE } from '../offline'
-import { APP_VERSION } from '../version'
+import { useServerStatusStore } from '../stores/serverStatus'
+import { setOffline } from './helpers'
 
-// De offline-melding: overal regel 1 gelijk, regel 2 per pagina, extra uitleg eronder, en
-// "vandaag/gisteren" opnieuw berekend als de tijd verstrijkt.
+// De offline-melding: overal regel 1 gelijk, regel 2 per pagina, extra uitleg eronder,
+// "vandaag/gisteren" opnieuw berekend als de tijd verstrijkt, en een teller sinds wanneer
+// de server niet online is (serverStatus.offlineSince).
 const at = (...parts) => new Date(...parts).getTime()
 
 function lines(wrapper) {
@@ -19,12 +22,18 @@ function lines(wrapper) {
 describe('OfflineNotice', () => {
   let wrapper
 
-  beforeEach(() => vi.useFakeTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+  })
 
   afterEach(() => {
     wrapper?.unmount()
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
+
+  const counter = () => wrapper.find('.offline-notice .offline-counter').text()
 
   it('regel 1 is overal gelijk; regel 2 per soort pagina', () => {
     vi.setSystemTime(new Date(2026, 10, 3, 22, 0))
@@ -49,7 +58,7 @@ describe('OfflineNotice', () => {
       slots: { default: 'Afvinken kan gewoon.' },
     })
     const box = wrapper.find('.offline-notice')
-    expect(box.text()).not.toContain('wachten')
+    expect(box.find('.pending').exists()).toBe(false)
     expect(box.text()).not.toContain('Afvinken')
     expect(wrapper.find('.offline-extra .pending').text()).toBe(
       '2 wijzigingen wachten op verbinding',
@@ -57,9 +66,44 @@ describe('OfflineNotice', () => {
     expect(wrapper.find('.offline-extra').text()).toContain('Afvinken kan gewoon.')
   })
 
-  it('toont klein welke build er draait', () => {
+  it('telt vanaf het starten elke seconde op; na 50 s "duurt langer dan normaal"', async () => {
+    // De store begint bij het starten (status 'waking') met offlineSince = nu.
+    const server = useServerStatusStore()
+    expect(server.offline).toBe(true)
+    wrapper = mount(OfflineNotice, { props: { savedAt: Date.now() } })
+    expect(counter()).toBe('wachten op verbinding… 0 s (opstarten duurt meestal ~50 s)')
+
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(counter()).toBe('wachten op verbinding… 12 s (opstarten duurt meestal ~50 s)')
+
+    await vi.advanceTimersByTimeAsync(51_000)
+    expect(counter()).toBe('wachten op verbinding… 63 s (duurt langer dan normaal)')
+  })
+
+  it('toestel offline: "geen internet op dit toestel"', async () => {
+    setOffline()
+    wrapper = mount(OfflineNotice, { props: { savedAt: Date.now() } })
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(counter()).toMatch(/^geen internet op dit toestel · 12 s$/)
+  })
+
+  it('geen versienummer in de melding', () => {
     wrapper = mount(OfflineNotice, { props: { editing: true } })
-    expect(wrapper.find('.offline-notice .offline-build').text()).toContain(APP_VERSION.slice(0, 7))
+    expect(wrapper.find('.offline-build').exists()).toBe(false)
+    expect(wrapper.find('.offline-notice').text()).not.toContain('versie')
+  })
+
+  it('online: geen teller, en het interval is opgeruimd', async () => {
+    const server = useServerStatusStore()
+    wrapper = mount(OfflineNotice, { props: { editing: true } })
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    server.setStatus('online')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.offline-counter').exists()).toBe(false)
+    wrapper.unmount()
+    wrapper = null
+    // Na unmount loopt er geen klok meer (de teller niet, en useNow ook niet).
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('app blijft open over middernacht: "vandaag" wordt vanzelf "gisteren"', async () => {

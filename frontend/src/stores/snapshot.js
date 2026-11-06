@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { fetchOfflineSnapshot } from '@/api/offline'
 import { isOffline, loadSnapshot, saveSnapshot } from '@/offline'
 import { useOfflineStore } from '@/stores/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 
 // De offline snapshot (GET /api/offline_snapshot): alle recepten volledig, de tags en
 // categorieën, de ingrediëntnamen, de standaardlijst en de voorraad, bewaard in IndexedDB.
@@ -50,12 +51,13 @@ export const useSnapshotStore = defineStore('snapshot', {
     },
 
     // Eerst de outbox versturen (anders is de snapshot meteen weer oud), dan ophalen met
-    // de ETag. Zonder verbinding blijft de kopie staan. Gooit nooit: een pagina zonder
+    // de ETag. Zonder verbinding blijft de kopie staan, en ook zolang de server niet online
+    // is (App.vue ververst bij de overgang naar online). Gooit nooit: een pagina zonder
     // snapshot haalt zelf op en toont zelf de fout.
     load() {
       this.restore()
       if (pendingLoad) return pendingLoad
-      if (isOffline()) return Promise.resolve()
+      if (isOffline() || (this.data && !useServerStatusStore().online)) return Promise.resolve()
       pendingLoad = useOfflineStore()
         .sync()
         .then(() => fetchOfflineSnapshot(this.data ? this.etag : null))

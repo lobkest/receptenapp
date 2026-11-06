@@ -11,14 +11,15 @@ import IngredientEditView from '@/views/IngredientEditView.vue'
 import PantryView from '@/views/PantryView.vue'
 import AdminRecipeVersionsView from '@/views/AdminRecipeVersionsView.vue'
 import { useAdminStore } from '@/stores/admin'
+import { useLastListRouteStore } from '@/stores/lastListRoute'
 
-// meta.needsServer: zolang de server niet online is, toont App.vue een laadmelding in plaats
-// van de pagina (geen oude data). Zodra hij online is, opent de pagina en haalt hij vers op.
+// meta.needsServer: zolang de server niet online is (ook als hij nog wakker wordt), toont
+// App.vue alleen de offline-melding in plaats van de pagina (geen oude data). Zodra hij online is, opent de pagina en haalt hij vers op.
 // meta.keepMounted: de pagina blijft dan wel bestaan (alleen verborgen), zodat een half
 // ingevuld formulier niet verdwijnt als de server even slaapt.
 // meta.offline: de pagina kan uit de offline snapshot (stores/snapshot.js); is die er,
 // dan wacht hij niet op de server maar toont hij meteen de kopie.
-// meta.onlineOnly: zonder verbinding (serverStatus.offline) toont App.vue alleen de
+// meta.onlineOnly: zolang de server niet online is (serverStatus.offline) toont App.vue alleen de
 // offline-melding met "… is offline niet beschikbaar", ook als er een snapshot is.
 // meta.offlineName: de paginanaam in die regel ("In huis is offline niet beschikbaar").
 export const routes = [
@@ -88,11 +89,18 @@ export function requireAdmin(to) {
   }
 }
 
+export function rememberListRoute(to) {
+  useLastListRouteStore().remember(to)
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 
 router.beforeEach(requireAdmin)
+// Na elke routewissel (ook router.replace bij het aan- en uitzetten van een filter): onthoud
+// de URL van het receptenoverzicht en "In huis", voor de terugknop en het menu.
+router.afterEach(rememberListRoute)
 
 export default router

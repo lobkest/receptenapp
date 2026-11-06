@@ -106,8 +106,11 @@ async function checkEveryPage(page, errors, mode, timeout) {
     await expect(notice, `${mode} ${name}`).toHaveCount(1, { timeout })
     await expect(notice.locator('.offline-detail'), `${mode} ${name}`).toHaveText(detail)
     // Geen laadmelding en geen foutblok naast de melding.
-    await expect(page.locator('main .server-waiting:visible')).toHaveCount(0)
     await expect(page.locator('main .notice-error:visible')).toHaveCount(0)
+    // Ook geen "… laden…" dat blijft staan omdat een verzoek hangt.
+    await expect(page.locator('main :visible', { hasText: /laden…$/ })).toHaveCount(0)
+    // Wat alleen online kan, staat uit (hier: wissen op Boodschappen).
+    if (name === 'boodschappen') await expect(page.locator('.clear-all')).toBeDisabled()
 
     await page.evaluate(() => window.scrollTo(0, 0))
     const shot = await page.screenshot({ animations: 'disabled' })
@@ -244,12 +247,19 @@ test('bereik valt weg terwijl de app open is: terug naar de app geeft de melding
   await context.close()
 })
 
-test('trage verbinding: geen offline-melding, de pagina laadt gewoon', async ({ browser }) => {
+test('trage verbinding: de melding alleen tot /up antwoordt, daarna laadt de pagina gewoon', async ({
+  browser,
+}) => {
   test.setTimeout(60_000)
   const { context, page } = await freshPhone(browser)
 
   await slowServer(context, 2_500)
   await page.reload()
+  // Tot /up antwoordt telt de app als offline (ook vlak na het starten): de melding met teller.
+  await expect(page.locator('main .offline-notice .offline-counter')).toHaveText(
+    /^wachten op verbinding… \d+ s/,
+  )
+  await expect(page.locator('.offline-notice')).toHaveCount(0, { timeout: 10_000 })
   await page.locator('footer').getByRole('link', { name: 'Ingrediënten' }).click()
   await expect(page.locator('main h1')).toHaveText('Ingrediënten', { timeout: 15_000 })
   await page.locator('.main-nav').getByRole('link', { name: 'Recepten' }).click()

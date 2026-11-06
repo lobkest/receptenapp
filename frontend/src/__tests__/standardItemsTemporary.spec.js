@@ -6,7 +6,7 @@ import { useSnapshotStore } from '../stores/snapshot'
 import { useStandardItemsStore } from '../stores/standardItems'
 import { clearMemoryStorage } from '../offline/storage'
 import { expiryLimit, isExpired } from '../utils/temporaryItems'
-import { fakeServer } from './helpers'
+import { fakeServer, serverOnlineUnlessOffline, setOffline, setOnline } from './helpers'
 
 // "Tijdelijk" op de standaardlijst: losse items van de boodschappenlijst, die de server daar
 // zet (StandardItem.note_used!). De browser groepeert ze als laatste, laat verlopen items uit
@@ -25,11 +25,8 @@ const ITEMS = [
 
 function freshStores() {
   setActivePinia(createPinia())
+  serverOnlineUnlessOffline()
   return { standard: useStandardItemsStore(), snapshot: useSnapshotStore() }
-}
-
-function goOffline() {
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
 }
 
 function patches(fetch) {
@@ -85,7 +82,7 @@ describe('Tijdelijk op de standaardlijst', () => {
     fakeServer({ standard: ITEMS })
     await freshStores().snapshot.load()
 
-    goOffline()
+    setOffline()
     const { standard } = freshStores()
     await standard.load()
 
@@ -110,7 +107,7 @@ describe('Tijdelijk op de standaardlijst', () => {
   it('offline: een categorie maakt het item meteen permanent, alleen naam niet', async () => {
     fakeServer({ standard: ITEMS.slice(0, 3) })
     await freshStores().snapshot.load()
-    goOffline()
+    setOffline()
     const { standard } = freshStores()
     await standard.load()
 
@@ -124,14 +121,14 @@ describe('Tijdelijk op de standaardlijst', () => {
   it('"Geen categorie" (temporary: false) gaat offline mee naar de server', async () => {
     const server = fakeServer({ standard: ITEMS.slice(0, 3) })
     await freshStores().snapshot.load()
-    goOffline()
+    setOffline()
     const { standard } = freshStores()
     await standard.load()
 
     await standard.update(3, { name: 'dille', category: null, temporary: false })
     expect(standard.items.find((i) => i.id === 3).temporary_last_used_at).toBeNull()
 
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    setOnline()
     await standard.load()
     expect(patches(server.fetch)).toEqual([
       [
@@ -145,7 +142,7 @@ describe('Tijdelijk op de standaardlijst', () => {
   it('weigert offline de categorie "Tijdelijk", zoals de server', async () => {
     fakeServer({ standard: ITEMS.slice(0, 3) })
     await freshStores().snapshot.load()
-    goOffline()
+    setOffline()
     const { standard } = freshStores()
     await standard.load()
 

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import * as api from '@/api/pantry'
-import { isNetworkError, isOffline } from '@/offline'
+import { isNetworkError } from '@/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { presentIngredientIds } from '@/utils/inHouse'
 import { pantryGroups, withAllTags } from '@/utils/offlineRecipes'
 import { normalizeName } from '@/stores/shoppingList'
@@ -60,7 +61,8 @@ export const usePantryStore = defineStore('pantry', {
       const snapshot = useSnapshotStore()
       snapshot.restore()
       if (!this.pantry && snapshot.data?.pantry) this.pantry = snapshot.data.pantry
-      if (isOffline() && this.pantry) return Promise.resolve()
+      // Ook zolang de server niet online is: App.vue ververst bij de overgang naar online.
+      if (!useServerStatusStore().online && this.pantry) return Promise.resolve()
       const pending = api
         .fetchPantry()
         .then((pantry) => {
@@ -91,7 +93,7 @@ export const usePantryStore = defineStore('pantry', {
         this.groups = pantryGroups(withAllTags(snapshot.recipes, tags), this.presentIds)
         return true
       }
-      if (isOffline() && offline()) return
+      if (!useServerStatusStore().online && offline()) return
       try {
         const groups = await api.fetchPantryRecipes({ tags })
         if (current === latestRecipes) this.groups = groups

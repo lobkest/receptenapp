@@ -12,9 +12,10 @@ import RecipeNutrition from '@/components/RecipeNutrition.vue'
 import { fetchRecipe } from '@/api/recipes'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import { provideConfirmDialog } from '@/composables/useConfirmDialog'
-import { isNetworkError, isOffline, oldestSavedAt } from '@/offline'
+import { isNetworkError, oldestSavedAt } from '@/offline'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useSnapshotStore } from '@/stores/snapshot'
+import { useLastListRouteStore } from '@/stores/lastListRoute'
 import { usePantryStore } from '@/stores/pantry'
 import { useRecipesStore } from '@/stores/recipes'
 import { useShoppingListStore } from '@/stores/shoppingList'
@@ -54,6 +55,9 @@ const servings = ref(null)
 // router.replace, geen push: wisselen is geen nieuwe pagina, "terug" gaat gewoon terug.
 const route = useRoute()
 const router = useRouter()
+// Terug naar de lijst waar je vandaan kwam (recepten of In huis), met hetzelfde filter
+// (stores/lastListRoute.js). Na herladen of via een directe link: het receptenoverzicht.
+const back = computed(() => useLastListRouteStore().back)
 const swaps = computed(() => parseSwaps(route.query.wissel, recipe.value?.ingredients ?? []))
 
 // Eerst de automatische tags (uitgerekend uit de ingrediënten), met de uitleg die nog
@@ -99,7 +103,8 @@ async function load(id, { keepServings = false } = {}) {
   }
   if (cached && recipe.value?.id !== cached.id) show(cached)
   else if (!cached) recipe.value = null
-  if (cached && isOffline()) return
+  // Zolang de server niet online is de kopie; de watch op server.online hieronder ververst.
+  if (cached && !server.online) return
   loading.value = !cached
   try {
     show(await fetchRecipe(id))
@@ -123,6 +128,13 @@ function reload() {
 // Van /recepten/1 naar /recepten/2 hergebruikt Vue hetzelfde component,
 // dus onMounted draait niet opnieuw. Daarom kijken we naar het id zelf.
 watch(() => props.id, load, { immediate: true })
+// Kwam het recept uit de kopie (de server was nog niet online), dan nu de verse versie.
+watch(
+  () => server.online,
+  (online) => {
+    if (online) load(props.id)
+  },
+)
 // De voorraad voor het huisje bij elk ingrediënt ("in huis"); mislukt dat, dan geen huisjes.
 const pantry = usePantryStore()
 watch(
@@ -142,6 +154,10 @@ watch(
     v-if="server.offline"
     :saved-at="oldestSavedAt(snapshot.savedAt, shoppingList.savedAt)"
   />
+
+  <p>
+    <RouterLink :to="back.to" class="back-link back-top">{{ back.label }}</RouterLink>
+  </p>
 
   <p v-if="loading" class="muted">Recept laden…</p>
 
@@ -204,10 +220,16 @@ watch(
 
   <ConfirmDialog ref="confirmDialog" />
 
-  <p><RouterLink to="/" class="back-link">← Terug naar alle recepten</RouterLink></p>
+  <p>
+    <RouterLink :to="back.to" class="back-link">{{ back.label }}</RouterLink>
+  </p>
 </template>
 
 <style scoped>
+.back-link.back-top {
+  margin-top: 0;
+}
+
 /* Behoud enters uit de beschrijving. */
 .description {
   font-size: var(--text-lg);

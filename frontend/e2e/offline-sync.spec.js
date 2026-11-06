@@ -203,10 +203,19 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
     [`${PREFIX}appels`, null, 4],
     [`${PREFIX}thee`, null, 2],
   ])
-  const standard = (await (await api.get('/api/standard_items')).json()).map((item) => item.name)
-  expect(standard.filter((name) => name.startsWith(PREFIX)).sort()).toEqual([
-    `${PREFIX}thee`,
-    `${PREFIX}volkorenbrood`,
+  // Het losse item ("appels") staat na de sync ook op de standaardlijst, onder Tijdelijk
+  // (de server, StandardItem.note_used!); de andere twee zijn gewone standaarditems.
+  const standard = (await (await api.get('/api/standard_items')).json()).filter((item) =>
+    item.name.startsWith(PREFIX),
+  )
+  expect(
+    standard
+      .map((item) => [item.name, item.temporary_last_used_at != null])
+      .sort(([a], [b]) => a.localeCompare(b)),
+  ).toEqual([
+    [`${PREFIX}appels`, true],
+    [`${PREFIX}thee`, false],
+    [`${PREFIX}volkorenbrood`, false],
   ])
 
   // Nog een keer openen en verversen: niets dubbel.

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { getActivePinia } from 'pinia'
 import { fetchIngredients } from '@/api/ingredients'
 import { isOffline } from '@/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useSnapshotStore } from '@/stores/snapshot'
 
 // Alle bestaande ingrediënten, voor "Bedoel je: …?" in de formulieren, het zoekveld op
@@ -19,8 +20,10 @@ function load() {
     snapshot.restore()
     list.value = snapshot.ingredients
   }
-  // Offline geen request (dat mislukt toch); de volgende keer online wel.
+  // Offline geen request (dat mislukt toch); de volgende keer online wel. Ook niet zolang de
+  // server nog niet online is en de snapshot namen gaf: dat request zou blijven hangen.
   if (isOffline()) return
+  if (list.value.length && getActivePinia() && !useServerStatusStore().online) return
   loading ??= fetchIngredients()
     .then((ingredients) => {
       if (!Array.isArray(ingredients)) throw new TypeError('geen lijst met ingrediënten')

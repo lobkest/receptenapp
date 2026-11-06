@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import OfflineNotice from '@/components/OfflineNotice.vue'
-import ServerWaiting from '@/components/ServerWaiting.vue'
 import { NETWORK_ERROR_EVENT } from '@/api/client'
+import { useLastListRouteStore } from '@/stores/lastListRoute'
 import { useOfflineStore } from '@/stores/offline'
 import { usePantryStore } from '@/stores/pantry'
+import { useRecipesStore } from '@/stores/recipes'
 import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { useSnapshotStore } from '@/stores/snapshot'
@@ -19,9 +20,18 @@ const snapshot = useSnapshotStore()
 const standard = useStandardItemsStore()
 const offline = useOfflineStore()
 const route = useRoute()
+// "Recepten" en "In huis" linken naar de laatste URL van die lijst, met het filter erin
+// (stores/lastListRoute.js). Actief op naam van de route, niet op de exacte URL: zo blijft
+// de link gemarkeerd, ook als de query in de link en op de pagina even verschilt.
+const lastList = useLastListRouteStore()
+function activeOn(name) {
+  return route.name === name
+    ? { class: 'nav-active', 'aria-current': 'page' }
+    : { class: '', 'aria-current': undefined }
+}
 
 // Pagina's met meta.needsServer (router/index.js) wachten tot de server online is; tot dan
-// staat er een laadmelding. Met keepMounted blijft de pagina bestaan, alleen verborgen.
+// staat er alleen de offline-melding. Met keepMounted blijft de pagina bestaan, alleen verborgen.
 // Met meta.offline (recepten, standaardlijst, In huis) niet als er een offline snapshot is:
 // die pagina's tonen dan meteen de kopie en verversen zodra de server antwoordt.
 snapshot.restore()
@@ -29,17 +39,14 @@ snapshot.restore()
 const needsServer = computed(
   () => Boolean(route.meta.needsServer) && !(route.meta.offline && snapshot.available),
 )
-const waitingForServer = computed(() => needsServer.value && !server.online)
-// Zonder verbinding: pagina's met meta.onlineOnly (In huis, Beheer) en pagina's die op de
-// server wachten tonen alleen de offline-melding (hetzelfde component als op de andere
-// pagina's), met "… is offline niet beschikbaar" als tweede regel.
-// Op server.offline, niet op !server.online: een server die nog wakker wordt (5xx), is niet
-// offline (dan ServerWaiting). Een /up die blijft hangen telt na PING_TIMEOUT_MS wel als
-// offline (stores/serverStatus.js).
+// Zolang de server niet online is (ook als hij nog wakker wordt, en vlak na het starten):
+// pagina's met meta.onlineOnly (In huis, Beheer) en pagina's die op de server wachten tonen
+// alleen de offline-melding (hetzelfde component als op de andere pagina's), met "… is
+// offline niet beschikbaar" als tweede regel en de teller eronder.
 const offlineUnavailable = computed(
   () => server.offline && (needsServer.value || Boolean(route.meta.onlineOnly)),
 )
-const pageHidden = computed(() => waitingForServer.value || offlineUnavailable.value)
+const pageHidden = computed(() => offlineUnavailable.value)
 const keepPage = computed(() => !pageHidden.value || Boolean(route.meta.keepMounted))
 
 // De lijst is gedeeld: iemand anders kan hem intussen hebben aangepast. Daarom halen we
@@ -51,6 +58,8 @@ const keepPage = computed(() => !pageHidden.value || Boolean(route.meta.keepMoun
 // Ook de offline snapshot (met If-None-Match: meestal een 304) en de standaardlijst als
 // die geladen is: elke load() verstuurt eerst de outbox (stores/offline.js), daarna zie je
 // overal de stand van de server.
+// Zolang de server niet online is, doen die load()'s met een kopie geen request (ook de
+// outbox blijft dan staan); de overgang naar online (watch hieronder) ververst alles.
 function refreshShoppingList() {
   shoppingList.load().catch(() => {})
   snapshot.load()
@@ -74,17 +83,47 @@ function onNetworkError() {
   if (server.online) server.check()
 }
 
-// Is de server (weer) online en is de lijst nog niet vers, haal hem dan nu op.
+// De server is (weer) online: nu pas gaat de outbox naar de server (elke load() verstuurt
+// hem eerst; stores/offline.js deelt één lopende flush, dus niets gaat dubbel), en daarna
+// overal de stand van de server: de lijst, de snapshot, de standaardlijst, de voorraad en
+// de recepten als die uit de kopie kwamen.
+const recipes = useRecipesStore()
 watch(
   () => server.online,
   (online) => {
-    if (online && !shoppingList.fresh) refreshShoppingList()
+    if (!online) return
+    refreshShoppingList()
+    if (pantry.pantry) pantry.loadPantry().catch(() => {})
+    if (recipes.offline) {
+      recipes.load()
+      recipes.loadTags()
+      recipes.loadCategories()
+    }
   },
 )
 
 let stopWatchingConnectivity = null
 
+// De strook achter de statusbalk (#status-bar-backdrop in index.html, buiten #app) krijgt
+// een lijntje zodra je gescrold bent. Een IntersectionObserver op een onzichtbaar
+// element helemaal bovenaan de pagina (.scroll-sentinel) in plaats van een scroll-listener:
+// de browser meldt alleen als het in of uit beeld gaat, niet bij elke scrollstap. Ook na
+// een routewissel klopt het vanzelf: staat de nieuwe pagina bovenaan, dan is de sentinel
+// weer in beeld en gaat de klasse eraf.
+const scrollSentinel = useTemplateRef('scrollSentinel')
+let sentinelObserver = null
+
+function watchScrolled() {
+  const backdrop = document.getElementById('status-bar-backdrop')
+  if (!backdrop || !scrollSentinel.value || typeof IntersectionObserver === 'undefined') return
+  sentinelObserver = new IntersectionObserver(([entry]) => {
+    backdrop.classList.toggle('is-scrolled', !entry.isIntersecting)
+  })
+  sentinelObserver.observe(scrollSentinel.value)
+}
+
 onMounted(() => {
+  watchScrolled()
   server.start()
   refreshShoppingList()
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -105,22 +144,25 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener(NETWORK_ERROR_EVENT, onNetworkError)
   stopWatchingConnectivity?.()
+  sentinelObserver?.disconnect()
   server.stopRetrying()
 })
 </script>
 
 <template>
+  <!-- Onzichtbaar, helemaal bovenaan de pagina: uit beeld = gescrold (zie watchScrolled). -->
+  <div ref="scrollSentinel" class="scroll-sentinel" aria-hidden="true"></div>
   <!-- Geen kopbalk met logo: op mobiel is het menu een vaste balk onderaan het scherm,
        op brede schermen een smalle rij bovenaan. -->
   <nav class="main-nav" aria-label="Hoofdmenu">
-    <RouterLink to="/" class="nav-link">
+    <RouterLink :to="lastList.recipesPath" class="nav-link" v-bind="activeOn('recipes')">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Z" />
         <path d="M4 21a2 2 0 0 1 2-2h13v2H6" />
       </svg>
       <span class="nav-label">Recepten</span>
     </RouterLink>
-    <RouterLink to="/in-huis" class="nav-link">
+    <RouterLink :to="lastList.pantryPath" class="nav-link" v-bind="activeOn('pantry')">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M3 11 12 4l9 7" />
         <path d="M5 10v10h14V10" />
@@ -175,7 +217,6 @@ onUnmounted(() => {
     </p>
     <RouterView v-slot="{ Component }">
       <OfflineNotice v-if="offlineUnavailable" :unavailable="route.meta.offlineName" />
-      <ServerWaiting v-else-if="waitingForServer" />
       <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
            root-elementen. display: contents, zodat hij de opmaak niet verandert. -->
       <div v-if="keepPage" v-show="!pageHidden" class="route-page">
@@ -192,6 +233,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Absoluut, zodat hij geen ruimte inneemt en niet meeschuift met meldingen of de
+   padding van #app: altijd de eerste pixel van het document. */
+.scroll-sentinel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
 /* max() met env(): op een telefoon met notch (liggend) schuift de inhoud mee
    naar binnen; anders blijft de gewone marge over. */
 main,
@@ -323,12 +375,15 @@ main {
   outline-offset: -4px;
 }
 
-/* RouterLink zet deze class op de link van de huidige pagina. */
-.nav-link.router-link-exact-active {
+/* RouterLink zet router-link-exact-active op de link van de huidige pagina; Recepten en In huis
+   krijgen nav-active (zie activeOn), want hun link heeft een query. */
+.nav-link.router-link-exact-active,
+.nav-link.nav-active {
   color: var(--color-accent-text);
 }
 
-.nav-link.router-link-exact-active::before {
+.nav-link.router-link-exact-active::before,
+.nav-link.nav-active::before {
   content: '';
   position: absolute;
   top: 0;
@@ -377,7 +432,8 @@ footer {
     background: var(--color-surface-hover);
   }
 
-  .nav-link.router-link-exact-active::before {
+  .nav-link.router-link-exact-active::before,
+  .nav-link.nav-active::before {
     top: auto;
     bottom: 0;
     left: var(--space-3);

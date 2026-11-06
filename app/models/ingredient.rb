@@ -22,6 +22,8 @@ class Ingredient < ApplicationRecord
   has_one :pantry_item, dependent: :delete
   # The database unlinks shopping list lines when an ingredient goes (on_delete: :nullify).
   has_many :shopping_list_items, dependent: nil
+  # Standard items linked by hand ("uien" is "ui"); unlinked by the database too.
+  has_many :standard_items, dependent: nil
 
   # What IngredientSerializer needs (summary and detail), in one go.
   scope :with_details, -> { includes(:nevo_food, :traits) }

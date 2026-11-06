@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -185,6 +185,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120001) do
     t.check_constraint "unit::text = ANY (ARRAY['g'::character varying::text, 'ml'::character varying::text, 'stuks'::character varying::text, 'tl'::character varying::text, 'el'::character varying::text])", name: "shopping_list_items_unit_known"
   end
 
+  create_table "standard_item_link_rejections", force: :cascade do |t|
+    t.bigint "standard_item_id", null: false
+    t.bigint "ingredient_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ingredient_id"], name: "index_standard_item_link_rejections_on_ingredient_id"
+    t.index ["standard_item_id", "ingredient_id"], name: "index_standard_item_link_rejections_on_pair", unique: true
+  end
+
   create_table "standard_items", force: :cascade do |t|
     t.string "name", null: false
     t.string "category"
@@ -192,7 +201,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120001) do
     t.datetime "updated_at", null: false
     t.uuid "client_id"
     t.datetime "temporary_last_used_at"
+    t.bigint "ingredient_id"
     t.index ["client_id"], name: "index_standard_items_on_client_id", unique: true
+    t.index ["ingredient_id"], name: "index_standard_items_on_ingredient_id"
     t.index ["name"], name: "index_standard_items_on_name", unique: true
     t.index ["temporary_last_used_at"], name: "index_standard_items_on_temporary_last_used_at"
   end
@@ -275,6 +286,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120001) do
   add_foreign_key "recipes", "categories"
   add_foreign_key "shopping_list_items", "ingredients", on_delete: :nullify
   add_foreign_key "shopping_list_items", "recipes", on_delete: :nullify
+  add_foreign_key "standard_item_link_rejections", "ingredients", on_delete: :cascade
+  add_foreign_key "standard_item_link_rejections", "standard_items", on_delete: :cascade
+  add_foreign_key "standard_items", "ingredients", on_delete: :nullify
   add_foreign_key "steps", "recipes"
   add_foreign_key "tag_exclusions", "tags", on_delete: :cascade
   add_foreign_key "tag_exclusions", "traits", on_delete: :cascade

@@ -42,15 +42,20 @@ describe('serverStatus-store', () => {
     vi.restoreAllMocks()
   })
 
-  it('begint als waking, en is online zodra /up 200 geeft', async () => {
+  it('begint als waking en offline (met offlineSince), en is online zodra /up 200 geeft', async () => {
     const fetch = fakeUp('ok')
     expect(server.status).toBe('waking')
     expect(server.online).toBe(false)
+    // Vanaf de eerste render: de banner staat er tot /up antwoordt.
+    expect(server.offline).toBe(true)
+    expect(server.offlineSince).toBe(Date.now())
 
     await server.start()
 
     expect(server.status).toBe('online')
     expect(server.online).toBe(true)
+    expect(server.offline).toBe(false)
+    expect(server.offlineSince).toBeNull()
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(fetch.mock.calls[0][0]).toBe('/up')
     // Nooit uit een cache.
@@ -107,7 +112,8 @@ describe('serverStatus-store', () => {
     server.start()
     await vi.advanceTimersByTimeAsync(PING_TIMEOUT_MS - 1)
     expect(server.status).toBe('waking')
-    expect(server.offline).toBe(false)
+    // Een server die nog niet antwoordt, telt meteen als offline (niet pas na de time-out).
+    expect(server.offline).toBe(true)
     expect(fetch).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(1)
@@ -187,6 +193,20 @@ describe('serverStatus-store', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('offlineSince: blijft staan zolang hij niet online is, ook van waking naar offline', async () => {
+    fakeUp('error', 'network', 'ok')
+    const startedAt = Date.now()
+    await server.start()
+    expect(server.status).toBe('waking')
+    await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[0])
+    expect(server.status).toBe('offline')
+    // De teller loopt door vanaf het begin, niet opnieuw vanaf 0.
+    expect(server.offlineSince).toBe(startedAt)
+    await vi.advanceTimersByTimeAsync(RETRY_DELAYS_MS[1])
+    expect(server.status).toBe('online')
+    expect(server.offlineSince).toBeNull()
+  })
+
   describe('terug naar het tabblad', () => {
     it('blijft online als de server snel antwoordt', async () => {
       fakeUp('ok')
@@ -207,6 +227,9 @@ describe('serverStatus-store', () => {
       expect(server.status).toBe('online')
       await vi.advanceTimersByTimeAsync(1)
       expect(server.status).toBe('waking')
+      // Pas na SLOW_MS offline (de banner), met de teller vanaf dat moment.
+      expect(server.offline).toBe(true)
+      expect(server.offlineSince).toBe(Date.now())
 
       await vi.advanceTimersByTimeAsync(PING_TIMEOUT_MS + RETRY_DELAYS_MS[0])
       expect(fetch).toHaveBeenCalledTimes(3)

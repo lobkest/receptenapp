@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useShoppingListStore } from '../stores/shoppingList'
-import { fakeServer, jsonResponse, mockFetch } from './helpers'
+import {
+  fakeServer,
+  jsonResponse,
+  mockFetch,
+  serverOnlineUnlessOffline,
+  setOffline,
+  setOnline,
+} from './helpers'
 import { clearMemoryStorage, readJson } from '../offline/storage'
 
 const PANCAKES = { label: 'Pannenkoeken', recipeId: 1 }
@@ -14,6 +21,7 @@ const MELK = { id: 3, name: 'melk', source_label: 'standaard', checked: true }
 // Een nieuwe Pinia is als een herladen pagina: de store begint leeg en haalt de lijst op.
 function freshStore() {
   setActivePinia(createPinia())
+  serverOnlineUnlessOffline()
   return useShoppingListStore()
 }
 
@@ -285,14 +293,6 @@ describe('boodschappenlijst-store', () => {
   })
 
   describe('offline', () => {
-    function goOffline() {
-      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    }
-
-    function goOnline() {
-      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
-    }
-
     function patchesOf(fetch) {
       return requestsOf(fetch, 'PATCH').map((call) => [call[0], bodyOf(call)])
     }
@@ -350,7 +350,7 @@ describe('boodschappenlijst-store', () => {
       fakeServer({ shopping: [BLOEM, MELK] })
       await loadedStore()
       const fetch = mockFetch(() => jsonResponse([]))
-      goOffline()
+      setOffline()
 
       const list = freshStore()
       await list.load()
@@ -374,7 +374,7 @@ describe('boodschappenlijst-store', () => {
     })
 
     it('gooit offline zonder snapshot een netwerkfout', async () => {
-      goOffline()
+      setOffline()
       const list = freshStore()
 
       await expect(list.load()).rejects.toMatchObject({ kind: 'network' })
@@ -385,7 +385,7 @@ describe('boodschappenlijst-store', () => {
     it('zet offline afvinken in de wachtrij als waarde, en voegt per regel samen', async () => {
       const { fetch } = fakeServer({ shopping: [BLOEM, ZOUT] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
 
       await list.toggle(1)
       await list.toggle(2)
@@ -403,7 +403,7 @@ describe('boodschappenlijst-store', () => {
     it('toont na herladen de snapshot met de offline wijzigingen erover', async () => {
       fakeServer({ shopping: [BLOEM, ZOUT] })
       const before = await loadedStore()
-      goOffline()
+      setOffline()
       await before.toggle(2)
 
       const list = freshStore()
@@ -415,13 +415,13 @@ describe('boodschappenlijst-store', () => {
     it('verstuurt de wachtrij weer online, en haalt daarna de lijst op', async () => {
       const { fetch, shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT, MELK] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
       await list.toggle(1)
       await list.toggle(3)
       await list.toggle(1)
       await list.toggle(2)
 
-      goOnline()
+      setOnline()
       fetch.mockClear()
       await list.load()
 
@@ -441,12 +441,12 @@ describe('boodschappenlijst-store', () => {
     it('slaat een regel die intussen verwijderd is (404) over', async () => {
       const { shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
       await list.toggle(1)
       await list.toggle(2)
       shoppingDb.splice(0, 1)
 
-      goOnline()
+      setOnline()
       await list.load()
 
       expect(list.items.map((i) => [i.name, i.checked])).toEqual([['zout', true]])
@@ -456,10 +456,10 @@ describe('boodschappenlijst-store', () => {
     it('houdt de wachtrij en de offline stand als de server weer stuk is', async () => {
       fakeServer({ shopping: [BLOEM] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
       await list.toggle(1)
 
-      goOnline()
+      setOnline()
       // Afvinken mislukt (500), de lijst ophalen lukt wel, met de oude stand.
       mockFetch((method) =>
         method === 'PATCH' ? jsonResponse({}, 500) : jsonResponse([{ ...BLOEM, checked: false }]),
@@ -473,10 +473,10 @@ describe('boodschappenlijst-store', () => {
     it('stuurt een oudere offline actie niet meer als je online opnieuw afvinkt', async () => {
       const { fetch, shoppingDb } = fakeServer({ shopping: [BLOEM] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
       await list.toggle(1)
 
-      goOnline()
+      setOnline()
       list.offline = false
       await list.toggle(1)
       await list.load()
@@ -495,12 +495,12 @@ describe('boodschappenlijst-store', () => {
       }
       const { shoppingDb } = fakeServer({ shopping: [BLOEM, ZOUT] })
       const list = await loadedStore()
-      goOffline()
+      setOffline()
 
       await list.toggle(1)
       expect(list.items[0].checked).toBe(true)
 
-      goOnline()
+      setOnline()
       await list.load()
       expect(shoppingDb[0].checked).toBe(true)
       expect(list.offline).toBe(false)

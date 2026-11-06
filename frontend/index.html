@@ -12,6 +12,9 @@
     <title>Recepten</title>
   </head>
   <body>
+    <!-- Effen strook achter de iOS-statusbalk (CSS en uitleg: src/assets/main.css). Een echt
+         element, geen body::before: iOS telt een pseudo-element niet mee. -->
+    <div id="status-bar-backdrop" aria-hidden="true"></div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { fetchCategories, fetchRecipes, fetchTags } from '@/api/recipes'
 import { isNetworkError, isOffline } from '@/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useSnapshotStore } from '@/stores/snapshot'
 import { presentIngredientIds } from '@/utils/inHouse'
 import { ingredientSearch, withAllTags } from '@/utils/offlineRecipes'
@@ -74,9 +75,12 @@ export const useRecipesStore = defineStore('recipes', {
       this.filter = tags
       this.ingredientFilter = ingredientIds
       this.error = null
-      const cached = !this.recipes.length || isOffline() ? fromSnapshot(tags, ingredientIds) : null
+      // Zolang de server niet online is (ook als hij nog wakker wordt) geen request als er
+      // een kopie is; App.vue laadt opnieuw zodra hij online is (store.offline).
+      const noServer = !useServerStatusStore().online
+      const cached = !this.recipes.length || noServer ? fromSnapshot(tags, ingredientIds) : null
       if (cached) this.recipes = cached
-      if (isOffline() && cached) {
+      if (noServer && cached) {
         this.offline = true
         this.loading = false
         return
@@ -109,7 +113,7 @@ export const useRecipesStore = defineStore('recipes', {
       const snapshot = useSnapshotStore()
       snapshot.restore()
       if (!this.tags.length && snapshot.data) this.tags = snapshot.data.tags
-      if (isOffline()) return
+      if (isOffline() || (snapshot.data && !useServerStatusStore().online)) return
       try {
         this.tags = await fetchTags()
       } catch {
@@ -123,7 +127,7 @@ export const useRecipesStore = defineStore('recipes', {
       const snapshot = useSnapshotStore()
       snapshot.restore()
       if (!this.categories.length && snapshot.data) this.categories = snapshot.data.categories
-      if (isOffline()) return
+      if (isOffline() || (snapshot.data && !useServerStatusStore().online)) return
       try {
         this.categories = await fetchCategories()
       } catch {

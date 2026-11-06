@@ -191,7 +191,8 @@ watch(
 
   <p><RouterLink to="/ingredienten" class="back-link top">← Alle ingrediënten</RouterLink></p>
 
-  <p v-if="loading" class="muted">Ingrediënt laden…</p>
+  <!-- Offline zegt de offline-melding het al; een hangend verzoek geeft anders lang "laden…". -->
+  <p v-if="loading && !server.offline" class="muted">Ingrediënt laden…</p>
 
   <div v-else-if="notFound">
     <h1>Ingrediënt niet gevonden</h1>

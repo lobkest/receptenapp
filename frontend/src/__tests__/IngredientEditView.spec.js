@@ -3,7 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, RouterView } from 'vue-router'
 import { routes } from '../router'
-import { jsonResponse, mockFetch } from './helpers'
+import { jsonResponse, mockFetch, serverOnlineUnlessOffline } from './helpers'
 import { mountRoute } from './mount'
 
 const EGG_FOOD = {
@@ -295,6 +295,7 @@ describe('IngredientEditView: samenvoegen', () => {
 
   async function mountRouted(path) {
     setActivePinia(createPinia())
+    serverOnlineUnlessOffline()
     const router = createRouter({ history: createMemoryHistory(), routes })
     await router.push(path)
     const wrapper = mount(RouterView, { global: { plugins: [router] }, attachTo: document.body })

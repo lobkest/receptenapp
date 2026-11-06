@@ -7,6 +7,7 @@ import { addVariationToShoppingList } from '@/api/variations'
 import { recipesOnList } from '@/utils/shoppingListRecipes'
 import { isNetworkError, isOffline, isTempId, loadSnapshot, newId, saveSnapshot } from '@/offline'
 import { useOfflineStore } from '@/stores/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useSnapshotStore } from '@/stores/snapshot'
 import {
   applyShoppingAction,
@@ -25,7 +26,8 @@ import { MAX_COUNT } from '@/utils/shoppingListLine'
 // regel. Het aantal zet je ook zelf met de stepper (setCount); zie
 // src/utils/shoppingListLine.js voor hoe een regel het toont.
 //
-// Offline (in de winkel zonder bereik): de store bewaart na elk contact met de server een
+// Offline (in de winkel zonder bereik, of zolang de server nog niet online is, zie
+// stores/serverStatus.js): de store bewaart na elk contact met de server een
 // kopie (snapshot, in IndexedDB) en toont die bij openen meteen. Afstrepen, het aantal
 // veranderen, regels verwijderen en toevoegen (vanuit een recept, de standaardlijst of los)
 // werken dan nog: dat gaat in de outbox (stores/offline.js) en wordt verstuurd zodra er
@@ -133,6 +135,8 @@ export const useShoppingListStore = defineStore('shoppingList', {
     // ouder zijn dan wat je ziet; dan houden we de eigen stand en haalt de volgende
     // verversing de rest op. Zonder verbinding blijft de kopie staan (offline wordt true);
     // alleen als er geen kopie is, gooien we de fout door. Andere fouten (ApiError) ook.
+    // Zolang de server niet online is (hij wordt wakker, of /up hangt) en er een kopie is:
+    // geen request, ook de outbox nog niet. Bij de overgang naar online ververst App.vue.
     load() {
       if (pendingLoad) return pendingLoad
       if (!this.loaded) this.restoreSnapshot()
@@ -140,6 +144,10 @@ export const useShoppingListStore = defineStore('shoppingList', {
         this.markOffline()
         if (this.loaded) return Promise.resolve()
         return Promise.reject(new ApiError('network', 'Geen internetverbinding.'))
+      }
+      if (!useServerStatusStore().online && this.loaded) {
+        this.markOffline()
+        return Promise.resolve()
       }
       const changesBefore = this.changes
       pendingLoad = this.sync()
@@ -168,10 +176,11 @@ export const useShoppingListStore = defineStore('shoppingList', {
       return useOfflineStore().sync()
     },
 
-    // Zonder verbinding, of voor een regel die alleen hier bestaat: dan gaat een wijziging
-    // in de outbox in plaats van meteen naar de server.
+    // Zolang de server niet online is (geen verbinding, of hij wordt nog wakker), of voor een
+    // regel die alleen hier bestaat: dan gaat een wijziging meteen in de outbox, zonder
+    // request (dat zou blijven hangen tot de time-out). App.vue verstuurt hem bij online.
     queues(id = null) {
-      return isOffline() || (id != null && isTempId(id))
+      return !useServerStatusStore().online || (id != null && isTempId(id))
     },
 
     // Een actie in de outbox en meteen zichtbaar. De regels staan er al (optimistisch); de

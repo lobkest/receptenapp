@@ -1,9 +1,16 @@
 <script setup>
 import { computed, nextTick, reactive, ref, useId, useTemplateRef } from 'vue'
+import IngredientSearchField from '@/components/IngredientSearchField.vue'
+import OfflineHint from '@/components/OfflineHint.vue'
+import { useIngredientList } from '@/composables/useIngredientNames'
 import { TEMPORARY_NAME, isTemporary } from '@/utils/temporaryItems'
 
 // Eén formulier voor toevoegen (leeg) en bewerken (initial = een bestaand item).
-// Alleen naam en categorie; de server normaliseert ("  Zuivel " → "zuivel").
+// Naam en categorie; de server normaliseert ("  Zuivel " → "zuivel").
+// Bij bewerken (linkable) ook "Hetzelfde als ingrediënt": een bestaand ingrediënt met een
+// andere naam ("uien" is "ui"), zodat het huisje en "✓ op lijst" het kennen. Dat gaat
+// mee met Opslaan, als tweede argument van save: het gekozen ingrediënt-id, null
+// (ontkoppeld) of undefined (niet veranderd). Offline kan koppelen niet.
 const props = defineProps({
   initial: { type: Object, default: () => ({}) },
   submitLabel: { type: String, default: 'Toevoegen' },
@@ -14,6 +21,10 @@ const props = defineProps({
   // Fouten van de server, bijv. { name: ['is al in gebruik'] }.
   errors: { type: Object, default: () => ({}) },
   submitting: { type: Boolean, default: false },
+  // Het veld "Hetzelfde als ingrediënt" (alleen bij bewerken van een item op de server).
+  linkable: { type: Boolean, default: false },
+  // Geen verbinding: koppelen staat uit.
+  offline: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['save', 'cancel'])
@@ -43,6 +54,18 @@ const options = computed(() =>
     ? [...props.categories, props.initial.category]
     : props.categories,
 )
+
+// Het gekoppelde ingrediënt: { id, name } of null. De naam uit de ingrediëntenlijst (ook
+// offline, uit de snapshot); onbekend nog: alleen het id.
+const ingredients = useIngredientList()
+const linkedId = ref(props.initial.ingredient_id ?? null)
+const linkedName = computed(
+  () => ingredients.value.find((ingredient) => ingredient.id === linkedId.value)?.name ?? null,
+)
+
+function chooseIngredient(ingredient) {
+  linkedId.value = ingredient.id
+}
 
 const newCategoryInput = useTemplateRef('newCategoryInput')
 
@@ -78,13 +101,17 @@ function onSubmit() {
   clientErrors.value = validate()
   if (Object.keys(clientErrors.value).length) return
 
+  const link =
+    props.linkable && linkedId.value !== (props.initial.ingredient_id ?? null)
+      ? linkedId.value
+      : undefined
   if (form.category === TEMPORARY) {
-    emit('save', { name: form.name, category: null })
+    emit('save', { name: form.name, category: null }, link)
     return
   }
   const category = form.category === NEW_CATEGORY ? form.newCategory : form.category
   const fields = { name: form.name, category: category.trim() || null }
-  emit('save', temporary ? { ...fields, temporary: false } : fields)
+  emit('save', temporary ? { ...fields, temporary: false } : fields, link)
 }
 </script>
 
@@ -140,6 +167,28 @@ function onSubmit() {
       {{ shownErrors.category }}
     </p>
 
+    <div v-if="linkable" class="field link-field">
+      <template v-if="linkedId != null">
+        <span :id="`${uid}-link-label`" class="label">Hetzelfde als ingrediënt</span>
+        <p class="linked" :aria-labelledby="`${uid}-link-label`">
+          <span class="linked-name">{{ linkedName ?? `ingrediënt ${linkedId}` }}</span>
+          <button type="button" class="unlink" :disabled="offline" @click="linkedId = null">
+            Ontkoppelen
+          </button>
+        </p>
+      </template>
+      <IngredientSearchField
+        v-else-if="!offline"
+        :id="`${uid}-ingredient`"
+        class="link-search"
+        label="Hetzelfde als ingrediënt"
+        placeholder="bijv. ui"
+        @choose="chooseIngredient"
+      />
+      <span v-else class="label">Hetzelfde als ingrediënt</span>
+      <OfflineHint v-if="offline" />
+    </div>
+
     <div class="form-actions">
       <button type="submit" class="btn-primary save" :disabled="submitting">
         {{ submitLabel }}
@@ -152,6 +201,27 @@ function onSubmit() {
 </template>
 
 <style scoped>
+/* Zoals een <label>, maar zonder veld: het gekoppelde ingrediënt is tekst met een knop. */
+.label {
+  font-weight: 600;
+}
+
+.linked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}
+
+.linked-name {
+  font-size: var(--text-lg);
+}
+
+.unlink {
+  font-size: var(--text-sm);
+}
+
 .category-error {
   margin: calc(-1 * var(--space-3)) 0 var(--space-4);
 }

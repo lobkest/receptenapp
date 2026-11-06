@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { requireAdmin } from '../router'
 import { resetServerStatus, useServerStatusStore } from '../stores/serverStatus'
-import { jsonResponse, mockFetch } from './helpers'
+import { goOffline, jsonResponse, mockFetch } from './helpers'
 import { mountRoute } from './mount'
 
 // Recept bewerken, Ingrediënt bewerken en Beheer > versies zonder verbinding: dezelfde
@@ -63,13 +63,6 @@ function writes(fetch) {
   return fetch.mock.calls.filter(
     ([url, options]) => options.method && options.method !== 'GET' && url !== '/up',
   )
-}
-
-// De verbinding valt weg terwijl de pagina open is ('offline'-event → markOffline).
-async function goOffline() {
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-  useServerStatusStore().markOffline()
-  await flushPromises()
 }
 
 function notice(wrapper) {

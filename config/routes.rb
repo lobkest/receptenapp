@@ -66,6 +66,12 @@ Rails.application.routes.draw do
       # POST, not DELETE: a DELETE request with a body is not reliably passed on.
       post :bulk_destroy, on: :collection
       post :add_to_shopping_list, on: :collection
+      # "Mogelijk hetzelfde": standard items that are probably an ingredient under another name.
+      get :link_suggestions, on: :collection
+      # Linked by hand to an ingredient ("uien" is "ui"), or "nee, niet hetzelfde".
+      post :link, on: :member
+      post :unlink, on: :member
+      post :reject_link, on: :member
     end
 
     # Only with the admin code: deletion requests and versions.

@@ -5,11 +5,19 @@
 # on the shopping list; nil = a permanent item. Not a category: the heading is always the
 # last section, and a category with that name is not allowed. Unused for
 # TEMPORARY_LIFETIME, it is removed (remove_expired!). Giving it a category makes it permanent.
+#
+# ingredient: linked by hand ("ja, hetzelfde") when the item has another name than the
+# ingredient ("uien" is "ui"), so the house and "✓ op lijst" know it. Without a link the
+# name counts, as before. Suggestions: StandardItemLinkSuggestions.
 class StandardItem < ApplicationRecord
   MAX_LENGTH = 100
   # The heading of the temporary items; a category with this name would look like it.
   TEMPORARY_NAME = "Tijdelijk"
   TEMPORARY_LIFETIME = 2.months
+
+  belongs_to :ingredient, optional: true
+  # Deleted with the item by the foreign key (on_delete: :cascade).
+  has_many :link_rejections, class_name: "StandardItemLinkRejection", dependent: nil
 
   before_validation :normalize_fields
   # A category makes a temporary item permanent (moved with the edit form).
@@ -18,6 +26,9 @@ class StandardItem < ApplicationRecord
   validates :name, presence: true, length: { maximum: MAX_LENGTH }, uniqueness: true
   validates :category, length: { maximum: MAX_LENGTH }
   validate :category_not_reserved
+  # belongs_to optional skips the existence check; without this an unknown id hits the
+  # foreign key and becomes a 500 instead of a 422.
+  validates :ingredient, presence: true, if: -> { ingredient_id.present? }
 
   scope :temporary, -> { where.not(temporary_last_used_at: nil) }
   scope :expired, ->(now = Time.current) { temporary.where(temporary_last_used_at: ...now - TEMPORARY_LIFETIME) }
@@ -52,8 +63,32 @@ class StandardItem < ApplicationRecord
 
   # As the API sends it (the standard list and the offline snapshot). temporary_last_used_at:
   # nil for a permanent item; the browser also hides an expired one in its offline copy.
+  # ingredient_id: nil when not linked (the browser then matches on name).
   def self.serialize(item)
-    item.slice("id", "name", "category", "temporary_last_used_at")
+    item.slice("id", "name", "category", "temporary_last_used_at", "ingredient_id")
+  end
+
+  # "Ja, hetzelfde": from now on this item is ingredient. Open shopping list lines with the
+  # item's name and no ingredient get it too, so ticking them off puts it in the house.
+  # Lines already ticked off are left alone: their stock was settled when they were ticked.
+  def link_to!(ingredient)
+    transaction do
+      update!(ingredient: ingredient)
+      ShoppingListItem.unchecked.where(name: name, ingredient_id: nil)
+        .update_all(ingredient_id: ingredient.id, updated_at: Time.current)
+    end
+  end
+
+  # Not the same after all. Shopping list lines keep what they have.
+  def unlink!
+    update!(ingredient: nil)
+  end
+
+  # "Nee, niet hetzelfde": not suggested again. Twice is fine (the unique index).
+  def reject_link!(ingredient)
+    link_rejections.find_or_create_by!(ingredient: ingredient)
+  rescue ActiveRecord::RecordNotUnique
+    nil
   end
 
   def temporary?

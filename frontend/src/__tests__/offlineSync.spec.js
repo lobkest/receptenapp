@@ -1,12 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 import { useOfflineStore } from '../stores/offline'
+import { resetServerStatus, useServerStatusStore } from '../stores/serverStatus'
 import { useShoppingListStore } from '../stores/shoppingList'
 import { useSnapshotStore } from '../stores/snapshot'
 import { useStandardItemsStore } from '../stores/standardItems'
 import { clearMemoryStorage, readJson } from '../offline/storage'
 import { parseLooseItem } from '../utils/offlineShoppingList'
-import { fakeServer, jsonResponse, mockFetch } from './helpers'
+import {
+  fakeServer,
+  jsonResponse,
+  mockFetch,
+  serverOnlineUnlessOffline,
+  setOffline,
+  setOnline,
+} from './helpers'
+import { mountRoute } from './mount'
 
 // Offline wijzigingen op de boodschappenlijst en de standaardlijst: meteen zichtbaar
 // ("wacht op sync"), in de outbox (src/offline/outbox.js), en bij verbinding in volgorde
@@ -53,20 +63,13 @@ const PANCAKES = {
 
 function freshStores() {
   setActivePinia(createPinia())
+  serverOnlineUnlessOffline()
   return {
     list: useShoppingListStore(),
     standard: useStandardItemsStore(),
     offline: useOfflineStore(),
     snapshot: useSnapshotStore(),
   }
-}
-
-function goOffline() {
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-}
-
-function goOnline() {
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
 }
 
 function writes(fetch) {
@@ -86,7 +89,7 @@ async function loadedThenOffline(server) {
   await stores.list.load()
   await stores.standard.load()
   server.fetch.mockClear()
-  goOffline()
+  setOffline()
   return stores
 }
 
@@ -141,7 +144,7 @@ describe('offline wijzigingen', () => {
       expect(offline.pending).toBe(1)
       expect(server.fetch).not.toHaveBeenCalled()
 
-      goOnline()
+      setOnline()
       await list.load()
 
       expect(server.shoppingDb).toEqual([expect.objectContaining({ name: 'appels', count: 2 })])
@@ -158,7 +161,7 @@ describe('offline wijzigingen', () => {
       await list.addLoose('Appels', { count: 1 })
 
       expect(list.items.map((i) => [i.name, i.count])).toEqual([['appels', 3]])
-      goOnline()
+      setOnline()
       await list.load()
       expect(writes(server.fetch)).toHaveLength(1)
       expect(server.shoppingDb.map((i) => [i.name, i.count])).toEqual([['appels', 3]])
@@ -173,7 +176,7 @@ describe('offline wijzigingen', () => {
       await list.addLoose('ui', { ingredientId: 20, count: 2 })
 
       expect(list.items).toEqual([expect.objectContaining({ id: 5, count: 3, pending: true })])
-      goOnline()
+      setOnline()
       await list.load()
       expect(server.shoppingDb.map((i) => [i.id, i.count])).toEqual([[5, 3]])
     })
@@ -188,7 +191,7 @@ describe('offline wijzigingen', () => {
 
       expect(list.items).toEqual([])
       expect(offline.pending).toBe(0)
-      goOnline()
+      setOnline()
       await list.load()
       expect(writes(server.fetch)).toEqual([])
     })
@@ -201,7 +204,7 @@ describe('offline wijzigingen', () => {
       await list.setCount(line.id, 4)
       await list.toggle(line.id)
 
-      goOnline()
+      setOnline()
       await list.load()
       expect(writes(server.fetch)).toEqual([
         [
@@ -227,7 +230,7 @@ describe('offline wijzigingen', () => {
       await list.toggle(lines[0].id)
       expect(list.items[0].checked).toBe(false)
 
-      goOnline()
+      setOnline()
       await list.load()
       const [[, url, body]] = writes(server.fetch)
       expect(url).toBe('/api/recipes/7/add_to_shopping_list')
@@ -276,7 +279,7 @@ describe('offline wijzigingen', () => {
       expect(standard.items).toContainEqual(
         expect.objectContaining({ name: 'volkorenbrood', category: 'bakker', pending: true }),
       )
-      goOnline()
+      setOnline()
       await standard.load()
       expect(writes(server.fetch)).toEqual([
         [
@@ -316,7 +319,7 @@ describe('offline wijzigingen', () => {
         ['brood', true],
         ['melk', true],
       ])
-      goOnline()
+      setOnline()
       await list.load()
       expect(writes(server.fetch).map(([method, url, body]) => [method, url, body?.names])).toEqual(
         [
@@ -347,7 +350,7 @@ describe('offline wijzigingen', () => {
       server.standardDb.push({ id: 2, name: 'brood', category: null })
       server.shoppingDb.splice(0)
 
-      goOnline()
+      setOnline()
       await list.load()
 
       expect(offline.notice).toBe(
@@ -377,7 +380,7 @@ describe('offline wijzigingen', () => {
       const server = fakeServer()
       const { list, offline } = await loadedThenOffline(server)
       await list.addLoose('appels')
-      goOnline()
+      setOnline()
       mockFetch((method) => (method === 'POST' ? jsonResponse({}, 500) : jsonResponse([])))
 
       await list.load()
@@ -412,13 +415,121 @@ describe('offline wijzigingen', () => {
       const server = fakeServer({ recipes: [PANCAKES] })
       await freshStores().snapshot.load()
       server.fetch.mockClear()
-      goOffline()
+      setOffline()
 
       const { snapshot } = freshStores()
       await snapshot.load()
 
       expect(server.fetch).not.toHaveBeenCalled()
       expect(snapshot.recipes).toHaveLength(1)
+    })
+  })
+
+  // De browser heeft netwerk, maar de server antwoordt (nog) niet: hij wordt wakker, of /up
+  // hangt (het iPhone-geval). Dan is de app offline (stores/serverStatus.js): alles gaat
+  // meteen via de outbox, zonder request, en pas als /up 200 geeft gaat het één keer weg.
+  describe('server nog niet online (browser wel)', () => {
+    async function loadedThenWaking(server) {
+      const stores = freshStores()
+      await stores.snapshot.load()
+      await stores.list.load()
+      await stores.standard.load()
+      server.fetch.mockClear()
+      useServerStatusStore().setStatus('waking')
+      return stores
+    }
+
+    it('toevoegen, afvinken, aantal en verwijderen: meteen zichtbaar, geen request', async () => {
+      const server = fakeServer({
+        recipes: [PANCAKES],
+        standard: [{ id: 1, name: 'melk' }],
+        shopping: [{ id: 50, name: 'brood', source_label: 'los' }],
+      })
+      const { list, standard, snapshot, offline } = await loadedThenWaking(server)
+
+      // Zonder await: de knop is niet "bezig", het staat er meteen.
+      const added = [
+        standard.addToShoppingList([1]),
+        list.addLoose('appels'),
+        list.addRecipe(7, 4, [1]),
+        list.addRecipe(7, 4),
+      ]
+      expect(list.items.map((i) => i.name)).toEqual(
+        expect.arrayContaining(['melk', 'appels', 'bloem']),
+      )
+      await Promise.all(added)
+      await list.toggle(50)
+      await list.setCount(list.items.find((i) => i.name === 'appels').id, 3)
+      await list.remove(list.items.find((i) => i.name === 'melk').id)
+      // Ook verversen vraagt niets zolang er een kopie is.
+      await Promise.all([list.load(), standard.load(), snapshot.load()])
+
+      expect(server.fetch).not.toHaveBeenCalled()
+      expect(list.offline).toBe(true)
+      expect(offline.pending).toBeGreaterThan(0)
+      expect(list.openCount).toBe(list.items.filter((i) => !i.checked).length)
+      expect(list.items.find((i) => i.name === 'brood').checked).toBe(true)
+    })
+
+    it('twee keer [+] (of [+] en "Op lijst") offline: één regel met aantal 2, zoals de server', async () => {
+      const server = fakeServer({ standard: [{ id: 1, name: 'melk' }] })
+      const { list, standard } = await loadedThenWaking(server)
+
+      await standard.addToShoppingList([1])
+      await standard.addToShoppingList([1])
+      expect(list.items.map((i) => [i.name, i.count])).toEqual([['melk', 2]])
+      expect(list.openCount).toBe(1)
+
+      setOnline()
+      await list.load()
+      expect(server.shoppingDb.map((i) => [i.name, i.count])).toEqual([['melk', 2]])
+      expect(list.items.map((i) => [i.name, i.count])).toEqual([['melk', 2]])
+    })
+
+    it('/up geeft 200: App verstuurt de outbox één keer, ook als alles tegelijk ververst', async () => {
+      const server = fakeServer({
+        recipes: [PANCAKES],
+        standard: [{ id: 1, name: 'melk' }],
+        ingredients: [{ id: 10, name: 'bloem' }],
+        presentIds: [],
+      })
+      // Online geladen (kopieën in de opslag), daarna een nieuw bezoek met een hangende /up.
+      await loadedThenWaking(server)
+      resetServerStatus()
+      setActivePinia(createPinia())
+      let wake
+      const awake = new Promise((resolve) => (wake = resolve))
+      const answer = server.fetch.getMockImplementation()
+      const fetch = vi.fn(async (url, options = {}) => {
+        if (url === '/up') await awake
+        return answer(url, options)
+      })
+      vi.stubGlobal('fetch', fetch)
+
+      const { wrapper } = await mountRoute('/standaard', { app: true })
+      expect(wrapper.find('.offline-notice').exists()).toBe(true)
+      const standard = useStandardItemsStore()
+      const list = useShoppingListStore()
+      await standard.addToShoppingList([1])
+      await list.addRecipe(7, 4)
+      await flushPromises()
+      expect(fetch.mock.calls.map(([url]) => url).filter((url) => url.startsWith('/api'))).toEqual(
+        [],
+      )
+      expect(wrapper.find('.nav-count').text()).toContain('3')
+
+      wake()
+      await flushPromises()
+
+      const posts = writes(fetch).map(([method, url]) => `${method} ${url}`)
+      expect(posts).toEqual([
+        'POST /api/standard_items/add_to_shopping_list',
+        'POST /api/recipes/7/add_to_shopping_list',
+      ])
+      expect(server.shoppingDb.map((i) => i.name).sort()).toEqual(['bloem', 'melk', 'melk'])
+      expect(useOfflineStore().pending).toBe(0)
+      expect(wrapper.find('.offline-notice').exists()).toBe(false)
+      wrapper.unmount()
     })
   })
 })

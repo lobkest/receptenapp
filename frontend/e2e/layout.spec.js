@@ -376,6 +376,9 @@ test('toevoegen, bewerken (met conflict), verwijderverzoek, terugzetten en versi
 
   // ---- Verwijderen aanvragen: dialoog met reden, daarna weg uit het overzicht.
   await page.goto(`/recepten/${id}`)
+  // Na openen staat eerst de offline kopie er, met de knoppen uit tot /up antwoordt; daarna
+  // komt de verse versie (met de titel van nu).
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Linzensoep met citroen')
   await page.getByRole('button', { name: 'Verwijderen' }).click()
   const dialog = page.getByRole('dialog', { name: '"Linzensoep met citroen" verwijderen?' })
   await expect(dialog.getByRole('button', { name: 'Annuleren' })).toBeFocused()

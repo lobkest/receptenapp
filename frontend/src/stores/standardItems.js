@@ -3,6 +3,7 @@ import * as api from '@/api/standardItems'
 import { ApiError } from '@/api/client'
 import { isNetworkError, isOffline, isTempId, newId, tempId } from '@/offline'
 import { useOfflineStore } from '@/stores/offline'
+import { useServerStatusStore } from '@/stores/serverStatus'
 import { useShoppingListStore } from '@/stores/shoppingList'
 import { useSnapshotStore } from '@/stores/snapshot'
 import { byName, groupByCategory } from '@/utils/grouping'
@@ -63,12 +64,19 @@ function withQueuedActions(items) {
   return result
 }
 
+// Een lopende load(), zodat App (bij de overgang naar online) en de pagina die tegelijk
+// aanroepen maar één request doen.
+let pendingLoad = null
+
 export const useStandardItemsStore = defineStore('standardItems', {
   state: () => ({
     items: [],
     loaded: false,
     // true als wat je ziet de offline kopie is (geen verbinding).
     offline: false,
+    // "Mogelijk hetzelfde": [{ standard_item, candidates: [{ id, name }] }], van de server
+    // (loadSuggestions). Offline niet opgehaald: koppelen kan alleen online.
+    suggestions: [],
   }),
 
   getters: {
@@ -100,7 +108,14 @@ export const useStandardItemsStore = defineStore('standardItems', {
   actions: {
     // Eerst de kopie uit de snapshot (meteen te zien), dan de outbox versturen en vers
     // ophalen. Zonder verbinding blijft de kopie staan; zonder kopie gooien we de fout door.
-    async load() {
+    // Zolang de server niet online is en er een kopie is: geen request (ook de outbox nog
+    // niet); bij de overgang naar online ververst App.vue.
+    load() {
+      pendingLoad ??= this.fetchFresh().finally(() => (pendingLoad = null))
+      return pendingLoad
+    },
+
+    async fetchFresh() {
       const snapshot = useSnapshotStore()
       snapshot.restore()
       if (!this.loaded && snapshot.data?.standard_items) {
@@ -111,6 +126,10 @@ export const useStandardItemsStore = defineStore('standardItems', {
         this.offline = true
         if (this.loaded) return
         throw new ApiError('network', 'Geen internetverbinding.')
+      }
+      if (!useServerStatusStore().online && this.loaded) {
+        this.offline = true
+        return
       }
       try {
         await useOfflineStore().sync()
@@ -125,9 +144,10 @@ export const useStandardItemsStore = defineStore('standardItems', {
       }
     },
 
-    // Offline, of voor een item dat zelf nog op sync wacht: via de outbox.
+    // Zolang de server niet online is, of voor een item dat zelf nog op sync wacht: meteen
+    // via de outbox, zonder request.
     queues(id = null) {
-      return isOffline() || (id != null && isTempId(id))
+      return !useServerStatusStore().online || (id != null && isTempId(id))
     },
 
     enqueue(action) {
@@ -235,6 +255,62 @@ export const useStandardItemsStore = defineStore('standardItems', {
       const { deleted_ids: deleted } = await api.bulkDeleteStandardItems(ids)
       this.items = this.items.filter((i) => !deleted.includes(i.id))
       return deleted.length
+    },
+
+    // ---------- Koppelen aan een ingrediënt ("uien" is "ui") ----------
+    // Alleen online: de server zet ook de open regels op de boodschappenlijst om. Offline
+    // gooit het request een netwerkfout, die de pagina toont (de knoppen staan dan uit).
+
+    // Mislukt dit, dan is er gewoon geen blok "Mogelijk hetzelfde".
+    async loadSuggestions() {
+      if (!useServerStatusStore().online) return
+      try {
+        this.suggestions = await api.fetchLinkSuggestions()
+      } catch {
+        this.suggestions = []
+      }
+    },
+
+    // Het item zoals de server het nu heeft, ook in de offline kopie: zo werkt het huisje
+    // offline met de koppeling.
+    putItem(item) {
+      this.items = this.items.map((i) => (i.id === item.id ? { ...i, ...item } : i))
+      useSnapshotStore().patch(
+        'standard_items',
+        this.items.filter((i) => !i.pending),
+      )
+    },
+
+    // "Ja, hetzelfde". De boodschappenlijst opnieuw ophalen: daar kregen open regels met
+    // deze naam het ingrediënt.
+    async link(id, ingredientId) {
+      const item = await api.linkStandardItem(id, ingredientId)
+      this.putItem(item)
+      this.suggestions = this.suggestions.filter((s) => s.standard_item.id !== id)
+      useShoppingListStore()
+        .load()
+        .catch(() => {})
+      return item
+    },
+
+    // Ontkoppeld kan het item weer een suggestie zijn.
+    async unlink(id) {
+      const item = await api.unlinkStandardItem(id)
+      this.putItem(item)
+      await this.loadSuggestions()
+      return item
+    },
+
+    // "Nee": dat ene paar weg; zonder kandidaten het hele item.
+    async rejectLink(id, ingredientId) {
+      await api.rejectStandardItemLink(id, ingredientId)
+      this.suggestions = this.suggestions
+        .map((s) =>
+          s.standard_item.id === id
+            ? { ...s, candidates: s.candidates.filter((c) => c.id !== ingredientId) }
+            : s,
+        )
+        .filter((s) => s.candidates.length > 0)
     },
 
     // Op de gedeelde boodschappenlijst, in één request, zonder hoeveelheid: je moet het

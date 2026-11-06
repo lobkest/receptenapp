@@ -4,7 +4,6 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CountStepper from '@/components/CountStepper.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
-import ServerWaiting from '@/components/ServerWaiting.vue'
 import ShoppingListAddField from '@/components/ShoppingListAddField.vue'
 import ShoppingListRecipes from '@/components/ShoppingListRecipes.vue'
 import { useOfflineStore } from '@/stores/offline'
@@ -15,14 +14,17 @@ import { categorySections, groupByRecipe, removeRecipeQuestion } from '@/utils/s
 
 // De lijst staat op de server (via de store), gedeeld met iedereen die de link heeft.
 // Bij openen van deze pagina halen we hem opnieuw op; bij terugschakelen naar de app
-// of als de verbinding terugkomt doet App.vue dat. Offline toont de store de laatst
-// opgeslagen kopie; afvinken, het aantal, verwijderen en toevoegen werken dan gewoon (via de
-// outbox, stores/offline.js). Wat nog op sync wacht, staat er met "wacht op sync" bij.
-// Bij openen staat de offline kopie er meteen, met "Offline kopie van 28 okt om 14:05, bijwerken…"
-// erboven; zodra de verse lijst binnen is (list.fresh), verdwijnt die melding.
+// of als de server (weer) online is doet App.vue dat. Zolang de server niet online is (ook
+// vlak na het openen, terwijl hij wakker wordt) toont de store de laatst opgeslagen kopie met
+// de offline-melding erboven; afvinken, het aantal, verwijderen en toevoegen werken dan gewoon
+// (via de outbox, stores/offline.js, zonder request). Wat nog op sync wacht, staat er met
+// "wacht op sync" bij. Zodra /up 200 geeft, gaat de outbox weg en verdwijnt de melding.
 const list = useShoppingListStore()
 const server = useServerStatusStore()
 const offline = useOfflineStore()
+// Wissen en recept verwijderen kunnen alleen online: uit als de lijst offline is, of zolang de
+// server niet online is.
+const noServer = computed(() => list.offline || server.offline)
 
 const loading = ref(false)
 // Melding bij een mislukte actie (netwerk, server, te veel verzoeken).
@@ -122,10 +124,9 @@ async function clearAll() {
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
-  <!-- Nog geen kopie en de server start op: dezelfde melding als op de receptenpagina. -->
-  <ServerWaiting v-if="loading && !server.online && !server.offline" />
-
-  <p v-else-if="loading" class="muted">Boodschappenlijst laden…</p>
+  <!-- Nog geen kopie en de server is niet online: alleen de offline-melding hierboven
+       (met de teller), geen "laden…" erbij. -->
+  <p v-if="loading && !server.offline" class="muted">Boodschappenlijst laden…</p>
 
   <p v-else-if="list.loaded && list.items.length === 0" class="empty card">
     Je boodschappenlijst is leeg. Typ hierboven wat je nodig hebt, of voeg ingrediënten toe vanaf
@@ -196,12 +197,12 @@ async function clearAll() {
       <button
         type="button"
         class="clear-checked"
-        :disabled="list.offline || !list.hasChecked"
+        :disabled="noServer || !list.hasChecked"
         @click="attempt(() => list.clearChecked())"
       >
         Afgevinkte wissen
       </button>
-      <button type="button" class="clear-all btn-danger" :disabled="list.offline" @click="clearAll">
+      <button type="button" class="clear-all btn-danger" :disabled="noServer" @click="clearAll">
         Alles wissen
       </button>
     </div>
@@ -210,7 +211,7 @@ async function clearAll() {
       v-if="list.recipesOnList.length"
       :recipes="list.recipesOnList"
       :grouped="grouped"
-      :offline="list.offline"
+      :offline="noServer"
       @update:grouped="setGrouped"
       @remove="removeRecipe"
     />

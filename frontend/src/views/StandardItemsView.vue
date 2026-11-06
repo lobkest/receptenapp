@@ -1,6 +1,7 @@
 <script setup>
-import { nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import OfflineHint from '@/components/OfflineHint.vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import StandardItemForm from '@/components/StandardItemForm.vue'
 import StandardItemRow from '@/components/StandardItemRow.vue'
@@ -52,19 +53,35 @@ onMounted(() => {
   load()
   shoppingList.load().catch(() => {})
   pantry.loadPantry().catch(() => {})
+  standard.loadSuggestions()
 })
+// Was de server bij openen nog niet online, dan stond de kopie er en ging er geen request
+// uit. Nu wel: de verse lijst (een fout als melding; App.vue vraagt tegelijk dezelfde load
+// aan, de store doet één request) en "Mogelijk hetzelfde" (alleen van de server).
+watch(
+  () => server.online,
+  (online) => {
+    if (!online) return
+    load()
+    standard.loadSuggestions()
+  },
+)
 
-// Een standaarditem heeft geen ingredient_id: het huisje matcht op naam.
+// Met een gekoppeld ingrediënt (ingredient_id) matcht het huisje daarop, anders op naam.
 const { statusOf } = useHouseStatus()
 
 function inHouse(item) {
   return statusOf(item)?.inHouse ?? false
 }
 
-// Zelfde regel als op de receptpagina: een open regel met dezelfde naam, van welke
-// herkomst ook. Een standaarditem heeft geen ingredient_id, dus telt de naam.
+// Zelfde regel als op de receptpagina: een open regel met hetzelfde ingrediënt of (zonder
+// ingredient_id aan een van beide kanten) dezelfde naam, van welke herkomst ook. Zo is
+// "uien", gekoppeld aan "ui", ook op de lijst als een recept "ui" erop zette.
 function onList(item) {
-  return shoppingList.listStatus({ name: item.name }, null).onList
+  return shoppingList.listStatus(
+    { name: item.name, ingredient_id: item.ingredient_id ?? null },
+    null,
+  ).onList
 }
 
 // Voert een actie uit; een validatiefout gaat naar setErrors (bij het formulier),
@@ -153,14 +170,39 @@ function startEdit(item) {
   editingId.value = item.id
 }
 
-async function saveEdit(id, fields) {
+// link: het ingrediënt-id uit "Hetzelfde als ingrediënt", null (ontkoppelen) of undefined
+// (niet veranderd); na de naam en categorie, want koppelen kijkt naar de nieuwe naam.
+async function saveEdit(id, fields, link) {
   saving.value = true
   const ok = await attempt(
-    () => standard.update(id, fields),
+    async () => {
+      await standard.update(id, fields)
+      if (link === null) await standard.unlink(id)
+      else if (link !== undefined) await standard.link(id, link)
+    },
     (errors) => (editErrors.value = errors),
   )
   saving.value = false
   if (ok) editingId.value = null
+}
+
+// ---------- Mogelijk hetzelfde ----------
+
+// Eén regel per paar: "uien ↔ ui", "uien ↔ rode ui".
+const suggestionPairs = computed(() =>
+  standard.suggestions.flatMap(({ standard_item: item, candidates }) =>
+    candidates.map((ingredient) => ({ item, ingredient })),
+  ),
+)
+
+async function acceptSuggestion({ item, ingredient }) {
+  if (await attempt(() => standard.link(item.id, ingredient.id))) {
+    confirm(`${item.name} is nu hetzelfde als ${ingredient.name}.`)
+  }
+}
+
+function rejectSuggestion({ item, ingredient }) {
+  attempt(() => standard.rejectLink(item.id, ingredient.id))
 }
 
 // ---------- Losse acties per item ----------
@@ -265,6 +307,46 @@ watch(
 
   <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
 
+  <!-- Bovenaan, dicht: alleen als de server iets vond. Ja koppelt, Nee komt niet terug. -->
+  <details v-if="suggestionPairs.length && !selecting" class="card link-suggestions">
+    <summary>Mogelijk hetzelfde ({{ suggestionPairs.length }})</summary>
+    <p class="muted link-intro">
+      Is dit hetzelfde? Dan kloppen het huisje en "✓ op lijst" ook als de namen verschillen.
+    </p>
+    <ul class="link-list">
+      <li
+        v-for="pair in suggestionPairs"
+        :key="`${pair.item.id}-${pair.ingredient.id}`"
+        class="link-pair"
+        :data-item-id="pair.item.id"
+        :data-ingredient-id="pair.ingredient.id"
+      >
+        <span class="pair-names">{{ pair.item.name }} ↔ {{ pair.ingredient.name }}</span>
+        <span class="pair-actions">
+          <button
+            type="button"
+            class="accept-link"
+            :disabled="server.offline"
+            :aria-label="`Ja, ${pair.item.name} is hetzelfde als ${pair.ingredient.name}`"
+            @click="acceptSuggestion(pair)"
+          >
+            Ja, hetzelfde
+          </button>
+          <button
+            type="button"
+            class="reject-link"
+            :disabled="server.offline"
+            :aria-label="`Nee, ${pair.item.name} is niet hetzelfde als ${pair.ingredient.name}`"
+            @click="rejectSuggestion(pair)"
+          >
+            Nee
+          </button>
+        </span>
+      </li>
+    </ul>
+    <OfflineHint v-if="server.offline" />
+  </details>
+
   <section
     v-if="adding"
     id="standard-add"
@@ -283,7 +365,8 @@ watch(
     />
   </section>
 
-  <p v-if="loading" class="muted">Standaardlijst laden…</p>
+  <!-- Met een kopie (snapshot) niet "laden…": die staat er al, ook als het verversen hangt. -->
+  <p v-if="loading && !standard.loaded" class="muted">Standaardlijst laden…</p>
 
   <p v-else-if="standard.loaded && standard.items.length === 0" class="empty card">
     Je hebt nog geen standaardboodschappen. Voeg met + je eerste item toe.
@@ -318,7 +401,9 @@ watch(
           :categories="standard.categories"
           :errors="editErrors"
           :submitting="saving"
-          @save="saveEdit(item.id, $event)"
+          :linkable="!item.pending"
+          :offline="server.offline"
+          @save="(fields, link) => saveEdit(item.id, fields, link)"
           @cancel="editingId = null"
         />
 
@@ -417,6 +502,72 @@ watch(
 
 .add-card {
   margin-bottom: var(--space-5);
+}
+
+/* "Mogelijk hetzelfde": dicht een regel, open de paren met hun knoppen. */
+.link-suggestions {
+  margin-bottom: var(--space-5);
+}
+
+.link-suggestions summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+/* Met display: flex valt het standaardpijltje weg: een eigen pijl rechts, open naar boven. */
+.link-suggestions summary::-webkit-details-marker {
+  display: none;
+}
+
+.link-suggestions summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.link-suggestions[open] summary::after {
+  content: '▴';
+}
+
+.link-intro {
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.link-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.pair-names {
+  min-width: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+
+.pair-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+.pair-actions button {
+  font-size: var(--text-sm);
 }
 
 .empty {

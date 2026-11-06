@@ -45,3 +45,30 @@ export function addStandardNamesToShoppingList(names, clientActionId) {
 export function bulkDeleteStandardItems(ids) {
   return request(`${BASE}/bulk_destroy`, { method: 'POST', body: JSON.stringify({ ids }) })
 }
+
+// "Mogelijk hetzelfde": items zonder ingrediënt met de ingrediënten die er waarschijnlijk
+// hetzelfde zijn ("uien" ↔ "ui"). [{ standard_item, candidates: [{ id, name }] }]
+export function fetchLinkSuggestions() {
+  return request(`${BASE}/link_suggestions`)
+}
+
+// "Ja, hetzelfde": het item is voortaan dat ingrediënt (ook zijn open regels op de
+// boodschappenlijst). Geeft het item terug, met ingredient_id.
+export function linkStandardItem(id, ingredientId) {
+  return request(`${itemPath(id)}/link`, {
+    method: 'POST',
+    body: JSON.stringify({ ingredient_id: ingredientId }),
+  })
+}
+
+export function unlinkStandardItem(id) {
+  return request(`${itemPath(id)}/unlink`, { method: 'POST' })
+}
+
+// "Nee": dit paar komt niet meer terug in de suggesties.
+export function rejectStandardItemLink(id, ingredientId) {
+  return request(`${itemPath(id)}/reject_link`, {
+    method: 'POST',
+    body: JSON.stringify({ ingredient_id: ingredientId }),
+  })
+}

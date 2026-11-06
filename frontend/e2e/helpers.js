@@ -115,6 +115,19 @@ export async function hangServer(context) {
   return () => context.unroute(/\/(up|api\/.*)$/, hang)
 }
 
+// Een slapende server (of het iPhone-geval: wel netwerk, maar geen antwoord): elk verzoek
+// naar /up en /api blijft hangen tot wakeUp(); dan gaan de vastgehouden verzoeken alsnog
+// door. target: een page, of een context (die vangt ook verzoeken van de service worker).
+export async function sleepServer(target) {
+  const held = []
+  const handler = (route) => held.push(route)
+  await target.route(isServerRequest, handler)
+  return async function wakeUp() {
+    await target.unroute(isServerRequest, handler)
+    for (const route of held.splice(0)) await route.continue().catch(() => {})
+  }
+}
+
 // Een trage verbinding: elk verzoek naar de server pas na ms.
 export async function slowServer(context, ms) {
   await context.route(/\/(up|api\/.*)$/, async (route) => {
@@ -138,7 +151,12 @@ export async function openOnline(page) {
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
   await page.goto('/')
   await expect(page.locator('.recipe-card').first()).toBeVisible()
-  // De snapshot staat in IndexedDB (src/offline/storage.js).
+  await snapshotSaved(page)
+}
+
+// Wacht tot de offline snapshot in IndexedDB staat (src/offline/storage.js), bijvoorbeeld
+// voordat een test de verbinding verbreekt en herlaadt.
+export async function snapshotSaved(page) {
   await expect
     .poll(() =>
       page.evaluate(

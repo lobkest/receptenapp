@@ -141,9 +141,11 @@ test('nieuw recept met een nieuwe categorie komt in de juiste sectie, achteraan'
 
   // Het overzicht: de nieuwe sectie na Diner (Lunch en Snacks zijn leeg, dus weg).
   await page.goto('/')
-  await expect(sectionTitles(page).first()).toBeVisible()
-  const titles = await sectionTitles(page).allTextContents()
-  expect(titles.slice(0, 3)).toEqual(['Ontbijt', 'Diner', 'Bijgerecht'])
+  // Eerst staat de offline kopie er (van vóór het nieuwe recept); zodra /up antwoordt, komt
+  // de verse lijst van de server.
+  await expect
+    .poll(async () => (await sectionTitles(page).allTextContents()).slice(0, 3))
+    .toEqual(['Ontbijt', 'Diner', 'Bijgerecht'])
   await expect(section(page, 'Bijgerecht').locator('.title')).toHaveText(['Gegrilde groenten'])
   await expect(section(page, 'Ontbijt').locator('.title')).toHaveText([
     'Spek met ei',

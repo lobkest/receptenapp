@@ -147,6 +147,9 @@ test('a2) standaardlijst: huisje bij een item zonder ingrediënt maakt het aan; 
   await expect(page.getByRole('list', { name: 'In huis' })).toContainText('keukenpapier')
 
   await openStandard(page)
+  // Eerst de verse stand (na openen kort de kopie, met het huisje uit tot /up antwoordt).
+  await expect(standardHouse(page, 'keukenpapier')).toHaveAttribute('aria-pressed', 'true')
+  await expect(standardHouse(page, 'keukenpapier')).toBeEnabled()
   await standardHouse(page, 'keukenpapier').click()
   await expect(standardHouse(page, 'keukenpapier')).toHaveAttribute('aria-pressed', 'false')
   expect((await pantry()).in_house.map((item) => item.name)).not.toContain('keukenpapier')

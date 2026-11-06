@@ -57,9 +57,9 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_equal [
-      { "id" => standard_items(:kaas).id, "name" => "kaas", "category" => "zuivel", "temporary_last_used_at" => nil },
-      { "id" => @melk.id, "name" => "melk", "category" => "zuivel", "temporary_last_used_at" => nil },
-      { "id" => standard_items(:wc_papier).id, "name" => "wc-papier", "category" => nil, "temporary_last_used_at" => nil }
+      { "id" => standard_items(:kaas).id, "name" => "kaas", "category" => "zuivel", "temporary_last_used_at" => nil, "ingredient_id" => nil },
+      { "id" => @melk.id, "name" => "melk", "category" => "zuivel", "temporary_last_used_at" => nil, "ingredient_id" => nil },
+      { "id" => standard_items(:wc_papier).id, "name" => "wc-papier", "category" => nil, "temporary_last_used_at" => nil, "ingredient_id" => nil }
     ], response.parsed_body
   end
 
@@ -71,7 +71,7 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
-    assert_equal({ "name" => "banaan", "category" => "groente", "temporary_last_used_at" => nil },
+    assert_equal({ "name" => "banaan", "category" => "groente", "temporary_last_used_at" => nil, "ingredient_id" => nil },
       response.parsed_body.except("id"))
   end
 
@@ -97,7 +97,7 @@ class Api::StandardItemsControllerTest < ActionDispatch::IntegrationTest
     patch api_standard_item_url(@melk), params: { standard_item: { name: "Volle melk", category: "" } }, as: :json
 
     assert_response :ok
-    assert_equal({ "id" => @melk.id, "name" => "volle melk", "category" => nil, "temporary_last_used_at" => nil },
+    assert_equal({ "id" => @melk.id, "name" => "volle melk", "category" => nil, "temporary_last_used_at" => nil, "ingredient_id" => nil },
       response.parsed_body)
     assert_equal "volle melk", @melk.reload.name
   end

@@ -82,13 +82,12 @@ test('nieuwe deploy: bij opnieuw openen komt de nieuwe versie, zonder tabbladen 
   })
   expect(state.waiting).toBe(false)
 
-  // Daarna offline (ook na opnieuw openen): de nieuwe versie staat in de precache en draait,
-  // te zien aan het bouwnummer klein in de offline-melding.
+  // Daarna offline (ook na opnieuw openen): de nieuwe versie staat in de precache en draait
+  // (de bundel van versie-b, met de offline-melding erboven).
   await page.context().setOffline(true)
-  const build = page.locator('.offline-notice .offline-build')
-  await expect(build).toHaveText('versie versie-b')
   await page.reload()
-  await expect(build).toHaveText('versie versie-b')
+  await expect(page.locator('.offline-notice')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Boodschappen' })).toBeVisible()
   expect(await bundleOf(page)).not.toBe(oldBundle)
   await page.context().setOffline(false)
 })

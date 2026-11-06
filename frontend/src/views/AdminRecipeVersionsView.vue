@@ -96,7 +96,8 @@ watch(
 
   <h1>Versies</h1>
 
-  <p v-if="loading && !recipe" class="muted">Versies laden…</p>
+  <!-- Offline zegt de offline-melding het al; een hangend verzoek geeft anders lang "laden…". -->
+  <p v-if="loading && !recipe && !server.offline" class="muted">Versies laden…</p>
 
   <p v-else-if="notFound">Dit recept bestaat niet (meer).</p>
 

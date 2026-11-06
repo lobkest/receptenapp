@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useStandardItemsStore } from '../stores/standardItems'
 import { useShoppingListStore } from '../stores/shoppingList'
-import { fakeServer, fakeStandardServer, jsonResponse, mockFetch } from './helpers'
+import {
+  fakeServer,
+  fakeStandardServer,
+  jsonResponse,
+  mockFetch,
+  serverOnlineUnlessOffline,
+} from './helpers'
 
 const ITEMS = [
   { id: 1, name: 'melk', category: 'zuivel' },
@@ -14,6 +20,7 @@ const ITEMS = [
 // Een nieuwe Pinia is als een herladen pagina: de store begint leeg en haalt de lijst op.
 function freshStore() {
   setActivePinia(createPinia())
+  serverOnlineUnlessOffline()
   return useStandardItemsStore()
 }
 

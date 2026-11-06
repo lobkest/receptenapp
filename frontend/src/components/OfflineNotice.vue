@@ -1,20 +1,27 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useNow } from '@/composables/useNow'
 import { formatSavedAt, OFFLINE_TITLE, pendingText } from '@/offline'
-import { APP_VERSION } from '@/version'
+import { useServerStatusStore } from '@/stores/serverStatus'
+
+// Zo lang duurt het opstarten van de slapende Render-server meestal; daarna zegt de teller
+// "duurt langer dan normaal".
+const USUAL_WAKE_S = 50
 
 // De offline-melding: op elke pagina hetzelfde blok, als eerste element bovenaan, zodra er
 // geen verbinding is (serverStatus.offline). Pagina's tonen hem alleen dan; App.vue toont hem
 // zelf voor pagina's die offline niet werken (meta.onlineOnly, of meta.needsServer zonder
-// kopie). Opbouw, altijd twee regels:
+// kopie). Offline is alles wat niet online is, ook een server die nog wakker wordt
+// (stores/serverStatus.js), dus ook in de eerste ogenblikken na het starten. Opbouw:
 // 1. vet, overal gelijk: OFFLINE_TITLE ("Offline: geen verbinding met de server")
 // 2. grijs, per pagina, de eerste die past:
 //    - unavailable (paginanaam): "In huis is offline niet beschikbaar"
 //    - editing: "opslaan kan weer zodra er verbinding is" (bewerkpagina's)
 //    - anders de kopie: "kopie van vandaag 21:57" (savedAt in ms; formatSavedAt)
-// Klein eronder in het blok: welke build er draait (offline kan dat een oudere zijn dan op
-// de server, tot je weer online bent; zie src/version.js en de service worker).
+// 3. klein, de teller (serverStatus.offlineSince), elke seconde bijgewerkt:
+//    - "wachten op verbinding… 12 s (opstarten duurt meestal ~50 s)"
+//    - na USUAL_WAKE_S: "wachten op verbinding… 63 s (duurt langer dan normaal)"
+//    - de browser meldt geen netwerk: "geen internet op dit toestel · 12 s"
 // Wat een pagina verder wil zeggen (afvinken kan gewoon, wijzigingen wachten), staat
 // eronder, buiten het blok: pending (aantal wijzigingen in de outbox) en de slot.
 const props = defineProps({
@@ -28,8 +35,44 @@ const props = defineProps({
 // "vandaag" na middernacht "gisteren" wordt, ook als de app al die tijd open stond.
 const now = useNow()
 
-// Een commit-hash kort (7 tekens), zoals git hem toont; een andere versienaam zoals hij is.
-const build = /^[0-9a-f]{40}$/.test(APP_VERSION) ? APP_VERSION.slice(0, 7) : APP_VERSION
+// De teller: een eigen klok van een seconde (useNow tikt maar elke minuut), alleen zolang
+// er iets te tellen is, en opgeruimd als de melding verdwijnt.
+const server = useServerStatusStore()
+const clock = ref(Date.now())
+let ticker = null
+
+function stopTicker() {
+  clearInterval(ticker)
+  ticker = null
+}
+
+watch(
+  () => server.offlineSince,
+  (since) => {
+    stopTicker()
+    clock.value = Date.now()
+    if (since != null) ticker = setInterval(() => (clock.value = Date.now()), 1_000)
+  },
+  { immediate: true },
+)
+onUnmounted(stopTicker)
+
+// { text, hint }: de uitleg tussen haakjes (hint) breekt als geheel af naar een volgende
+// regel, niet midden in "(… ~50 s)".
+const counter = computed(() => {
+  if (server.offlineSince == null) return null
+  // Max met now: na terugkeren naar de app (timers lagen stil) meteen de goede tijd.
+  const seconds = Math.max(
+    0,
+    Math.floor((Math.max(clock.value, now.value) - server.offlineSince) / 1_000),
+  )
+  if (server.browserOffline) return { text: `geen internet op dit toestel · ${seconds} s` }
+  const hint =
+    seconds > USUAL_WAKE_S
+      ? 'duurt langer dan normaal'
+      : `opstarten duurt meestal ~${USUAL_WAKE_S} s`
+  return { text: `wachten op verbinding… ${seconds} s`, hint: `(${hint})` }
+})
 
 const detail = computed(() => {
   if (props.unavailable) return `${props.unavailable} is offline niet beschikbaar`
@@ -43,7 +86,10 @@ const detail = computed(() => {
   <div class="offline-notice" role="status">
     <strong class="offline-title">{{ OFFLINE_TITLE }}</strong>
     <span class="offline-detail">{{ detail }}</span>
-    <small class="offline-build">versie {{ build }}</small>
+    <small v-if="counter" class="offline-counter"
+      >{{ counter.hint ? `${counter.text} ` : counter.text
+      }}<span v-if="counter.hint" class="offline-counter-hint">{{ counter.hint }}</span></small
+    >
   </div>
   <div v-if="pending > 0 || $slots.default" class="offline-extra">
     <p v-if="pending > 0" class="pending">{{ pendingText(pending) }}</p>
@@ -72,7 +118,12 @@ const detail = computed(() => {
   color: var(--color-text-muted);
 }
 
-.offline-build {
+.offline-counter-hint {
+  white-space: nowrap;
+}
+
+.offline-counter {
+  font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }

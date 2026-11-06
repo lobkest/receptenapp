@@ -15,6 +15,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@tabler/icons-vue": "^3.50.0",
     "idb-keyval": "^6.3.0",
     "pinia": "^4.0.3",
     "vue": "^3.5.42",

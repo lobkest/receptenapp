@@ -1,7 +1,7 @@
 import { test, expect, devices } from '@playwright/test'
 import { ADMIN_TOKEN, APP_URL, RAILS_URL, useOwnIp } from './env.js'
 import { giveTraits } from './traits.js'
-import { checkLayout, collectErrors } from './helpers.js'
+import { cardTagNames, checkLayout, collectErrors } from './helpers.js'
 
 // Controleert per hoofdpagina op een iPhone-scherm: geen console-errors, niets
 // breder dan het scherm, en een screenshot in e2e/screenshots/ om zelf te bekijken.
@@ -90,13 +90,13 @@ test('recept toevoegen: komma, optioneel ingrediënt, en daarna de receptpagina'
   await page.getByLabel('Naam ingrediënt 1').fill('ui')
   await page.getByLabel('Hoeveelheid ingrediënt 1').fill('1,5')
   await page.getByLabel('Eenheid ingrediënt 1').selectOption('stuks')
-  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.locator('.ingredients .add').click()
   await page.getByLabel('Naam ingrediënt 2').fill('peterselie')
   await page.getByLabel('Hoeveelheid ingrediënt 2').fill('10')
   await page.getByLabel('Eenheid ingrediënt 2').selectOption('g')
   await page.locator('.ingredient-row').nth(1).getByLabel('optioneel').check()
   await page.getByLabel('Stap 1', { exact: true }).fill('Uien snijden.')
-  await page.getByRole('button', { name: '+ stap' }).click()
+  await page.locator('.steps .add').click()
   await page
     .getByLabel('Stap 2', { exact: true })
     .fill(
@@ -120,7 +120,7 @@ test('recept toevoegen: komma, optioneel ingrediënt, en daarna de receptpagina'
 
   // Helemaal onderaan: de laatste inhoud ("+ stap") verdwijnt niet onder de knop.
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
-  const addStep = await page.getByRole('button', { name: '+ stap' }).boundingBox()
+  const addStep = await page.locator('.steps .add').boundingBox()
   const bar = await page.locator('.submit-bar').boundingBox()
   expect(addStep.y + addStep.height).toBeLessThanOrEqual(bar.y)
   await expectSubmitInView(page)
@@ -264,13 +264,9 @@ test('tags: toevoegen met bestaande en nieuwe tag, filteren, terug-navigatie', a
   await page.goto('/')
   const card = page.locator('.recipe-card', { hasText: 'Caprese' })
   // Eerst de automatische tags, dan de zelfgekozen (de kaart toont er maximaal vijf).
-  await expect(card.locator('.tag')).toHaveText([
-    'glutenvrij',
-    'notenvrij',
-    'vegetarisch',
-    'vega',
-    'zomer',
-  ])
+  await expect
+    .poll(() => cardTagNames(card))
+    .toEqual(['glutenvrij', 'notenvrij', 'vegetarisch', 'vega', 'zomer'])
 
   const row = page.locator('.tag-chips')
   const { rowScrolls } = await row.evaluate((el) => ({
@@ -355,6 +351,7 @@ test('toevoegen, bewerken (met conflict), verwijderverzoek, terugzetten en versi
 
   // ---- Conflict: iemand anders slaat op terwijl wij bewerken.
   await page.getByRole('link', { name: 'Bewerken' }).click()
+  await expect(page.getByRole('heading', { name: 'Recept bewerken' })).toBeVisible()
   await page.getByLabel('Porties').fill('6')
   const current = await (await api.get(`/api/recipes/${id}`)).json()
   const other = await api.patch(`/api/recipes/${id}`, {
@@ -446,9 +443,10 @@ test('boodschappen: afvinken met een groene checkbox', async ({ page }) => {
   await expect(checkboxes).toHaveCount(3)
   await checkboxes.first().check()
 
-  // Thema-groen (--color-brand), niet de zwarte standaard van de browser.
-  const accent = await checkboxes.first().evaluate((box) => getComputedStyle(box).accentColor)
-  expect(accent).toBe('rgb(46, 125, 67)')
+  // Thema-groen (--color-brand), niet de zwarte standaard van de browser: zelf getekend,
+  // aangevinkt groen gevuld.
+  const fill = await checkboxes.first().evaluate((box) => getComputedStyle(box).backgroundColor)
+  expect(fill).toBe('rgb(46, 125, 67)')
   await expect(page.getByRole('button', { name: 'Afgevinkte wissen' })).toBeEnabled()
   await expect(page.getByText('Ik ga winkelen')).toHaveCount(0)
   await expect(page.getByText('alleen in deze browser')).toHaveCount(0)

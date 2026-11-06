@@ -1,9 +1,11 @@
 <script setup>
 import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
+import { IconMinus, IconPlus } from '@tabler/icons-vue'
 import CategoryPicker from '@/components/CategoryPicker.vue'
 import OfflineHint from '@/components/OfflineHint.vue'
 import RecipeFormIngredientRow from '@/components/RecipeFormIngredientRow.vue'
 import RecipeFormStepRow from '@/components/RecipeFormStepRow.vue'
+import SectionCard from '@/components/SectionCard.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import VariationForm from '@/components/VariationForm.vue'
 import { useIngredientNames } from '@/composables/useIngredientNames'
@@ -187,6 +189,35 @@ function alternativesRequest(row) {
   return { list, keys: sent.map((alternative) => alternative.key) }
 }
 
+// Porties met − en +. Het veld blijft gewone tekst die je ook zelf kunt typen; − en +
+// rekenen vanaf het hele getal dat erin staat (leeg of onzin telt als 0). Niet onder 1 en
+// niet boven het maximum van de server (Recipe::MAX_SERVINGS); of de waarde geldig is,
+// beslist nog steeds de server.
+const MAX_SERVINGS = 50
+
+function changeServings(delta) {
+  const current = Number.parseInt(form.servings, 10)
+  const base = Number.isNaN(current) ? 0 : current
+  form.servings = String(Math.min(MAX_SERVINGS, Math.max(1, base + delta)))
+}
+
+// De meta rechts in de kop van de kaarten: alleen regels die je echt hebt ingevuld.
+const filledIngredientCount = computed(
+  () => ingredients.value.filter((row) => row.ingredient_name.trim()).length,
+)
+const filledStepCount = computed(() => steps.value.filter((step) => !stepIsEmpty(step)).length)
+
+function countLabel(count, one, many) {
+  if (!count) return null
+  return `${count} ${count === 1 ? one : many}`
+}
+
+// Een regel die verdwijnt, staat nog even in beeld (TransitionGroup): niet meer te
+// bedienen en niet meer voorgelezen.
+function onRowLeave(el) {
+  el.inert = true
+}
+
 function addIngredient() {
   ingredients.value.push(newIngredient())
 }
@@ -339,93 +370,129 @@ function invalidOf(row) {
       <li v-for="message in sortedErrors.general" :key="message">{{ message }}</li>
     </ul>
 
-    <div class="field">
-      <label for="title">Titel</label>
-      <input id="title" v-model="form.title" type="text" :aria-invalid="!!errors.title" />
+    <!-- De titel groot bovenaan, zonder zichtbaar label: de placeholder zegt wat erin
+         moet, aria-label geeft schermlezers de naam. -->
+    <div class="field title-field">
+      <input
+        id="title"
+        v-model="form.title"
+        type="text"
+        class="title-input"
+        aria-label="Titel"
+        placeholder="Naam van je recept"
+        :aria-invalid="!!errors.title"
+      />
       <p v-if="errors.title" class="error">Titel {{ errors.title.join(', ') }}</p>
     </div>
 
-    <div class="field">
-      <label for="description">Beschrijving</label>
-      <!-- Begint op één regel en groeit mee met de tekst, net als de stappen. -->
-      <textarea
-        id="description"
-        v-model="form.description"
-        v-autogrow
-        rows="1"
-        class="description"
-        :aria-invalid="!!errors.description"
-      ></textarea>
-      <p v-if="errors.description" class="error">
-        Beschrijving {{ errors.description.join(', ') }}
-      </p>
-    </div>
-
-    <fieldset class="category field">
-      <legend>Categorie <span class="muted optional-label">(optioneel)</span></legend>
-      <CategoryPicker
-        ref="categoryPicker"
-        v-model="category"
-        :options="availableCategories"
-        :error="errors.category_name ? `Categorie ${errors.category_name.join(', ')}` : null"
-      />
-    </fieldset>
-
-    <!-- Porties (smal) en tags naast elkaar op één rij. -->
-    <div class="meta-row">
-      <!-- inputmode: de telefoon toont een cijfertoetsenbord; pattern laat iOS dat ook doen. -->
+    <SectionCard as="section" title="Over dit recept" class="about">
       <div class="field">
-        <label for="servings">Porties</label>
-        <input
-          id="servings"
-          v-model="form.servings"
-          type="text"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          class="servings"
-          :aria-invalid="!!errors.servings"
-          :aria-describedby="errors.servings ? 'servings-error' : undefined"
-        />
+        <label for="description">Beschrijving</label>
+        <!-- Begint op één regel en groeit mee met de tekst, net als de stappen. -->
+        <textarea
+          id="description"
+          v-model="form.description"
+          v-autogrow
+          rows="1"
+          class="description"
+          :aria-invalid="!!errors.description"
+        ></textarea>
+        <p v-if="errors.description" class="error">
+          Beschrijving {{ errors.description.join(', ') }}
+        </p>
       </div>
 
-      <fieldset class="tags field">
-        <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
-        <TagPicker v-model="tags" :options="availableTags" :reserved="reservedTags" />
-        <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
+      <fieldset class="category field">
+        <legend>Categorie <span class="muted optional-label">(optioneel)</span></legend>
+        <CategoryPicker
+          ref="categoryPicker"
+          v-model="category"
+          :options="availableCategories"
+          :error="errors.category_name ? `Categorie ${errors.category_name.join(', ')}` : null"
+        />
       </fieldset>
-      <!-- Onder porties en tags, over de hele breedte: in de smalle portieskolom zou de
-           melding over zes regels breken. -->
-      <p v-if="errors.servings" id="servings-error" class="error servings-error">
-        Porties {{ errors.servings.join(', ') }}
-      </p>
-    </div>
 
-    <fieldset class="ingredients card">
-      <legend>Ingrediënten</legend>
+      <!-- Porties (een rij: label links, − getal + rechts) met de tags eronder. -->
+      <div class="meta-row">
+        <div class="servings-row">
+          <label for="servings">Porties</label>
+          <div class="servings-stepper">
+            <button
+              type="button"
+              class="btn-icon servings-step"
+              aria-label="Eén portie minder"
+              @click="changeServings(-1)"
+            >
+              <IconMinus :size="18" aria-hidden="true" />
+            </button>
+            <!-- inputmode: de telefoon toont een cijfertoetsenbord; pattern laat iOS dat ook doen. -->
+            <input
+              id="servings"
+              v-model="form.servings"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              class="servings"
+              :aria-invalid="!!errors.servings"
+              :aria-describedby="errors.servings ? 'servings-error' : undefined"
+            />
+            <button
+              type="button"
+              class="btn-icon servings-step"
+              aria-label="Eén portie meer"
+              @click="changeServings(1)"
+            >
+              <IconPlus :size="18" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <p v-if="errors.servings" id="servings-error" class="error servings-error">
+          Porties {{ errors.servings.join(', ') }}
+        </p>
 
-      <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. -->
-      <RecipeFormIngredientRow
-        v-for="(row, index) in ingredients"
-        :key="row.key"
-        v-model:row="ingredients[index]"
-        :index="index"
-        :removable="ingredients.length > 1"
-        :names="ingredientNames"
-        :invalid="invalidOf(row)"
-        :sent-alternative-keys="sentKeys.alternatives[row.key] ?? []"
-        :messages="sortedErrors.byRow[row.key] ?? []"
-        @remove="remove('recipe_ingredients', index)"
-        @add-alternative="addAlternative(row)"
-        @remove-alternative="(altIndex) => removeAlternative(row, altIndex)"
-      />
+        <fieldset class="tags field">
+          <legend>Tags <span class="muted optional-label">(optioneel)</span></legend>
+          <TagPicker v-model="tags" :options="availableTags" :reserved="reservedTags" />
+          <p v-if="errors.tag_names" class="error">Tags {{ errors.tag_names.join(', ') }}</p>
+        </fieldset>
+      </div>
+    </SectionCard>
 
-      <button type="button" class="add" @click="addIngredient">+ ingrediënt</button>
-    </fieldset>
+    <SectionCard
+      title="Ingrediënten"
+      class="ingredients"
+      :meta="countLabel(filledIngredientCount, 'ingrediënt', 'ingrediënten')"
+    >
+      <!-- :key="row.key", niet de index: zie de uitleg bij nextKey. TransitionGroup: een
+           nieuwe regel schuift in, een weggehaalde fadet weg en de rest schuift op. -->
+      <TransitionGroup tag="div" name="row" class="rows" @before-leave="onRowLeave">
+        <RecipeFormIngredientRow
+          v-for="(row, index) in ingredients"
+          :key="row.key"
+          v-model:row="ingredients[index]"
+          :index="index"
+          :removable="ingredients.length > 1"
+          :names="ingredientNames"
+          :invalid="invalidOf(row)"
+          :sent-alternative-keys="sentKeys.alternatives[row.key] ?? []"
+          :messages="sortedErrors.byRow[row.key] ?? []"
+          @remove="remove('recipe_ingredients', index)"
+          @add-alternative="addAlternative(row)"
+          @remove-alternative="(altIndex) => removeAlternative(row, altIndex)"
+        />
+      </TransitionGroup>
 
-    <fieldset class="steps card">
-      <legend>Bereiding</legend>
+      <button type="button" class="add" @click="addIngredient">
+        <IconPlus :size="18" aria-hidden="true" />Ingrediënt toevoegen
+      </button>
+    </SectionCard>
 
-      <ol>
+    <SectionCard
+      title="Bereiding"
+      class="steps"
+      :meta="countLabel(filledStepCount, 'stap', 'stappen')"
+    >
+      <TransitionGroup tag="ol" name="row" class="rows" @before-leave="onRowLeave">
         <RecipeFormStepRow
           v-for="(step, index) in steps"
           :key="step.key"
@@ -440,13 +507,14 @@ function invalidOf(row) {
           @down="move(steps, index, 1)"
           @remove="remove('steps', index)"
         />
-      </ol>
+      </TransitionGroup>
 
-      <button type="button" class="add" @click="addStep">+ stap</button>
-    </fieldset>
+      <button type="button" class="add" @click="addStep">
+        <IconPlus :size="18" aria-hidden="true" />Stap toevoegen
+      </button>
+    </SectionCard>
 
-    <section class="variations card">
-      <h2>Variaties</h2>
+    <SectionCard as="section" title="Variaties" class="variations">
       <template v-if="variationOpen">
         <VariationForm
           ref="variationForm"
@@ -462,9 +530,9 @@ function invalidOf(row) {
         </button>
       </template>
       <button v-else type="button" class="add" @click="variationOpen = true">
-        + Variatie toevoegen
+        <IconPlus :size="18" aria-hidden="true" />Variatie toevoegen
       </button>
-    </section>
+    </SectionCard>
 
     <!-- Blijft onderaan in beeld zolang je in het formulier bent (sticky), en staat aan
          het eind gewoon op zijn eigen plek, dus er verdwijnt nooit iets onder. -->
@@ -495,13 +563,22 @@ fieldset {
   margin: 0 0 var(--space-4);
 }
 
-legend {
-  float: left;
-  width: 100%;
-  margin-bottom: var(--space-2);
-  padding: 0;
+/* De titel: een groot veld bovenaan, in de koppenletter. Wel 16px of meer (iOS). */
+.title-field {
+  margin-bottom: var(--space-4);
+}
+
+.title-input {
+  min-height: 3.25rem;
+  padding: var(--space-2) var(--space-4);
   font-family: var(--font-heading);
   font-size: var(--text-xl);
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+}
+
+.title-input::placeholder {
+  font-weight: 400;
 }
 
 /* Beschrijving: één regel hoog, groeit mee (zie ook vAutogrow voor oudere browsers). */
@@ -510,39 +587,73 @@ legend {
   resize: none;
 }
 
-/* Porties smal links, tags in de rest van de breedte. Beide labels staan bovenaan,
-   zodat het portieveld en de tag-keuzelijst op dezelfde hoogte beginnen. */
-.meta-row {
-  display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  margin-bottom: var(--space-3);
+.about .field:last-child {
+  margin-bottom: 0;
 }
 
+/* Porties: label links, de stepper rechts, op één rij. Daaronder de tags. */
 .meta-row .field {
   margin: 0;
 }
 
-.servings-error {
-  grid-column: 1 / -1;
-  margin: 0;
+.servings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
-/* Tags: een gewoon veld, geen kaart; legend klein zoals de andere labels. */
-.tags {
+.servings-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Het getal: smal en gecentreerd, maar nog steeds een veld dat je zelf kunt typen. */
+.servings {
+  width: 3.25rem;
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.servings-step {
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+}
+
+/* Alleen met een muis: op een telefoon blijft hover na een tik hangen. */
+@media (hover: hover) {
+  .servings-step:hover:not(:disabled) {
+    color: var(--color-on-brand);
+    background: var(--color-brand-strong);
+  }
+}
+
+.servings-error {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+}
+
+/* Tags en categorie: een gewone groep velden, geen kaart; legend klein zoals de labels. */
+.tags,
+.category {
   padding: 0;
   border: 0;
 }
 
-/* Eerst de keuzelijst (naast porties), de gekozen tags eronder. */
+/* Eerst de keuzelijst, de gekozen tags eronder. */
 .tags :deep(.chips) {
   order: 1;
 }
 
-.tags legend {
+.tags legend,
+.category legend {
   float: none;
   margin-bottom: var(--space-1);
+  padding: 0;
   font-family: var(--font-body);
   font-size: var(--text-base);
 }
@@ -551,44 +662,66 @@ legend {
   font-weight: 400;
 }
 
-/* Categorie: een gewoon veld zoals de tags, geen kaart. */
-.category {
-  padding: 0;
-  border: 0;
-}
-
-.category legend {
-  float: none;
-  margin-bottom: var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-}
-
-.steps ol {
-  clear: both;
+/* De regels: blokken onder elkaar. Bewust marges en geen flex-gap: een regel die
+   verdwijnt (position: absolute, zie hieronder) blijft dan op zijn eigen plek staan; in
+   een flexbox zou hij naar boven springen. */
+.rows {
+  position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.variations {
-  margin-bottom: var(--space-4);
+.rows > * + * {
+  margin-top: var(--space-2);
 }
 
-.variations h2 {
-  font-size: var(--text-xl);
+/* Animaties van TransitionGroup (name="row"): Vue zet deze klassen op de regel.
+   Nieuw: van onder in beeld schuiven. Weg: vervagen en iets krimpen, uit de flow
+   (absolute), zodat de regels eronder via .row-move soepel opschuiven. */
+.row-enter-active {
+  transition:
+    opacity var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out);
+}
+
+.row-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+.row-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.row-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.row-move {
+  transition: transform var(--dur) var(--ease-out);
 }
 
 .close-variation {
+  margin-top: var(--space-2);
   font-size: var(--text-sm);
 }
 
-/* Toevoegen: een gestippelde knop over de hele breedte, als een lege regel. */
+/* Toevoegen: een zachtgroene knop over de hele breedte, met een plus-icoon. */
 .add {
   width: 100%;
   margin-top: var(--space-2);
-  color: var(--color-accent-text);
-  border-style: dashed;
+  border-radius: var(--radius);
+}
+
+.variations .add {
+  margin-top: 0;
 }
 
 /* Opslaan blijft in beeld: sticky boven de vaste menubalk (en de thuisbalk van de
@@ -602,6 +735,12 @@ legend {
   padding: var(--space-2) var(--space-4);
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
+}
+
+/* Een brede groene pil, ook op brede schermen. */
+.submit-bar .btn-primary {
+  width: 100%;
+  min-height: 2.875rem;
 }
 
 /* Breed staat het menu in de header: dan gewoon tegen de onderrand. */

@@ -197,9 +197,9 @@ test('(b) en (c): offline de kopie met wachtrij, daarna tags en filter "glutenvr
 
   const rice = page.locator('.recipe-card', { hasText: RICE })
   const bread = page.locator('.recipe-card', { hasText: BREAD })
-  await expect(rice.locator('.tag', { hasText: 'glutenvrij' })).toBeVisible()
+  await expect(rice.getByRole('img', { name: 'glutenvrij' })).toBeVisible()
   await expect(bread).toBeVisible()
-  await expect(bread.locator('.tag', { hasText: 'glutenvrij' })).toHaveCount(0)
+  await expect(bread.getByRole('img', { name: 'glutenvrij' })).toHaveCount(0)
 
   await page.locator('.tag-chips .filter-chip', { hasText: 'glutenvrij' }).click()
   await expect(page).toHaveURL(/tags=glutenvrij/)

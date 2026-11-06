@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRecipeFilter } from '@/composables/useRecipeFilter'
 import { categoryChips } from '@/utils/categories'
+import { tagIcon } from '@/utils/tagIcons'
 
 // De filterchips boven een receptenlijst: één categorie tegelijk en zoveel tags als je
 // wilt (een recept moet ze allemaal hebben). Gedeeld door het receptenoverzicht en
@@ -66,6 +67,8 @@ const tagChips = computed(() => {
         :aria-pressed="selectedTags.includes(tag.name)"
         @click="toggleTag(tag.name)"
       >
+        <!-- Icoon + naam: zo zijn de chips ook de legenda van de iconen op de kaarten. -->
+        <component :is="tagIcon(tag.name)" v-if="tagIcon(tag.name)" :size="16" aria-hidden="true" />
         {{ tag.name }}
         <span v-if="tag.count != null" class="count">{{ tag.count }}</span>
       </button>
@@ -108,9 +111,13 @@ const tagChips = computed(() => {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
   color: var(--color-accent-text);
-  background: var(--color-surface);
-  border-color: var(--color-border-strong);
+  background: var(--color-section);
+  border-color: var(--color-section-border);
   border-radius: var(--radius-full);
+}
+
+.filter-chip:hover:not(:disabled) {
+  background: var(--color-row);
 }
 
 /* Categorieën: één keuze, iets steviger dan de tags, zodat de twee rijen niet op

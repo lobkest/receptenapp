@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { RAILS_URL } from './env.js'
 import { deleteRecipe, giveTraits } from './traits.js'
-import { checkLayout, collectErrors } from './helpers.js'
+import { cardTagNames, checkLayout, collectErrors } from './helpers.js'
 
 // Automatische tags op een iPhone-scherm: uitgerekend uit de kenmerken van de ingrediënten.
 // Kip (vlees, dierlijk) met tofu als alternatief: vegetarisch "met tofu i.p.v. kip"; na de
@@ -50,14 +50,22 @@ test('receptkaart en receptpagina: hint, wissel en disclaimer', async ({ page })
   // ---- De kaart: automatische tags eerst; veganistisch en vegetarisch alleen met tofu.
   await page.goto('/?tags=vegetarisch')
   const card = page.locator('.recipe-card', { hasText: WOK.title })
-  await expect(card.locator('.tag')).toHaveText([
-    'glutenvrij',
-    'lactosevrij',
-    'notenvrij',
-    'veganistischmet tofu i.p.v. kip',
-    'vegetarischmet tofu i.p.v. kip',
-  ])
-  // De kaart blijft compact: geen hint breekt buiten de kaart.
+  await expect
+    .poll(() => cardTagNames(card))
+    .toEqual([
+      'glutenvrij',
+      'lactosevrij',
+      'notenvrij',
+      'veganistisch, met wissel',
+      'vegetarisch, met wissel',
+    ])
+  // De wissel staat in de tooltip, niet als tekst op de kaart.
+  await expect(card.getByRole('img', { name: 'vegetarisch, met wissel' })).toHaveAttribute(
+    'title',
+    'vegetarisch: met tofu i.p.v. kip',
+  )
+  await expect(card).not.toContainText('tofu')
+  // De kaart blijft compact: geen tag steekt buiten de kaart.
   const box = await card.boundingBox()
   for (const hint of await card.locator('.tag-hint').all()) {
     const hintBox = await hint.boundingBox()
@@ -231,14 +239,16 @@ test('kaarten: een met zes tags (één met hint) naast een zonder tags', async (
   await page.goto(`/?category=${categoryId}`)
   const roerei = page.locator('.recipe-card', { hasText: 'Roerei met rijst' })
   const schnitzel = page.locator('.recipe-card', { hasText: 'Schnitzel met kaas' })
-  await expect(roerei.locator('.tag')).toHaveText([
-    'glutenvrij',
-    'lactosevrij',
-    'notenvrij',
-    'veganistischmet tofu i.p.v. ei',
-    'vegetarisch',
-    'snel',
-  ])
+  await expect
+    .poll(() => cardTagNames(roerei))
+    .toEqual([
+      'glutenvrij',
+      'lactosevrij',
+      'notenvrij',
+      'veganistisch, met wissel',
+      'vegetarisch',
+      'snel',
+    ])
   await expect(schnitzel.locator('.tag')).toHaveCount(0)
 
   // Naast elkaar, niets steekt uit, en de kaart met tags is niet absurd hoog.

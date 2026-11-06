@@ -77,6 +77,7 @@ async function addMissing() {
 
 <style scoped>
 /* .card geeft rand, achtergrond en ronde hoeken. */
+/* Een zachte beige kaart (zoals SectionCard), zonder schaduw. Indrukken veert even in. */
 .recipe-card {
   display: flex;
   flex-direction: column;
@@ -84,9 +85,19 @@ async function addMissing() {
   overflow: hidden;
   color: var(--color-text);
   text-decoration: none;
+  background: var(--color-section);
+  border-color: var(--color-section-border);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
   transition:
-    border-color var(--duration) ease,
-    box-shadow var(--duration) ease;
+    border-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+a.recipe-card:active,
+.search-card:has(.card-link:active) {
+  transform: scale(0.98);
 }
 
 .recipe-card:hover,
@@ -97,7 +108,7 @@ async function addMissing() {
 }
 
 .search-card:hover {
-  border-color: var(--color-border);
+  border-color: var(--color-section-border);
   box-shadow: none;
 }
 

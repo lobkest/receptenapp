@@ -91,7 +91,7 @@ test('nieuw recept met een nieuwe categorie komt in de juiste sectie, achteraan'
   await page.getByLabel('Naam ingrediënt 1').fill('courgette')
   await page.getByLabel('Hoeveelheid ingrediënt 1').fill('1')
   await page.getByLabel('Eenheid ingrediënt 1').selectOption('stuks')
-  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.locator('.ingredients .add').click()
   await page.getByLabel('Naam ingrediënt 2').fill('olijfolie')
   await page.getByLabel('Stap 1', { exact: true }).fill('Grillen.')
 

@@ -20,6 +20,10 @@ export default defineConfig({
   globalTeardown: './e2e/global-teardown.js',
   use: {
     baseURL: APP_URL,
+    // Zonder micro-animaties (main.css zet ze uit bij prefers-reduced-motion): anders staat
+    // een weggehaalde regel nog even in beeld, met hetzelfde label als de regel die zijn
+    // plek inneemt, en ziet een test twee "Naam ingrediënt 1".
+    reducedMotion: 'reduce',
   },
   projects: [
     {

@@ -1,16 +1,34 @@
 <script setup>
 import { computed } from 'vue'
 import { MAX_CARD_TAGS, cardTags } from '@/utils/sortRecipes'
+import { tagIcon } from '@/utils/tagIcons'
 
 // De binnenkant van een receptkaart: foto (als die er is), titel en tags. RecipeCard zet
 // er de link omheen. De slot komt onder de tags, voor extra regels ("nog kopen: 2").
+//
+// Tags met een icoon (utils/tagIcons.js) staan er alleen als groen bolletje met het icoon;
+// de naam staat in aria-label en title. Heeft de tag een wissel nodig ("met tofu i.p.v.
+// kip"), dan krijgt het bolletje een amber stipje; de uitleg zelf staat op de receptpagina.
+// Tags zonder icoon (vrij getypt) blijven een tekstpilletje, achter de iconen.
 const props = defineProps({
   recipe: { type: Object, required: true },
 })
 
-const tags = computed(() => cardTags(props.recipe))
+const tags = computed(() => {
+  const all = cardTags(props.recipe).map((tag) => ({ ...tag, icon: tagIcon(tag.name) }))
+  return [...all.filter((tag) => tag.icon), ...all.filter((tag) => !tag.icon)]
+})
 const visibleTags = computed(() => tags.value.slice(0, MAX_CARD_TAGS))
 const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.length)
+
+// Voor schermlezers: "vegetarisch, met wissel"; de tooltip toont de wissel zelf.
+function tagLabel(tag) {
+  return tag.hint ? `${tag.name}, met wissel` : tag.name
+}
+
+function tagTitle(tag) {
+  return tag.hint ? `${tag.name}: ${tag.hint}` : tag.name
+}
 </script>
 
 <template>
@@ -28,12 +46,23 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
         v-for="(tag, index) in visibleTags"
         :key="index"
         class="tag"
-        :class="{ 'tag-hint': tag.hint }"
-        :title="tag.hint ? `${tag.name}: ${tag.hint}` : null"
+        :class="[tag.icon ? 'tag-icon' : 'tag-text', { 'tag-hint': tag.hint }]"
       >
-        {{ tag.name }}<span v-if="tag.hint" class="hint">{{ tag.hint }}</span>
+        <!-- role="img" op een span, niet op de li: een li moet een lijstitem blijven. -->
+        <span
+          v-if="tag.icon"
+          class="bubble"
+          role="img"
+          :aria-label="tagLabel(tag)"
+          :title="tagTitle(tag)"
+        >
+          <component :is="tag.icon" :size="16" :stroke="2" aria-hidden="true" />
+        </span>
+        <span v-else :title="tag.hint ? tagTitle(tag) : null"
+          >{{ tag.name }}<span v-if="tag.hint" class="visually-hidden">, met wissel</span></span
+        >
       </li>
-      <li v-if="hiddenTagCount > 0" class="tag tag-more">+{{ hiddenTagCount }}</li>
+      <li v-if="hiddenTagCount > 0" class="tag tag-text tag-more">+{{ hiddenTagCount }}</li>
     </ul>
     <slot />
   </div>
@@ -68,6 +97,7 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
   line-clamp: 2;
   overflow: hidden;
   margin: 0;
+  font-family: var(--font-heading);
   font-size: var(--text-base);
   overflow-wrap: anywhere;
 }
@@ -75,6 +105,7 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
 .tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
   margin: var(--space-1) 0 0;
   padding: 0;
@@ -82,7 +113,44 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
 }
 
 .tag {
+  position: relative;
   max-width: 100%;
+  flex-shrink: 0;
+}
+
+/* Het icoon in een rond groen bolletje. */
+.bubble {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-accent-text);
+  background: var(--color-brand-soft);
+  border-radius: 50%;
+}
+
+.bubble svg {
+  display: block;
+}
+
+/* Met wissel: een amber stipje rechtsboven, met een randje in de kaartkleur zodat het
+   los van het bolletje te zien is. */
+.tag-hint::after {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  content: '';
+  background: var(--color-house-border);
+  border: 1.5px solid var(--color-section);
+  border-radius: 50%;
+}
+
+/* Een vrij getypte tag: een klein tekstpilletje, zoals vroeger. */
+.tag-text {
+  flex-shrink: 1;
+  min-width: 0;
   padding: 0 var(--space-2);
   overflow: hidden;
   font-size: var(--text-xs);
@@ -95,28 +163,13 @@ const hiddenTagCount = computed(() => tags.value.length - visibleTags.value.leng
   border-radius: var(--radius-full);
 }
 
-/* Met een wissel: de uitleg klein eronder, en mag over twee regels. */
-.tag-hint {
-  display: flex;
-  flex-direction: column;
-  padding: 0.125rem var(--space-2);
-  white-space: normal;
-  border-radius: var(--radius-sm);
-}
-
-.hint {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  font-weight: 400;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
+.tag-text.tag-hint {
+  overflow: visible;
 }
 
 .tag-more {
+  flex-shrink: 0;
   color: var(--color-text-muted);
-  background: var(--color-surface-hover);
+  background: var(--color-row);
 }
 </style>

@@ -11,8 +11,8 @@ function tagName(tag) {
 
 // Alle tags die een kaart toont, als [{ name, hint }]. Eerst de automatische tags
 // (vegetarisch, ...), met een korte uitleg als er een wissel nodig is ("met tofu i.p.v.
-// kip"), dan de tags die iemand zelf koos. Op de kaart is nooit iets gewisseld, dus de
-// uitleg staat er altijd bij.
+// kip"), dan de tags die iemand zelf koos. Op de kaart is nooit iets gewisseld; de kaart
+// toont de uitleg niet zelf (alleen een stipje en een tooltip, zie RecipeCardContent).
 export function cardTags(recipe) {
   return [
     ...automaticTagLabels(recipe),

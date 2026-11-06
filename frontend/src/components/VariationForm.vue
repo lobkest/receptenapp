@@ -1,4 +1,5 @@
 <script setup>
+import { IconPlus } from '@tabler/icons-vue'
 import { computed, reactive, ref, useId } from 'vue'
 import IngredientSuggestion from '@/components/IngredientSuggestion.vue'
 import TagPicker from '@/components/TagPicker.vue'
@@ -234,7 +235,7 @@ function amount(row) {
           </select>
           <button
             type="button"
-            class="remove btn-danger"
+            class="remove btn-icon"
             :aria-label="`Extra ingrediënt ${index + 1} verwijderen`"
             @click="removeAddition(index)"
           >
@@ -246,7 +247,9 @@ function amount(row) {
           {{ message }}
         </p>
       </div>
-      <button type="button" class="add" @click="addAddition">+ ingrediënt</button>
+      <button type="button" class="add" @click="addAddition">
+        <IconPlus :size="18" aria-hidden="true" />Ingrediënt toevoegen
+      </button>
     </fieldset>
 
     <fieldset class="group">
@@ -306,17 +309,27 @@ function amount(row) {
   resize: vertical;
 }
 
+/* Elke groep (− ingrediënt, + ingrediënt, tags) is een gevuld blok, net als een
+   ingrediëntregel in RecipeForm. float op de legend: anders staat hij op de rand. */
 .group {
   min-width: 0;
-  margin: 0 0 var(--space-4);
-  padding: 0;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-row);
   border: 0;
+  border-radius: var(--radius);
 }
 
 .group legend {
+  float: left;
+  width: 100%;
   margin-bottom: var(--space-1);
   padding: 0;
   font-weight: 600;
+}
+
+.group legend + * {
+  clear: both;
 }
 
 .hint {
@@ -351,8 +364,8 @@ function amount(row) {
 /* Dezelfde compacte twee rijen als in RecipeForm: de naam over de hele breedte, daaronder
    hoeveelheid, eenheid en ×. */
 .addition-row {
-  padding: var(--space-2) 0;
-  border-bottom: 1px dashed var(--color-border);
+  clear: both;
+  padding: var(--space-1) 0;
 }
 
 .inputs {
@@ -376,10 +389,16 @@ function amount(row) {
 }
 
 .inputs .remove {
-  width: var(--tap);
-  padding: 0;
   font-size: var(--text-xl);
+  font-weight: 400;
   line-height: 1;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.inputs .remove:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 @media (min-width: 40rem) {
@@ -393,10 +412,10 @@ function amount(row) {
 }
 
 .add {
+  clear: both;
   width: 100%;
-  margin-top: var(--space-2);
-  color: var(--color-accent-text);
-  border-style: dashed;
+  margin-top: var(--space-1);
+  border-radius: var(--radius);
 }
 
 .actions {

@@ -97,17 +97,24 @@ test('receptenoverzicht', async ({ page }) => {
   await checkPage(page, errors, 'recepten')
 })
 
-test('recept toevoegen: porties en tags op één rij, velden zonder zoom', async ({ page }) => {
+test('recept toevoegen: porties als stepper, tags eronder, velden zonder zoom', async ({
+  page,
+}) => {
   const errors = collectErrors(page)
   await page.goto('/recepten/nieuw')
   await expect(page.getByRole('heading', { name: 'Recept toevoegen' })).toBeVisible()
 
-  // Porties smal links, de tag-keuzelijst rechts, op dezelfde hoogte.
+  // Porties: − getal + rechts op één rij, het getal smal; de tag-keuzelijst eronder.
   const servings = await page.getByLabel('Porties').boundingBox()
+  const less = await page.getByRole('button', { name: 'Eén portie minder' }).boundingBox()
+  const more = await page.getByRole('button', { name: 'Eén portie meer' }).boundingBox()
   const tagSelect = await page.getByLabel('Tag toevoegen').boundingBox()
-  expect(Math.abs(servings.y - tagSelect.y), 'zelfde rij').toBeLessThanOrEqual(1)
-  expect(servings.x + servings.width).toBeLessThan(tagSelect.x)
+  expect(Math.abs(less.y + less.height / 2 - (servings.y + servings.height / 2))).toBeLessThan(2)
+  expect(less.x + less.width).toBeLessThanOrEqual(servings.x)
+  expect(servings.x + servings.width).toBeLessThanOrEqual(more.x)
   expect(servings.width).toBeLessThan(90)
+  expect(tagSelect.y).toBeGreaterThan(servings.y + servings.height)
+  expect(more.x + more.width).toBeLessThanOrEqual(390 - 14)
   expect(tagSelect.x + tagSelect.width).toBeLessThanOrEqual(390 - 14)
   // Eén label voor de tags: "Tag toevoegen" is alleen nog voor schermlezers.
   await expect(page.getByText('Tag toevoegen', { exact: true })).toHaveCount(0)
@@ -149,20 +156,22 @@ test('recept toevoegen: porties en tags op één rij, velden zonder zoom', async
     font: parseFloat(getComputedStyle(document.activeElement).fontSize),
     scale: window.visualViewport.scale,
   }))
-  expect(focused).toEqual({ font: 16, scale: 1 })
+  // De titel is bewust groter dan 16 px; kleiner mag niet (dan zoomt iOS in).
+  expect(focused.font).toBeGreaterThanOrEqual(16)
+  expect(focused.scale).toBe(1)
 
   await checkPage(page, errors, 'recept-toevoegen-boven')
 
   // Ingrediëntensectie, met de plakkende opslaan-knop boven de menubalk.
   await page.getByLabel('Naam ingrediënt 1').fill('bloem')
   await page.getByLabel('Hoeveelheid ingrediënt 1').fill('1,5')
-  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.locator('.ingredients .add').click()
   await page.locator('.ingredients').evaluate((el) => el.scrollIntoView({ block: 'start' }))
   await page.evaluate(() => window.scrollBy(0, -60))
   const bar = await page.locator('.submit-bar').boundingBox()
   const nav = await page.locator('.main-nav').boundingBox()
   expect(bar.y + bar.height, 'opslaan-knop boven de menubalk').toBeLessThanOrEqual(nav.y + 1)
-  const addIngredient = await page.getByRole('button', { name: '+ ingrediënt' }).boundingBox()
+  const addIngredient = await page.locator('.ingredients .add').boundingBox()
   expect(addIngredient.y + addIngredient.height, 'niets onder de opslaan-knop').toBeLessThanOrEqual(
     bar.y,
   )

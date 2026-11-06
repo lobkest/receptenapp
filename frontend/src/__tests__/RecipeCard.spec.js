@@ -9,13 +9,22 @@ function mountCard(recipe) {
   })
 }
 
+// Wat de kaart per tag zegt: bij een icoon de naam uit aria-label, anders de tekst.
+function tagNames(wrapper) {
+  return wrapper.findAll('.tag').map((tag) => {
+    const icon = tag.find('[role="img"]')
+    return icon.exists() ? icon.attributes('aria-label') : tag.text()
+  })
+}
+
 describe('RecipeCard', () => {
   it('toont titel en tags, maar geen porties', () => {
     const wrapper = mountCard({ tags: ['vegetarisch'] })
 
     expect(wrapper.find('h3').text()).toBe('Pannenkoeken')
-    expect(wrapper.findAll('.tag').map((tag) => tag.text())).toEqual(['vegetarisch'])
-    expect(wrapper.text()).toBe('Pannenkoekenvegetarisch')
+    expect(tagNames(wrapper)).toEqual(['vegetarisch'])
+    // vegetarisch heeft een icoon: dan staat de naam niet als tekst op de kaart.
+    expect(wrapper.text()).toBe('Pannenkoeken')
     expect(wrapper.text()).not.toContain('portie')
     expect(wrapper.text()).not.toContain('4')
   })
@@ -61,8 +70,7 @@ describe('RecipeCard', () => {
       ],
     })
 
-    const tags = wrapper.findAll('.tag').map((tag) => tag.text())
-    expect(tags).toEqual(['snel', 'zoet', 'ontbijt', 'hartig', 'oven', 'winter', '+2'])
+    expect(tagNames(wrapper)).toEqual(['snel', 'zoet', 'ontbijt', 'hartig', 'oven', 'winter', '+2'])
   })
 
   it('vijf tags met de automatische eerst, waarvan één met hint, passen zonder "+n"', () => {
@@ -83,11 +91,10 @@ describe('RecipeCard', () => {
       ],
     })
 
-    const tags = wrapper.findAll('.tag')
-    expect(tags.map((tag) => tag.text())).toEqual([
+    expect(tagNames(wrapper)).toEqual([
       'glutenvrij',
       'lactosevrij',
-      'veganistischmet tofu i.p.v. ei',
+      'veganistisch, met wissel',
       'vegetarisch',
       'snel',
     ])
@@ -112,16 +119,26 @@ describe('RecipeCard', () => {
       ],
     })
 
+    expect(tagNames(wrapper)).toEqual(['glutenvrij', 'vegetarisch, met wissel', 'snel'])
+    // De wissel: een stipje (klasse tag-hint), de uitleg alleen in de tooltip.
     const tags = wrapper.findAll('.tag')
-    // De hint staat in een eigen regel (display: flex, kolom), dus zonder spatie ertussen.
-    expect(tags.map((tag) => tag.text())).toEqual([
-      'glutenvrij',
-      'vegetarischmet tofu i.p.v. kip',
-      'snel',
-    ])
     expect(tags[1].classes()).toContain('tag-hint')
-    expect(tags[1].find('.hint').text()).toBe('met tofu i.p.v. kip')
-    expect(tags[0].find('.hint').exists()).toBe(false)
+    expect(tags[1].find('[role="img"]').attributes('title')).toBe(
+      'vegetarisch: met tofu i.p.v. kip',
+    )
+    expect(tags[0].classes()).not.toContain('tag-hint')
+    expect(wrapper.text()).not.toContain('tofu')
+  })
+
+  it('toont tags met een icoon als bolletje, vrije tags als tekst erachter', () => {
+    const wrapper = mountCard({ tags: ['zomer', 'snel', 'Vis '] })
+
+    const tags = wrapper.findAll('.tag')
+    expect(tags.map((tag) => tag.classes('tag-icon'))).toEqual([true, true, false])
+    expect(tags[0].find('[role="img"]').attributes('aria-label')).toBe('snel')
+    expect(tags[0].find('svg').attributes('aria-hidden')).toBe('true')
+    expect(tags[1].find('[role="img"]').attributes('title')).toBe('Vis ')
+    expect(tags[2].text()).toBe('zomer')
   })
 
   it('linkt de hele kaart naar het recept', () => {

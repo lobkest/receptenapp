@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { IconBook, IconHome, IconList, IconPlus, IconShoppingCart } from '@tabler/icons-vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
 import { NETWORK_ERROR_EVENT } from '@/api/client'
 import { useLastListRouteStore } from '@/stores/lastListRoute'
@@ -29,6 +30,29 @@ function activeOn(name) {
     ? { class: 'nav-active', 'aria-current': 'page' }
     : { class: '', 'aria-current': undefined }
 }
+
+// Het groene pilletje achter het icoon van het actieve tabblad: één element dat met een
+// transform naar de goede kolom schuift (zie .nav-indicator). -1: geen tabblad actief
+// (bijv. een recept of Ingrediënten); dan verdwijnt het pilletje op zijn laatste plek.
+const NAV_TABS = [
+  (r) => r.name === 'recipes',
+  (r) => r.name === 'pantry',
+  (r) => r.path === '/recepten/nieuw',
+  (r) => r.path === '/boodschappen',
+  (r) => r.path === '/standaard',
+]
+const activeTab = computed(() => NAV_TABS.findIndex((matches) => matches(route)))
+let lastTab = 0
+const indicatorTab = computed(() => {
+  if (activeTab.value >= 0) lastTab = activeTab.value
+  return lastTab
+})
+
+// De paginaovergang (Transition hieronder) speelt alleen bij een andere pagina: de key is
+// het pad van de route in router/index.js ('/recepten/:id'), niet de URL. Zo blijft een
+// pagina staan (en wordt hij niet opnieuw gemaakt) als alleen de query of het id wisselt,
+// net als zonder overgang.
+const pageKey = computed(() => route.matched.at(-1)?.path ?? route.path)
 
 // Pagina's met meta.needsServer (router/index.js) wachten tot de server online is; tot dan
 // staat er alleen de offline-melding. Met keepMounted blijft de pagina bestaan, alleen verborgen.
@@ -155,35 +179,30 @@ onUnmounted(() => {
   <!-- Geen kopbalk met logo: op mobiel is het menu een vaste balk onderaan het scherm,
        op brede schermen een smalle rij bovenaan. -->
   <nav class="main-nav" aria-label="Hoofdmenu">
+    <!-- Het schuivende pilletje (alleen mobiel); decoratief, de actieve link heeft
+         aria-current. -->
+    <span
+      class="nav-indicator"
+      :class="{ hidden: activeTab < 0 }"
+      :style="{ '--tab': indicatorTab }"
+      aria-hidden="true"
+    ></span>
     <RouterLink :to="lastList.recipesPath" class="nav-link" v-bind="activeOn('recipes')">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Z" />
-        <path d="M4 21a2 2 0 0 1 2-2h13v2H6" />
-      </svg>
+      <IconBook class="nav-icon" :size="20" :stroke="1.8" aria-hidden="true" />
       <span class="nav-label">Recepten</span>
     </RouterLink>
     <RouterLink :to="lastList.pantryPath" class="nav-link" v-bind="activeOn('pantry')">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M3 11 12 4l9 7" />
-        <path d="M5 10v10h14V10" />
-        <path d="M10 20v-5h4v5" />
-      </svg>
+      <IconHome class="nav-icon" :size="20" :stroke="1.8" aria-hidden="true" />
       <span class="nav-label">In huis</span>
     </RouterLink>
     <RouterLink to="/recepten/nieuw" class="nav-link">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M12 5v14M5 12h14" />
-      </svg>
+      <IconPlus class="nav-icon" :size="20" :stroke="1.8" aria-hidden="true" />
       <!-- Op mobiel alleen "Recept" (naast het plus-icoon): op een smalle telefoon past "toevoegen"
            alleen afgebroken over drie regels. Schermlezers horen het hele label. -->
       <span class="nav-label">Recept<span class="nav-wide"> toevoegen</span></span>
     </RouterLink>
     <RouterLink to="/boodschappen" class="nav-link shopping-link">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M3 4h2l2.4 11h10.2L20 7H6.2" />
-        <circle cx="9" cy="19.5" r="1.5" />
-        <circle cx="17" cy="19.5" r="1.5" />
-      </svg>
+      <IconShoppingCart class="nav-icon" :size="20" :stroke="1.8" aria-hidden="true" />
       <!-- "Boodschappen (2)": het aantal nog niet afgevinkte regels, alleen als dat er zijn.
            Op mobiel staat het aantal als bolletje op het icoon (zie .nav-count), zodat
            het label op een smalle telefoon op twee regels past; de tekst blijft hetzelfde. -->
@@ -195,10 +214,7 @@ onUnmounted(() => {
       >
     </RouterLink>
     <RouterLink to="/standaard" class="nav-link">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M9 6h11M9 12h11M9 18h11" />
-        <path d="M4 6h.01M4 12h.01M4 18h.01" />
-      </svg>
+      <IconList class="nav-icon" :size="20" :stroke="1.8" aria-hidden="true" />
       <span class="nav-label">Standaard</span>
     </RouterLink>
   </nav>
@@ -220,7 +236,14 @@ onUnmounted(() => {
       <!-- Een div om de pagina heen: v-show werkt niet op een pagina met meerdere
            root-elementen. display: contents, zodat hij de opmaak niet verandert. -->
       <div v-if="keepPage" v-show="!pageHidden" class="route-page">
-        <component :is="Component" />
+        <!-- Een korte fade bij een andere pagina; mode="out-in": eerst de oude weg, dan de
+             nieuwe, zodat ze nooit allebei in beeld staan. De div eromheen: een pagina met
+             meerdere root-elementen kan zelf niet animeren. -->
+        <Transition name="page" mode="out-in">
+          <div :key="pageKey" class="page">
+            <component :is="Component" />
+          </div>
+        </Transition>
       </div>
     </RouterView>
   </main>
@@ -256,6 +279,24 @@ footer {
 
 .route-page {
   display: contents;
+}
+
+/* Paginaovergang: kort vervagen en een paar pixels schuiven. Alleen opacity en transform;
+   na de overgang staat er geen transform meer op .page. */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-leave-to {
+  opacity: 0;
 }
 
 .sync-notice {
@@ -304,16 +345,52 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Bovenaan uitgelijnd: elk icoon op dezelfde hoogte, zodat het pilletje (op een vaste
+     hoogte) er altijd achter valt, ook als het label over twee regels loopt. */
+  justify-content: flex-start;
   gap: 0;
   min-height: var(--nav-height);
-  padding: 1px 0;
+  padding: 3px 0 1px;
   font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1.15;
   text-align: center;
   color: var(--color-text-muted);
   text-decoration: none;
+  transition: color var(--dur) ease;
+}
+
+/* Het pilletje: staat vóór de links in de DOM, en de links hebben zelf position: relative,
+   dus icoon en tekst liggen er vanzelf bovenop. Eén element ter breedte van een kolom, met transform naar de kolom van
+   het actieve tabblad (--tab, 0 t/m 4). Het groene vlak zelf (::before) zit achter het
+   icoon, gecentreerd in de kolom. */
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  left: env(safe-area-inset-left);
+  width: calc((100% - env(safe-area-inset-left) - env(safe-area-inset-right)) / 5);
+  height: var(--nav-height);
+  pointer-events: none;
+  transform: translateX(calc(var(--tab) * 100%));
+  transition:
+    transform var(--dur) var(--ease-spring),
+    opacity var(--dur-fast) ease;
+}
+
+.nav-indicator::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 52px;
+  height: 26px;
+  margin-left: -26px;
+  content: '';
+  background: var(--color-brand-soft);
+  border-radius: var(--radius-full);
+}
+
+.nav-indicator.hidden {
+  opacity: 0;
 }
 
 /* Het aantal boodschappen als bolletje rechtsboven het winkelwagentje. De haakjes
@@ -327,6 +404,7 @@ main {
   padding: 0 0.25rem;
   font-size: 0.6875rem;
   line-height: 1.1rem;
+  z-index: 1;
   color: var(--color-on-brand);
   background: var(--color-brand);
   border-radius: var(--radius-full);
@@ -360,14 +438,8 @@ main {
   hyphens: auto;
 }
 
-.nav-link svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.nav-link .nav-icon {
+  flex-shrink: 0;
 }
 
 /* Binnen de balk, anders valt de focusrand buiten het scherm. */
@@ -380,18 +452,6 @@ main {
 .nav-link.router-link-exact-active,
 .nav-link.nav-active {
   color: var(--color-accent-text);
-}
-
-.nav-link.router-link-exact-active::before,
-.nav-link.nav-active::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 25%;
-  right: 25%;
-  height: 3px;
-  background: var(--color-brand);
-  border-radius: 0 0 var(--radius-full) var(--radius-full);
 }
 
 /* Ruimte onderaan, zodat de laatste inhoud niet achter de balk verdwijnt. */
@@ -415,7 +475,8 @@ footer {
     box-shadow: none;
   }
 
-  .nav-link svg {
+  .nav-link .nav-icon,
+  .nav-indicator {
     display: none;
   }
 
@@ -424,21 +485,23 @@ footer {
     min-height: var(--tap);
     padding: var(--space-1) var(--space-3);
     font-size: var(--text-base);
-    color: var(--color-text);
-    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    border-radius: var(--radius-full);
+    transition:
+      color var(--dur) ease,
+      background-color var(--dur) var(--ease-out);
   }
 
   .nav-link:hover {
+    color: var(--color-text);
     background: var(--color-surface-hover);
   }
 
-  .nav-link.router-link-exact-active::before,
-  .nav-link.nav-active::before {
-    top: auto;
-    bottom: 0;
-    left: var(--space-3);
-    right: var(--space-3);
-    border-radius: var(--radius-full) var(--radius-full) 0 0;
+  /* Breed: hetzelfde groene pilletje, maar dan achter de hele link. De links zijn hier
+     niet even breed, dus het schuift niet mee maar vervaagt naar de nieuwe link. */
+  .nav-link.router-link-exact-active,
+  .nav-link.nav-active {
+    background: var(--color-brand-soft);
   }
 
   footer {

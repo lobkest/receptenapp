@@ -62,7 +62,7 @@ describe('VariationForm', () => {
     // Een lege tweede regel gaat niet mee.
     await wrapper
       .findAll('button')
-      .find((b) => b.text() === '+ ingrediënt')
+      .find((b) => b.text() === 'Ingrediënt toevoegen')
       .trigger('click')
     await wrapper.find('.tag-select').setValue('vis')
     await wrapper.find('.tag-select').trigger('change')

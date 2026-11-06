@@ -77,7 +77,7 @@ describe('RecipeForm', () => {
     expect(wrapper.find('.step-row textarea').attributes('rows')).toBe('2')
   })
 
-  it('zet porties en tags op één rij, zonder uitleg bij de ingrediënten', () => {
+  it('zet porties en tags samen onder "Over dit recept", zonder uitleg bij de ingrediënten', () => {
     const wrapper = mount(RecipeForm)
 
     const row = wrapper.find('.meta-row')
@@ -606,10 +606,10 @@ describe('RecipeForm: variatie toevoegen', () => {
     await sectionOf(wrapper).find('button').trigger('click')
   }
 
-  it('is standaard ingeklapt achter "+ Variatie toevoegen", en stuurt dan geen variatie mee', async () => {
+  it('is standaard ingeklapt achter "Variatie toevoegen", en stuurt dan geen variatie mee', async () => {
     const wrapper = mount(RecipeForm)
 
-    expect(sectionOf(wrapper).find('button').text()).toBe('+ Variatie toevoegen')
+    expect(sectionOf(wrapper).find('button').text()).toBe('Variatie toevoegen')
     expect(wrapper.findComponent({ name: 'VariationForm' }).exists()).toBe(false)
     expect(await submit(wrapper)).not.toHaveProperty('variations_attributes')
   })
@@ -679,7 +679,66 @@ describe('RecipeForm: variatie toevoegen', () => {
 
     await sectionOf(wrapper).find('.close-variation').trigger('click')
 
-    expect(sectionOf(wrapper).find('button').text()).toBe('+ Variatie toevoegen')
+    expect(sectionOf(wrapper).find('button').text()).toBe('Variatie toevoegen')
     expect(await submit(wrapper)).not.toHaveProperty('variations_attributes')
+  })
+})
+
+describe('RecipeForm: opmaak', () => {
+  it('heeft een groot titelveld zonder zichtbaar label, met een naam voor schermlezers', () => {
+    const wrapper = mount(RecipeForm)
+
+    const title = wrapper.find('#title')
+    expect(title.attributes('aria-label')).toBe('Titel')
+    expect(title.attributes('placeholder')).toBe('Naam van je recept')
+    expect(wrapper.find('label[for="title"]').exists()).toBe(false)
+  })
+
+  it('past de porties aan met − en +, in hele getallen en niet onder 1', async () => {
+    const wrapper = mount(RecipeForm)
+    const servings = wrapper.find('#servings')
+    const less = wrapper.find('[aria-label="Eén portie minder"]')
+    const more = wrapper.find('[aria-label="Eén portie meer"]')
+
+    await more.trigger('click')
+    expect(servings.element.value).toBe('5')
+    for (let i = 0; i < 6; i++) await less.trigger('click')
+    expect(servings.element.value).toBe('1')
+
+    // Zelf typen kan nog steeds; − en + rekenen vanaf het hele getal.
+    await servings.setValue('2,5')
+    await more.trigger('click')
+    expect(servings.element.value).toBe('3')
+    await servings.setValue('')
+    await more.trigger('click')
+    expect(servings.element.value).toBe('1')
+  })
+
+  it('telt in de kop alleen ingevulde ingrediënten en stappen', async () => {
+    const wrapper = mount(RecipeForm)
+    const meta = (selector) => wrapper.find(`${selector} .section-meta`)
+
+    // Eén lege regel van elk: geen aantal.
+    expect(meta('.ingredients').exists()).toBe(false)
+    expect(meta('.steps').exists()).toBe(false)
+
+    await wrapper.find('.ingredients .add').trigger('click')
+    await ingredientRows(wrapper)[0].find('.name').setValue('bloem')
+    await ingredientRows(wrapper)[1].find('.name').setValue('melk')
+    await fillSteps(wrapper, ['Mengen'])
+
+    expect(meta('.ingredients').text()).toBe('2 ingrediënten')
+    expect(meta('.steps').text()).toBe('1 stap')
+    // De groepsnaam voor schermlezers blijft kort: de legend zonder aantal.
+    expect(wrapper.find('.ingredients legend').text()).toBe('Ingrediënten')
+  })
+
+  it('nummert de stappen in een bolletje, voorgelezen als "Stap n"', () => {
+    const wrapper = mount(RecipeForm)
+
+    const label = stepRows(wrapper)[0].find('label.step-number')
+    expect(label.text()).toBe('Stap 1')
+    expect(label.find('.visually-hidden').text()).toBe('Stap')
+    expect(stepRows(wrapper)[0].find('.remove').attributes('aria-label')).toBe('Stap 1 verwijderen')
   })
 })

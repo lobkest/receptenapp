@@ -46,6 +46,20 @@ export async function checkLayout(
 
 // --- Pagina's ---
 
+// De tags op een receptkaart, als namen: bij een icoon de naam uit aria-label (met
+// ", met wissel" als er een wissel nodig is), anders de tekst van het pilletje. Gebruik met
+// expect.poll(() => cardTagNames(card)), zodat het net als toHaveText opnieuw probeert.
+export function cardTagNames(card) {
+  return card
+    .locator('.tag')
+    .evaluateAll((tags) =>
+      tags.map(
+        (tag) =>
+          tag.querySelector('[role="img"]')?.getAttribute('aria-label') ?? tag.textContent.trim(),
+      ),
+    )
+}
+
 // Een ingrediënt op de receptpagina, op de tekst van de regel ("200 g kip" past op "kip").
 export function ingredientRow(page, name) {
   return page

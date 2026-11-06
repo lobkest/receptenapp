@@ -67,7 +67,7 @@ function isAlternativeInvalid(alternative, field) {
       </label>
       <button
         type="button"
-        class="remove btn-danger"
+        class="remove btn-icon"
         :disabled="!removable"
         :aria-label="`Ingrediënt ${index + 1} verwijderen`"
         @click="emit('remove')"
@@ -117,7 +117,7 @@ function isAlternativeInvalid(alternative, field) {
       </select>
       <button
         type="button"
-        class="alt-remove"
+        class="alt-remove btn-icon"
         :aria-label="`Alternatief ${altIndex + 1} voor ingrediënt ${index + 1} verwijderen`"
         @click="emit('remove-alternative', altIndex)"
       >
@@ -152,14 +152,11 @@ function isAlternativeInvalid(alternative, field) {
 
 /* clear: onder de legend van RecipeForm, die float: left heeft (anders botst de eerste
    regel ermee). */
+/* Een regel is een gevuld blok in de sectie (SectionCard), met witte velden erin. */
 .row {
-  clear: both;
-  padding: var(--space-2) 0;
-  border-bottom: 1px dashed var(--color-border);
-}
-
-.row:last-child {
-  border-bottom: 0;
+  padding: var(--space-2);
+  background: var(--color-row);
+  border-radius: var(--radius);
 }
 
 /* Mobiel: de naam over de hele breedte; daaronder hoeveelheid, eenheid, optioneel en ×. */
@@ -197,11 +194,19 @@ function isAlternativeInvalid(alternative, field) {
   cursor: pointer;
 }
 
-.inputs .remove {
-  width: var(--tap);
-  padding: 0;
+.inputs .remove,
+.alternative .alt-remove {
   font-size: var(--text-xl);
+  font-weight: 400;
   line-height: 1;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.inputs .remove:hover:not(:disabled),
+.alternative .alt-remove:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 /* Breed: alles op één regel. */
@@ -224,7 +229,7 @@ function isAlternativeInvalid(alternative, field) {
   align-items: center;
   margin-top: var(--space-2);
   padding-left: var(--space-2);
-  border-left: 3px solid var(--color-brand-soft);
+  border-left: 3px solid var(--color-section);
 }
 
 .alternative .of {
@@ -265,16 +270,12 @@ function isAlternativeInvalid(alternative, field) {
 .alternative .alt-remove {
   grid-row: 1;
   grid-column: 4;
-  width: var(--tap);
-  padding: 0;
-  font-size: var(--text-xl);
-  line-height: 1;
-  color: var(--color-text-muted);
 }
 
 /* Klein en licht: de meeste ingrediënten hebben geen alternatief. Wel een volledig
    tikvlak (--tap hoog), zoals elke knop. */
 .add-alternative {
+  margin-top: var(--space-1);
   padding: 0 var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-accent-text);

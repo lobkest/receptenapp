@@ -139,7 +139,7 @@ test('insturen: een nieuwe ingrediëntregel staat op stuks, met tl en el als keu
   page,
 }) => {
   await page.goto('/recepten/nieuw')
-  await page.getByRole('button', { name: '+ ingrediënt' }).click()
+  await page.locator('.ingredients .add').click()
 
   for (const index of [1, 2]) {
     const unit = page.getByLabel(`Eenheid ingrediënt ${index}`)

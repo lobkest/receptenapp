@@ -5,7 +5,9 @@ import HouseButton from '@/components/HouseButton.vue'
 // verwijderen), of in de selectiemodus een vinkje over de hele regel. Wat een knop doet,
 // regelt StandardItemsView via de events.
 // Staat het item al (open) op de boodschappenlijst (onList), dan is [+] "✓ op lijst"; die
-// blijft klikbaar en zet er dan één bij (het aantal van die regel op de boodschappenlijst).
+// blijft klikbaar. Met removable (er zit iets van de standaardlijst bij) haalt een tik dat
+// weg; anders (alleen via een recept of los) zet hij het er wel bij. Wat het doet, beslist
+// StandardItemsView#addOne.
 // Ervoor het huisje (HouseButton, compact): bij elk item, ook zonder ingrediënt (de eerste
 // tik maakt dat aan); een tik zet het om. In de selectiemodus
 // alleen een label "in huis" (inHouse): dat slaat "Op lijst (n)" over.
@@ -13,6 +15,7 @@ defineProps({
   item: { type: Object, required: true },
   selecting: { type: Boolean, default: false },
   onList: { type: Boolean, default: false },
+  removable: { type: Boolean, default: false },
   inHouse: { type: Boolean, default: false },
 })
 
@@ -46,7 +49,11 @@ const emit = defineEmits(['add', 'edit', 'remove', 'error'])
         v-if="onList"
         type="button"
         class="add-one on-list"
-        :aria-label="`${item.name} staat op je boodschappenlijst; tik voor nog één`"
+        :aria-label="
+          removable
+            ? `${item.name} staat op je boodschappenlijst; tik om weg te halen`
+            : `${item.name} staat op je boodschappenlijst; tik om toe te voegen`
+        "
         @click="emit('add', item)"
       >
         ✓ op lijst

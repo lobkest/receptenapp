@@ -2,7 +2,10 @@ import { defineStore } from 'pinia'
 import * as api from '@/api/shoppingList'
 import { ApiError } from '@/api/client'
 import { addRecipeToShoppingList } from '@/api/recipes'
-import { addStandardItemsToShoppingList } from '@/api/standardItems'
+import {
+  addStandardItemsToShoppingList,
+  removeStandardNamesFromShoppingList,
+} from '@/api/standardItems'
 import { addVariationToShoppingList } from '@/api/variations'
 import { recipesOnList } from '@/utils/shoppingListRecipes'
 import { isNetworkError, isOffline, isTempId, loadSnapshot, newId, saveSnapshot } from '@/offline'
@@ -17,7 +20,7 @@ import {
   recipeLines,
   variationLines,
 } from '@/utils/offlineShoppingList'
-import { MAX_COUNT } from '@/utils/shoppingListLine'
+import { isStandardOnly, MAX_COUNT } from '@/utils/shoppingListLine'
 
 // De boodschappenlijst staat op de server: één gedeelde lijst voor iedereen met de link,
 // op elk apparaat dezelfde. Regels worden nooit samengevoegd: twee keer bloem (uit twee
@@ -124,6 +127,17 @@ export const useShoppingListStore = defineStore('shoppingList', {
         via: own.length === 0 && open.length > 0 ? sourceOf(open[0]) : null,
       }
     },
+
+    // De open regels van dit standaarditem ({ ingredient_id, name }) met een deel van de
+    // standaardlijst: alleen van de standaardlijst, of met standard_count > 0. Die haalt
+    // "✓ op lijst" op de standaardlijst weg (removeStandardItems).
+    standardLines: (state) => (ingredient) =>
+      state.items.filter(
+        (item) =>
+          !item.checked &&
+          sameIngredient(item, ingredient) &&
+          (isStandardOnly(item) || item.standard_count > 0),
+      ),
   },
 
   actions: {
@@ -229,7 +243,8 @@ export const useShoppingListStore = defineStore('shoppingList', {
       }
     },
 
-    // De standaardlijst ([+] of "Op lijst (n)"): de server telt één op bij een regel die er
+    // De standaardlijst ([+] of "Op lijst (n)"; "✓ op lijst" alleen als er nog niets van de
+    // standaardlijst bij zit, zie removeStandardItems): de server telt één op bij een regel die er
     // al open op staat, of maakt een nieuwe (zie ShoppingListItem.add_standard!).
     // items: [{ id, name }] van de standaardlijst. Offline, of voor een item dat zelf nog
     // op sync wacht (geen id), gaat het op naam via de outbox.
@@ -254,6 +269,34 @@ export const useShoppingListStore = defineStore('shoppingList', {
           kind: 'call',
           payload: { names: items.map((item) => item.name).sort() },
         })
+      }
+    },
+
+    // "✓ op lijst" op de standaardlijst: het deel van de standaardlijst eraf
+    // (ShoppingListItem.remove_standard!). Regels van een recept of los blijven staan.
+    // items: [{ name }] van de standaardlijst. Offline via de outbox, net als toevoegen; ook
+    // als er nog een [+] van offline in de outbox wacht, anders kwam die er na het weghalen
+    // weer bij.
+    async removeStandardItems(items) {
+      const action = {
+        type: 'shopping.removeStandard',
+        kind: 'call',
+        payload: { names: items.map((item) => item.name).sort() },
+      }
+      if (this.queues() || useOfflineStore().has('shopping.addStandard')) {
+        return this.queueAction(action)
+      }
+      this.changes++
+      try {
+        const { removed_ids: removedIds, items: kept } = await removeStandardNamesFromShoppingList(
+          action.payload.names,
+        )
+        for (const id of removedIds) this.putLine(id, null)
+        for (const line of kept) this.putLine(line.id, line)
+        this.persist()
+      } catch (e) {
+        if (!isNetworkError(e)) throw e
+        this.queueAction(action)
       }
     },
 

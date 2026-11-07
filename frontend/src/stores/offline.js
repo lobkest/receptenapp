@@ -4,6 +4,7 @@ import { addRecipeToShoppingList } from '@/api/recipes'
 import {
   addStandardNamesToShoppingList,
   createStandardItem,
+  removeStandardNamesFromShoppingList,
   deleteStandardItem,
   updateStandardItem,
 } from '@/api/standardItems'
@@ -55,6 +56,8 @@ const SENDERS = {
     ),
   'shopping.addStandard': ({ id: clientActionId, payload }) =>
     addStandardNamesToShoppingList(payload.names, clientActionId),
+  // Twee keer versturen is geen probleem: de tweede keer is er geen standaarddeel meer.
+  'shopping.removeStandard': ({ payload }) => removeStandardNamesFromShoppingList(payload.names),
   'standard.create': ({ id: clientId, payload }) =>
     createStandardItem({ name: payload.name, category: payload.category, client_id: clientId }),
   'standard.update': ({ payload }, { id }) =>

@@ -139,7 +139,7 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await expect(ingredientRow(page, 'ei').locator('.list-button')).toHaveText('+ lijst')
   await checkLayout(page, errors, 'offline-recept', { scrollTop: true })
 
-  // ---- Standaardlijst: een item toevoegen en bewerken, en thee nog een keer op de lijst.
+  // ---- Standaardlijst: een item toevoegen en bewerken, en thee met ✓ van de lijst halen.
   await page.locator('.main-nav').getByText('Standaard').click()
   await page.getByRole('button', { name: 'Item toevoegen' }).click()
   const addForm = page.locator('.add-card')
@@ -153,7 +153,9 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await editForm.getByRole('button', { name: 'Opslaan' }).click()
   await expect(page.getByText(`${PREFIX}volkorenbrood`)).toBeVisible()
   await page
-    .getByRole('button', { name: `${PREFIX}thee staat op je boodschappenlijst; tik voor nog één` })
+    .getByRole('button', {
+      name: `${PREFIX}thee staat op je boodschappenlijst; tik om weg te halen`,
+    })
     .click()
 
   // ---- Boodschappenlijst: los item, twee keer, en "wacht op sync".
@@ -169,8 +171,8 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   await expect(shoppingRow(page, '500 g bloem').locator('.pending-mark')).toHaveText(
     'wacht op sync',
   )
-  await expect(shoppingRow(page, `${PREFIX}thee`).locator('.stepper .value')).toHaveText('2')
-  // Recept (1), standaarditem (1, de bewerking zit erin), thee (1), appels (1).
+  await expect(shoppingRow(page, `${PREFIX}thee`)).toHaveCount(0)
+  // Recept (1), standaarditem (1, de bewerking zit erin), thee weg (1), appels (1).
   await expect(pendingText(page)).toHaveText('4 wijzigingen wachten op verbinding')
   await expect(page.locator('.clear-all')).toBeDisabled()
   await checkLayout(page, errors, 'offline-boodschappen-wacht-op-sync')
@@ -201,7 +203,6 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
     ['ei', 4, 1],
     ['melk', 1000, 1],
     [`${PREFIX}appels`, null, 4],
-    [`${PREFIX}thee`, null, 2],
   ])
   // Het losse item ("appels") staat na de sync ook op de standaardlijst, onder Tijdelijk
   // (de server, StandardItem.note_used!); de andere twee zijn gewone standaarditems.
@@ -221,7 +222,7 @@ test('offline: recept schalen, Alles op lijst, standaardlijst en los item; onlin
   // Nog een keer openen en verversen: niets dubbel.
   await page.reload()
   await expect(shoppingRow(page, `${PREFIX}appels`)).toHaveCount(1)
-  expect(await shoppingList(api)).toHaveLength(5)
+  expect(await shoppingList(api)).toHaveLength(4)
   await checkLayout(page, errors, 'offline-boodschappen-na-sync')
   await context.close()
 })

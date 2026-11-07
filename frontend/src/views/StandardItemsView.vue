@@ -207,13 +207,25 @@ function rejectSuggestion({ item, ingredient }) {
 
 // ---------- Losse acties per item ----------
 
+// Heeft het item een deel op de lijst dat van de standaardlijst komt? Dan haalt [✓ op lijst]
+// dat weg (een aan/uit-knop, zoals op de receptpagina). Staat het er alleen via een recept
+// of los, dan zet de knop het er wel bij. Optellen gaat met de stepper op de lijst.
+function standardOnList(item) {
+  return (
+    shoppingList.standardLines({ name: item.name, ingredient_id: item.ingredient_id ?? null })
+      .length > 0
+  )
+}
+
 async function addOne(item) {
-  const already = onList(item)
+  if (standardOnList(item)) {
+    if (await attempt(() => shoppingList.removeStandardItems([item]))) {
+      confirm(`${item.name} is van je boodschappenlijst gehaald.`, { toList: true })
+    }
+    return
+  }
   if (await attempt(() => standard.addToShoppingList([item.id]))) {
-    const text = already
-      ? `Nog een ${item.name} op je boodschappenlijst.`
-      : `${item.name} staat op je boodschappenlijst.`
-    confirm(text, { toList: true })
+    confirm(`${item.name} staat op je boodschappenlijst.`, { toList: true })
   }
 }
 
@@ -413,6 +425,7 @@ watch(
           :item="item"
           :selecting="selecting"
           :on-list="onList(item)"
+          :removable="standardOnList(item)"
           :in-house="inHouse(item)"
           @add="addOne"
           @error="error = $event"

@@ -246,7 +246,7 @@ describe('StandardItemsView', () => {
       )
     })
 
-    it('[+] wordt meteen "✓ op lijst"; nog een tik telt op, zonder nieuwe regel', async () => {
+    it('[+] wordt meteen "✓ op lijst"; nog een tik haalt het weer weg', async () => {
       ;({ wrapper } = await mountApp())
 
       await rowOf(wrapper, 'banaan').find('.add-one').trigger('click')
@@ -256,25 +256,38 @@ describe('StandardItemsView', () => {
         'banaan staat op je boodschappenlijst.',
       )
 
+      expect(rowOf(wrapper, 'banaan').find('.add-one').attributes('aria-label')).toBe(
+        'banaan staat op je boodschappenlijst; tik om weg te halen',
+      )
+
       await rowOf(wrapper, 'banaan').find('.add-one').trigger('click')
       await flushPromises()
-      const banaan = server.shoppingDb.filter((i) => i.name === 'banaan')
-      expect(banaan).toHaveLength(1)
-      expect(banaan[0].standard_count).toBe(2)
+      expect(server.shoppingDb.filter((i) => i.name === 'banaan')).toEqual([])
+      expect(rowOf(wrapper, 'banaan').find('.add-one').classes()).not.toContain('on-list')
       expect(wrapper.find('[role="status"]').text()).toContain(
-        'Nog een banaan op je boodschappenlijst.',
+        'banaan is van je boodschappenlijst gehaald.',
       )
     })
 
-    it('een tik op "✓ op lijst" bij een receptregel telt daar één bij op', async () => {
+    it('alleen via een recept: de eerste tik telt op, de tweede haalt alleen dat weer weg', async () => {
       ;({ wrapper } = await mountApp())
+      const melk = () => server.shoppingDb.filter((i) => i.name === 'melk')
+      expect(rowOf(wrapper, 'melk').find('.add-one').attributes('aria-label')).toBe(
+        'melk staat op je boodschappenlijst; tik om toe te voegen',
+      )
 
       await rowOf(wrapper, 'melk').find('.add-one').trigger('click')
       await flushPromises()
-
-      expect(server.shoppingDb.filter((i) => i.name === 'melk')).toEqual([
-        expect.objectContaining({ id: 1, quantity: 200, standard_count: 1 }),
+      expect(melk()).toEqual([
+        expect.objectContaining({ id: 1, quantity: 200, count: 2, standard_count: 1 }),
       ])
+
+      await rowOf(wrapper, 'melk').find('.add-one').trigger('click')
+      await flushPromises()
+      expect(melk()).toEqual([
+        expect.objectContaining({ id: 1, quantity: 200, count: 1, standard_count: 0 }),
+      ])
+      expect(rowOf(wrapper, 'melk').find('.add-one').text()).toBe('✓ op lijst')
     })
 
     it('toont in de selectiemodus ook wat er al op staat', async () => {

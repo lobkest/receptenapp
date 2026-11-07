@@ -2,7 +2,7 @@
 # link can see and change it. Writes are rate limited (PublicWriteRateLimit).
 class Api::StandardItemsController < ApplicationController
   include PublicWriteRateLimit
-  limit_public_writes only: %i[ create update destroy bulk_destroy add_to_shopping_list link unlink reject_link ]
+  limit_public_writes only: %i[ create update destroy bulk_destroy add_to_shopping_list remove_from_shopping_list link unlink reject_link ]
 
   before_action :set_standard_item, only: %i[ update destroy link unlink reject_link ]
 
@@ -75,6 +75,18 @@ class Api::StandardItemsController < ApplicationController
     end
 
     render json: ShoppingListItemSerializer.items(lines)
+  end
+
+  # POST /api/standard_items/remove_from_shopping_list  { "names": ["melk"] }
+  # "✓ op lijst" tapped: the standard part of each item off the shopping list
+  # (ShoppingListItem.remove_standard!). By name, so an item added offline (no id yet) works
+  # from the outbox too. No client_action_id needed: sent twice, the second time there is
+  # no standard part left to take off.
+  # { "removed_ids": [ 1 ], "items": [ the lines that stayed, without their standard part ] }
+  def remove_from_shopping_list
+    names = params.expect(names: []).map { |name| name.to_s.squish.downcase }.compact_blank.uniq.sort
+    results = ShoppingListItem.transaction { names.map { |name| ShoppingListItem.remove_standard!(name) } }
+    render json: { removed_ids: results.flat_map(&:first), items: ShoppingListItemSerializer.items(results.flat_map(&:last)) }
   end
 
   # GET /api/standard_items/link_suggestions

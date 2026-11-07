@@ -37,6 +37,19 @@ describe('shoppingListLine', () => {
     )
   })
 
+  it('de eenheid "stuks" staat er niet bij; andere eenheden wel', () => {
+    const piece = (fields) => recipe({ name: 'broccoli', quantity: 3, unit: 'stuks', ...fields })
+    expect(shoppingListLine(piece({ count: 1 }))).toBe('3 broccoli')
+    expect(shoppingListLine(piece({ count: 2 }))).toBe('6 broccoli (×2)')
+    expect(shoppingListLine(recipe({ name: 'room', quantity: 3, unit: 'el', count: 1 }))).toBe(
+      '3 el room',
+    )
+    expect(shoppingListLine(recipe({ name: 'bloem', quantity: 200, unit: 'g', count: 1 }))).toBe(
+      '200 g bloem',
+    )
+    expect(shoppingListLine(piece({ quantity: null, unit: null, count: 1 }))).toBe('broccoli')
+  })
+
   it('een standaardregel met (toch) een hoeveelheid toont die', () => {
     expect(shoppingListLine(standard({ quantity: 500, unit: 'ml', count: 1 }))).toBe('500 ml melk')
   })

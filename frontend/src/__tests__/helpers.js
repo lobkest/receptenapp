@@ -181,6 +181,24 @@ function shoppingRoutes(initial) {
     return add({ name, source_label: 'standaard', standard_count: 1 })
   }
 
+  // Zoals ShoppingListItem.remove_standard!: van de open regels met die naam verdwijnt wat
+  // alleen van de standaardlijst kwam; met een standaarddeel gaat dat eraf (en van count).
+  function removeStandard(name) {
+    const removed = []
+    const kept = []
+    for (const line of db.filter((item) => !item.checked && item.name === name)) {
+      if (standardOnly(line)) {
+        db.splice(db.indexOf(line), 1)
+        removed.push(line.id)
+      } else if (line.standard_count) {
+        line.count = Math.max(line.count - line.standard_count, 1)
+        line.standard_count = 0
+        kept.push(structuredClone(line))
+      }
+    }
+    return { removed, kept }
+  }
+
   function result(item) {
     return jsonResponse({ item: item ? structuredClone(item) : null })
   }
@@ -326,7 +344,7 @@ function shoppingRoutes(initial) {
     return null
   }
 
-  return { db, handle, add, addStandard, once }
+  return { db, handle, add, addStandard, removeStandard, once }
 }
 
 // Een korte, vaste ETag voor een JSON-antwoord: verandert als de inhoud verandert.
@@ -465,6 +483,15 @@ export function fakeServer({
         names.map(shoppingServer.addStandard),
       )
       return jsonResponse(structuredClone(lines))
+    }
+    if (url === `${STANDARD_BASE}/remove_from_shopping_list` && method === 'POST') {
+      const results = [...new Set(body.names.map(normalize))]
+        .sort()
+        .map(shoppingServer.removeStandard)
+      return jsonResponse({
+        removed_ids: results.flatMap((r) => r.removed),
+        items: results.flatMap((r) => r.kept),
+      })
     }
     const response =
       standardServer.handle(method, url, body) ?? shoppingServer.handle(method, url, body)

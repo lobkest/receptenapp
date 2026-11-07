@@ -22,12 +22,14 @@ export function countOf(item) {
 // dus niet nog eens in de tekst; alleen bij een hoeveelheid vermenigvuldigt het:
 //   zonder hoeveelheid:  "melk" (ook "zout", naar smaak uit een recept)
 //   met hoeveelheid:     "100 g yoghurt", bij aantal 2 "200 g yoghurt (×2)"
+//   in stuks:            "3 broccoli" (de eenheid "stuks" laten we weg; alleen in de tekst)
 // Een standaardregel heeft normaal geen hoeveelheid; staat er (via de API) toch een, dan
 // tonen we die liever dan hem stil weg te laten.
 export function shoppingListLine(item) {
   if (item.quantity == null) return item.name
   const count = countOf(item)
-  const total = `${formatQuantity(item.quantity * count)} ${item.unit} ${item.name}`
+  const unit = item.unit === 'stuks' ? '' : ` ${item.unit}`
+  const total = `${formatQuantity(item.quantity * count)}${unit} ${item.name}`
   return count >= 2 ? `${total} (×${count})` : total
 }
 

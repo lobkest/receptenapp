@@ -183,9 +183,24 @@ export function applyShoppingAction(items, action, { categoryOf = () => null } =
         (lines, name) => addStandard(lines, name, action, categoryOf),
         items,
       )
+    case 'shopping.removeStandard':
+      return payload.names.reduce((lines, name) => removeStandard(lines, name), items)
     default:
       return items
   }
+}
+
+// Zoals ShoppingListItem.remove_standard!: van de open regels met die naam verdwijnt wat
+// alleen van de standaardlijst kwam; een regel waar de standaardlijst bij optelde
+// (standard_count > 0) houdt de rest, met zoveel minder op het aantal (minstens 1).
+function removeStandard(items, name) {
+  return items.flatMap((item) => {
+    if (item.checked || item.name !== name) return [item]
+    if (isStandardOnly(item)) return []
+    if (!item.standard_count) return [item]
+    const count = Math.max(item.count - item.standard_count, 1)
+    return [{ ...item, count, standard_count: 0, pending: true }]
+  })
 }
 
 // Zoals ShoppingListItem.add_standard!: één erbij op een open regel met die naam (liefst

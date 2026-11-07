@@ -41,6 +41,16 @@ export function addStandardNamesToShoppingList(names, clientActionId) {
   })
 }
 
+// "✓ op lijst" op de standaardlijst: het deel van de standaardlijst eraf (op naam, zodat het
+// ook uit de outbox werkt). Een regel die alleen van de standaardlijst kwam, verdwijnt; een
+// receptregel houdt zijn receptdeel. Geeft { removed_ids, items } terug.
+export function removeStandardNamesFromShoppingList(names) {
+  return request(`${BASE}/remove_from_shopping_list`, {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+  })
+}
+
 // Alles of niets, in één transactie. Geeft { deleted_ids } terug.
 export function bulkDeleteStandardItems(ids) {
   return request(`${BASE}/bulk_destroy`, { method: 'POST', body: JSON.stringify({ ids }) })

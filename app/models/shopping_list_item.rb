@@ -2,7 +2,7 @@
 # every row belongs to it. Anyone with the link can read and change it.
 # Lines are never merged: adding "bloem" twice gives two lines, each with its own source.
 # The one exception is the standard list: tapping an item that is already on the list adds
-# one to count of an existing line, see add_standard!.
+# one to count of an existing line, see add_standard!; remove_standard! takes that part off.
 #
 # count: how many you want, 1 to 99, set with the stepper on the shopping list. A multiplier:
 # "100 g yoghurt" with count 2 is 200 g. standard_count: how many times it was tapped on the
@@ -65,16 +65,40 @@ class ShoppingListItem < ApplicationRecord
   def self.add_standard!(name)
     name = name.to_s.squish.downcase
     StandardItem.note_used!(name, add_new: false)
-    ingredient_id = StandardItem.where(name: name).pick(:ingredient_id)
-    lines = unchecked.where(name: name)
-    lines = lines.or(unchecked.where(ingredient_id: ingredient_id)) if ingredient_id
-    matching = lines.order(:id).to_a
+    matching = open_lines_for_standard(name).to_a
     line = matching.find(&:standard_only?) || matching.first
     return create!(name: name, source_label: STANDARD_SOURCE, standard_count: 1) if line.nil?
 
     line.update!(count: [ line.count + 1, MAX_COUNT ].min, standard_count: line.standard_count + 1)
     line
   end
+
+  # "✓ op lijst" on the standard list: takes the standard part off the open lines that
+  # add_standard! would match. A line only from the standard list is removed; a line from a
+  # recipe (or typed by hand) that the standard list counted on gets standard_count 0 and
+  # that many less on count (never below 1), so it is as before the taps. Lines without a
+  # standard part stay as they are. Running it twice changes nothing the second time.
+  # Returns [ ids of the removed lines, the lines that were changed ].
+  def self.remove_standard!(name)
+    lines = open_lines_for_standard(name.to_s.squish.downcase).lock
+    transaction do
+      removed, kept = lines.select { |line| line.standard_only? || line.standard_count.positive? }
+                           .partition(&:standard_only?)
+      removed.each(&:destroy!)
+      kept.each { |line| line.update!(standard_count: 0, count: [ line.count - line.standard_count, 1 ].max) }
+      [ removed.map(&:id), kept ]
+    end
+  end
+
+  # The open lines for the standard item name, oldest first: the same name, or the
+  # ingredient the standard item is linked to ("uien" is "ui").
+  def self.open_lines_for_standard(name)
+    ingredient_id = StandardItem.where(name: name).pick(:ingredient_id)
+    lines = unchecked.where(name: name)
+    lines = lines.or(unchecked.where(ingredient_id: ingredient_id)) if ingredient_id
+    lines.order(:id)
+  end
+  private_class_method :open_lines_for_standard
 
   # A loose item typed on the shopping list: "uien" count times. ingredient: the suggestion
   # that was picked, or nil for free text (name as typed; no new ingredient is made, but a

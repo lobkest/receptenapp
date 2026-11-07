@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { IconBook, IconHome, IconList, IconPlus, IconShoppingCart } from '@tabler/icons-vue'
 import OfflineNotice from '@/components/OfflineNotice.vue'
@@ -128,26 +128,7 @@ watch(
 
 let stopWatchingConnectivity = null
 
-// De strook achter de statusbalk (#status-bar-backdrop in index.html, buiten #app) krijgt
-// een lijntje zodra je gescrold bent. Een IntersectionObserver op een onzichtbaar
-// element helemaal bovenaan de pagina (.scroll-sentinel) in plaats van een scroll-listener:
-// de browser meldt alleen als het in of uit beeld gaat, niet bij elke scrollstap. Ook na
-// een routewissel klopt het vanzelf: staat de nieuwe pagina bovenaan, dan is de sentinel
-// weer in beeld en gaat de klasse eraf.
-const scrollSentinel = useTemplateRef('scrollSentinel')
-let sentinelObserver = null
-
-function watchScrolled() {
-  const backdrop = document.getElementById('status-bar-backdrop')
-  if (!backdrop || !scrollSentinel.value || typeof IntersectionObserver === 'undefined') return
-  sentinelObserver = new IntersectionObserver(([entry]) => {
-    backdrop.classList.toggle('is-scrolled', !entry.isIntersecting)
-  })
-  sentinelObserver.observe(scrollSentinel.value)
-}
-
 onMounted(() => {
-  watchScrolled()
   server.start()
   refreshShoppingList()
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -168,14 +149,11 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener(NETWORK_ERROR_EVENT, onNetworkError)
   stopWatchingConnectivity?.()
-  sentinelObserver?.disconnect()
   server.stopRetrying()
 })
 </script>
 
 <template>
-  <!-- Onzichtbaar, helemaal bovenaan de pagina: uit beeld = gescrold (zie watchScrolled). -->
-  <div ref="scrollSentinel" class="scroll-sentinel" aria-hidden="true"></div>
   <!-- Geen kopbalk met logo: op mobiel is het menu een vaste balk onderaan het scherm,
        op brede schermen een smalle rij bovenaan. -->
   <nav class="main-nav" aria-label="Hoofdmenu">
@@ -256,17 +234,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Absoluut, zodat hij geen ruimte inneemt en niet meeschuift met meldingen of de
-   padding van #app: altijd de eerste pixel van het document. */
-.scroll-sentinel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
-}
-
 /* max() met env(): op een telefoon met notch (liggend) schuift de inhoud mee
    naar binnen; anders blijft de gewone marge over. */
 main,

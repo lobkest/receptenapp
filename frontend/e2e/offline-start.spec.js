@@ -188,7 +188,7 @@ for (const scenario of SCENARIOS) {
     await page.getByRole('button', { name: `${PREFIX}thee op boodschappenlijst` }).click()
     await expect(
       page.getByRole('button', {
-        name: `${PREFIX}thee staat op je boodschappenlijst; tik voor nog één`,
+        name: `${PREFIX}thee staat op je boodschappenlijst; tik om weg te halen`,
       }),
     ).toBeVisible({ timeout: 1_000 })
     await page.getByRole('button', { name: 'Selecteren' }).click()

@@ -1,7 +1,8 @@
 require "test_helper"
 
 # The standard list on the shopping list: a tap adds one (a new line, or one more on a line
-# that is already there), and "✓ op lijst" on a recipe keeps what came from the standard list.
+# that is already there), "✓ op lijst" on the standard list takes that part off again, and
+# "✓ op lijst" on a recipe keeps what came from the standard list.
 class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
   setup do
     Rails.cache.clear # reset rate_limit counters
@@ -84,6 +85,68 @@ class Api::ShoppingListStandardCountTest < ActionDispatch::IntegrationTest
 
     post add_to_shopping_list_api_standard_items_url, params: { ids: [ 0 ] }, as: :json
     assert_response :too_many_requests
+  end
+
+  # remove_from_shopping_list
+
+  def remove_standard(*names)
+    post remove_from_shopping_list_api_standard_items_url, params: { names: names }, as: :json
+    assert_response :ok
+    response.parsed_body
+  end
+
+  test "a line only from the standard list is removed, also with count 3" do
+    line = ShoppingListItem.create!(name: "kaas", source_label: "standaard", count: 3, standard_count: 3)
+
+    assert_difference("ShoppingListItem.count", -1) do
+      assert_equal({ "removed_ids" => [ line.id ], "items" => [] }, remove_standard(" Kaas "))
+    end
+  end
+
+  test "a recipe line with a standard part keeps the recipe part: standard_count 0, the taps off count" do
+    line = ShoppingListItem.create!(name: "melk", quantity: 200, unit: "ml", count: 3, standard_count: 2,
+      source_label: "Pannenkoeken", recipe: recipes(:pannenkoeken))
+
+    assert_no_difference("ShoppingListItem.count") do
+      result = remove_standard("melk")
+      assert_equal [], result["removed_ids"]
+      assert_equal({ "id" => line.id, "quantity" => 200, "unit" => "ml", "source_label" => "Pannenkoeken",
+        "count" => 1, "standard_count" => 0 },
+        result["items"].first.slice("id", "quantity", "unit", "source_label", "count", "standard_count"))
+    end
+  end
+
+  test "lines without a standard part, and ticked off lines, stay as they are" do
+    loose = ShoppingListItem.create!(name: "melk", source_label: "los", count: 2)
+
+    assert_no_difference("ShoppingListItem.count") do
+      assert_equal({ "removed_ids" => [], "items" => [] }, remove_standard("melk", "bloem"))
+    end
+    assert_equal 2, loose.reload.count
+    assert_equal 250, shopping_list_items(:bloem).reload.quantity
+    assert shopping_list_items(:melk).reload.checked # the ticked off standard line
+  end
+
+  test "removing matches the linked ingredient too, like adding" do
+    standard_items(:kaas).link_to!(ingredients(:bloem))
+
+    remove_standard("kaas")
+    assert ShoppingListItem.exists?(shopping_list_items(:bloem).id)
+
+    shopping_list_items(:bloem).update!(count: 2, standard_count: 1)
+    assert_equal [ 1, 0 ], remove_standard("kaas")["items"].first.values_at("count", "standard_count")
+  end
+
+  test "remove_from_shopping_list counts towards the shared public limit" do
+    PublicWriteRateLimit::WRITES_PER_MINUTE.times { remove_standard("kaas") }
+
+    post remove_from_shopping_list_api_standard_items_url, params: { names: [ "kaas" ] }, as: :json
+    assert_response :too_many_requests
+  end
+
+  test "no names is a 400" do
+    post remove_from_shopping_list_api_standard_items_url, params: {}, as: :json
+    assert_response :bad_request
   end
 
   # remove_recipe

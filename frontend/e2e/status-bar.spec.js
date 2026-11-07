@@ -3,14 +3,18 @@ import { RAILS_URL } from './env.js'
 import { deleteRecipe } from './traits.js'
 import { checkLayout, collectErrors, postRecipe } from './helpers.js'
 
-// De effen strook achter de iOS-statusbalk (#status-bar-backdrop, index.html en main.css):
-// een echt element, vast bovenaan, volledig dekkend, en met is-scrolled zodra je gescrold
-// bent (IntersectionObserver in App.vue). Het iOS 26-blureffect zelf toont Playwright
-// niet; dat controleer je op een iPhone.
+// Bovenaan de pagina (main.css): de effen strook achter de statusbalk (#status-bar-backdrop)
+// en --top-inset, waar de inhoud begint. In de geïnstalleerde iOS-app ligt --top-inset
+// lager, onder de iOS 26-blur. Die blur zelf toont Playwright niet; dat controleer je op
+// een iPhone.
 //
 // Chromium heeft geen notch: env(safe-area-inset-top) is daar 0. Via CDP doen we alsof er
 // een statusbalk van 47 px is (iPhone 13), zodat de strook ook echt op de screenshot staat.
+// Chromium kent ook geen display-mode: standalone in combinatie met -webkit-touch-callout
+// (dat is alleen WebKit). Daarom lezen we de standalone-waarde van --top-inset uit de echte
+// CSS-regel en zetten we hem zelf op :root, voor de screenshot van die variant.
 const INSET = 47
+const IOS_OFFSET = 28
 const BACKDROP = '#status-bar-backdrop'
 
 let api
@@ -40,9 +44,16 @@ async function fakeNotch(page) {
   await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: INSET } })
 }
 
+async function openRecipe(page) {
+  await fakeNotch(page)
+  await page.goto(`/recepten/${recipe.id}`)
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+}
+
 function backdropStyle(page) {
   return page.locator(BACKDROP).evaluate((element) => {
     const style = getComputedStyle(element)
+    const box = element.getBoundingClientRect()
     return {
       parentIsBody: element.parentElement === document.body,
       position: style.position,
@@ -50,22 +61,47 @@ function backdropStyle(page) {
       bodyBackground: getComputedStyle(document.body).backgroundColor,
       opacity: style.opacity,
       backdropFilter: style.backdropFilter,
-      pointerEvents: style.pointerEvents,
-      top: element.getBoundingClientRect().top,
-      height: element.getBoundingClientRect().height,
-      width: element.getBoundingClientRect().width,
-      appPaddingTop: getComputedStyle(document.getElementById('app')).paddingTop,
+      top: box.top,
+      height: box.height,
+      width: box.width,
     }
   })
 }
 
-test('strook: vast, schermbreed en ondoorzichtig; lijntje alleen als je gescrold bent', async ({
-  page,
-}) => {
+// Afstand van de bovenrand van het scherm tot de padding van #app en tot de h1.
+function topDistances(page) {
+  return page.evaluate(() => ({
+    appPaddingTop: parseFloat(getComputedStyle(document.getElementById('app')).paddingTop),
+    h1Top: document.querySelector('h1').getBoundingClientRect().top,
+  }))
+}
+
+// De waarde van --top-inset uit @supports (-webkit-touch-callout: none) { @media
+// (display-mode: standalone) { :root { … } } } in main.css, of null.
+function standaloneTopInset(page) {
+  return page.evaluate(() => {
+    const rules = (list) => Array.from(list ?? [])
+    for (const sheet of document.styleSheets) {
+      for (const supports of rules(sheet.cssRules)) {
+        if (!(supports instanceof CSSSupportsRule)) continue
+        if (!supports.conditionText.includes('-webkit-touch-callout')) continue
+        for (const media of rules(supports.cssRules)) {
+          if (!(media instanceof CSSMediaRule)) continue
+          if (!media.conditionText.includes('standalone')) continue
+          for (const rule of rules(media.cssRules)) {
+            const value = rule.style?.getPropertyValue('--top-inset')
+            if (rule.selectorText === ':root' && value) return value.trim()
+          }
+        }
+      }
+    }
+    return null
+  })
+}
+
+test('strook: vast, schermbreed, ondoorzichtig en zo hoog als de statusbalk', async ({ page }) => {
   const errors = collectErrors(page)
-  await fakeNotch(page)
-  await page.goto(`/recepten/${recipe.id}`)
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await openRecipe(page)
 
   const style = await backdropStyle(page)
   expect(style.parentIsBody, 'buiten #app, direct in <body>').toBe(true)
@@ -78,40 +114,36 @@ test('strook: vast, schermbreed en ondoorzichtig; lijntje alleen als je gescrold
   expect(style.background).toBe(style.bodyBackground)
   expect(style.opacity).toBe('1')
   expect(style.backdropFilter).toBe('none')
-  expect(style.pointerEvents).not.toBe('none')
-  // De inhoud begint nog steeds onder de statusbalk.
-  expect(style.appPaddingTop).toBe(`${INSET}px`)
 
-  // Bovenaan: geen lijntje.
-  const backdrop = page.locator(BACKDROP)
-  await expect(backdrop).not.toHaveClass(/is-scrolled/)
+  // Buiten de geïnstalleerde iOS-app (hier: Chromium) begint de inhoud direct onder de
+  // statusbalk, zoals voorheen.
+  const { appPaddingTop } = await topDistances(page)
+  expect(appPaddingTop).toBe(INSET)
   await checkLayout(page, errors, 'status-bar-top', { fullPage: false })
 
-  // Gescrold: wel.
+  // Gescrold: de inhoud schuift onder de dekkende strook.
   await page.evaluate(() => window.scrollTo(0, 400))
-  await expect(backdrop).toHaveClass(/is-scrolled/)
-  expect(await backdrop.evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe(
-    '1px',
-  )
   await checkLayout(page, errors, 'status-bar-scrolled', { fullPage: false })
-
-  // Terug naar boven: weer weg.
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await expect(backdrop).not.toHaveClass(/is-scrolled/)
 })
 
-test('strook: na een routewissel klopt is-scrolled met de nieuwe scrollstand', async ({ page }) => {
-  await page.goto(`/recepten/${recipe.id}`)
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-  await page.evaluate(() => window.scrollTo(0, 400))
-  const backdrop = page.locator(BACKDROP)
-  await expect(backdrop).toHaveClass(/is-scrolled/)
+test('strook: in de geïnstalleerde iOS-app begint de inhoud onder de iOS-blur', async ({
+  page,
+}) => {
+  const errors = collectErrors(page)
+  await openRecipe(page)
 
-  // Via het menu (onderaan, vast) naar de boodschappenlijst.
-  await page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link').nth(3).click()
-  await expect(page).toHaveURL(/\/boodschappen$/)
-  // De (lege) boodschappenlijst is korter dan het scherm: de browser zet de scrollstand op 0.
-  // De router zelf scrolt niet (geen scrollBehavior); de observer volgt de echte stand.
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-  await expect(backdrop).not.toHaveClass(/is-scrolled/)
+  const value = await standaloneTopInset(page)
+  expect(value, 'regel voor standalone + -webkit-touch-callout in main.css').toContain(
+    'var(--ios-edge-blur-offset)',
+  )
+  // Doen alsof de regel geldt: dezelfde waarde direct op :root.
+  await page.evaluate((topInset) => {
+    document.documentElement.style.setProperty('--top-inset', topInset)
+  }, value)
+
+  const { appPaddingTop } = await topDistances(page)
+  expect(appPaddingTop).toBe(INSET + IOS_OFFSET)
+  // De strook zelf blijft precies de statusbalk.
+  expect((await backdropStyle(page)).height).toBe(INSET)
+  await checkLayout(page, errors, 'status-bar-standalone', { fullPage: false })
 })

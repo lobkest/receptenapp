@@ -105,6 +105,10 @@
   --control-pad-x: var(--space-3);
   /* Hoogte van de navigatiebalk onderaan op mobiel, zonder de veilige zone. */
   --nav-height: 52px;
+  /* Waar de inhoud bovenaan begint: onder de statusbalk / notch. In de geïnstalleerde
+     iOS-app nog wat lager, zie het blok hieronder. */
+  --top-inset: env(safe-area-inset-top);
+  --ios-edge-blur-offset: 28px;
   --content-width: 42rem;
 
   --duration: 150ms;
@@ -116,6 +120,23 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-fast: 150ms;
   --dur: 250ms;
+}
+
+/* iOS 26 legt in de geïnstalleerde app (standalone) zijn eigen "scroll edge"-blur over de
+   bovenrand, ook als je helemaal bovenaan staat. Die waas loopt een stuk onder de
+   statusbalk door, en een dekkende strook (#status-bar-backdrop) schakelt hem niet uit
+   (zie ook github.com/traxon99/jim/pull/774). Daarom begint de inhoud daar lager: de titel
+   staat bovenaan scherp en schuift pas bij scrollen de waas in. Alleen in de geïnstalleerde
+   app (display-mode: standalone) op iOS/WebKit (-webkit-touch-callout bestaat alleen daar):
+   Safari-tabbladen, desktop en Android blijven gewoon env(safe-area-inset-top).
+   28px is een schatting (de blur loopt ~32pt door, de pagina heeft zelf al wat ruimte
+   boven de h1); af te stellen op een echte iPhone. */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    :root {
+      --top-inset: calc(env(safe-area-inset-top) + var(--ios-edge-blur-offset));
+    }
+  }
 }
 
 /* ---------- 2. Basis ---------- */
@@ -151,16 +172,13 @@ body {
 /* Geen kopbalk meer: de inhoud begint onder de statusbalk / notch (viewport-fit=cover
    in index.html laat de pagina anders tot onder de statusbalk lopen). */
 #app {
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--top-inset);
 }
 
 /* Een effen strook achter de statusbalk (#status-bar-backdrop in index.html), zodat inhoud
    die je omhoog scrolt er niet doorheen schijnt. Zonder notch is de hoogte 0 en zie je niets.
-   iOS 26 (geïnstalleerde app) legt zelf een "scroll edge"-blur over de bovenrand, ook
-   bovenaan de pagina, waardoor de h1 vaag wordt. WebKit slaat die blur over als de
-   bovenrand op een vast, schermbreed en ondoorzichtig element valt. Daarom: een echt
-   element (geen ::before), een volledig dekkende kleur, en GEEN backdrop-filter, mask,
-   opacity < 1, transparante kleur of pointer-events: none: dan tekent iOS de blur weer.
+   Een echt element, volledig dekkend en zonder blur. Bewust env(safe-area-inset-top) en niet
+   --top-inset: alleen de statusbalk zelf, de iOS-waas eronder blijft zichtbaar.
    z-index 20: boven de pagina en het menu (10), onder dialogen (showModal = top layer). */
 #status-bar-backdrop {
   position: fixed;
@@ -170,12 +188,6 @@ body {
   z-index: 20;
   height: env(safe-area-inset-top);
   background: var(--color-bg);
-}
-
-/* Gescrold (App.vue zet de klasse): een dun lijntje onder de strook. min(): zonder notch
-   (hoogte 0) ook geen lijntje bovenaan het scherm. Bewust geen blur. */
-#status-bar-backdrop.is-scrolled {
-  border-bottom: min(1px, env(safe-area-inset-top)) solid var(--color-border);
 }
 
 h1,

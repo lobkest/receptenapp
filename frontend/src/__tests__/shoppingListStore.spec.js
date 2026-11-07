@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { useOfflineStore } from '../stores/offline'
 import { useShoppingListStore } from '../stores/shoppingList'
 import {
   fakeServer,
@@ -719,6 +720,92 @@ describe('boodschappenlijst-store', () => {
       expect(shoppingDb).toHaveLength(2)
       // De offline kopie heeft de teller ook.
       expect(snapshotOf().data).toEqual(list.items)
+    })
+  })
+
+  describe('standaarddeel weghalen (removeStandardItems)', () => {
+    const line = (fields) => ({ checked: false, recipe_id: null, ingredient_id: null, ...fields })
+    // melk: een standaardregel en een receptregel met 2 van de standaardlijst erbij; kaas los.
+    const LINES = [
+      line({ id: 1, name: 'melk', source_label: 'standaard', count: 2, standard_count: 2 }),
+      line({
+        id: 2,
+        name: 'melk',
+        quantity: 200,
+        unit: 'ml',
+        source_label: 'Pap',
+        recipe_id: 7,
+        count: 3,
+        standard_count: 2,
+      }),
+      line({ id: 3, name: 'kaas', source_label: 'los', count: 2 }),
+    ]
+    const MELK_ITEM = { id: 1, name: 'melk', ingredient_id: null }
+
+    function expectStandardPartGone(items) {
+      expect(items.map((i) => [i.id, i.count, i.standard_count])).toEqual([
+        [2, 1, 0],
+        [3, 2, 0],
+      ])
+    }
+
+    it('standardLines: alleen open regels met een deel van de standaardlijst', async () => {
+      fakeServer({ standard: [MELK_ITEM], shopping: LINES })
+      const list = await loadedStore()
+
+      expect(list.standardLines(MELK_ITEM).map((i) => i.id)).toEqual([1, 2])
+      expect(list.standardLines({ name: 'kaas', ingredient_id: null })).toEqual([])
+    })
+
+    it('online: de standaardregel weg, de receptregel houdt zijn receptdeel', async () => {
+      const { shoppingDb } = fakeServer({ standard: [MELK_ITEM], shopping: LINES })
+      const list = await loadedStore()
+
+      await list.removeStandardItems([MELK_ITEM])
+
+      expectStandardPartGone(list.items)
+      expectStandardPartGone(shoppingDb)
+      expect(shoppingDb[0]).toMatchObject({ quantity: 200, recipe_id: 7 })
+      expect(snapshotOf().data).toEqual(list.items)
+    })
+
+    it('offline: alvast weg, via de outbox; na de sync staat de server hetzelfde', async () => {
+      const { fetch, shoppingDb } = fakeServer({ standard: [MELK_ITEM], shopping: LINES })
+      const list = await loadedStore()
+      setOffline()
+
+      await list.removeStandardItems([MELK_ITEM])
+
+      expectStandardPartGone(list.items)
+      expect(list.items[0].pending).toBe(true)
+      expect(queued()).toEqual([
+        { type: 'shopping.removeStandard', target: null, payload: { names: ['melk'] } },
+      ])
+      expect(requestsOf(fetch, 'POST')).toHaveLength(0)
+
+      setOnline()
+      await useOfflineStore().sync()
+      expectStandardPartGone(shoppingDb)
+      expect(queued()).toEqual([])
+    })
+
+    it('offline [+] en daarna weghalen: na de sync staat er niets van de standaardlijst', async () => {
+      const { shoppingDb } = fakeServer({ standard: [{ id: 4, name: 'thee' }], shopping: [] })
+      const list = await loadedStore()
+      setOffline()
+      await list.addStandardItems([{ id: 4, name: 'thee' }])
+      setOnline()
+
+      // Online, maar de [+] wacht nog in de outbox: dan ook weghalen via de outbox.
+      await list.removeStandardItems([{ id: 4, name: 'thee' }])
+      expect(list.items).toEqual([])
+      expect(queued().map((a) => a.type)).toEqual([
+        'shopping.addStandard',
+        'shopping.removeStandard',
+      ])
+
+      await useOfflineStore().sync()
+      expect(shoppingDb).toEqual([])
     })
   })
 

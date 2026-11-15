@@ -93,9 +93,37 @@ export function rememberListRoute(to) {
   useLastListRouteStore().remember(to)
 }
 
+// Wacht tot de pagina hoog genoeg is om naar `top` te scrollen (een lijst die nog laadt is
+// eerst kort, dan zou de browser de positie afkappen). Na maxMs geven we het op.
+export function waitForHeight(top, maxMs = 1500) {
+  return new Promise((resolve) => {
+    const start = performance.now()
+    const check = () => {
+      const enough = document.documentElement.scrollHeight - window.innerHeight >= top
+      if (enough || performance.now() - start > maxMs) resolve()
+      else requestAnimationFrame(check)
+    }
+    check()
+  })
+}
+
+// Scrollpositie bij een routewissel. Het venster (window) scrollt, geen container: de
+// tabbalk staat position: fixed. Terug/vooruit (savedPosition): de oude positie, zodra de
+// lijst gerenderd is. Alleen de query verandert (filter aan/uit via router.replace): niet
+// springen. Anders: een nieuwe pagina begint bovenaan.
+export async function scrollBehavior(to, from, savedPosition) {
+  if (savedPosition) {
+    await waitForHeight(savedPosition.top)
+    return savedPosition
+  }
+  if (from.matched.length && to.path === from.path) return false
+  return { top: 0 }
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+  scrollBehavior,
 })
 
 router.beforeEach(requireAdmin)

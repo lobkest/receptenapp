@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { routes, requireAdmin } from '../router'
+import { routes, requireAdmin, scrollBehavior } from '../router'
 import { useAdminStore } from '../stores/admin'
 
 function makeRouter() {
@@ -51,5 +51,27 @@ describe('route guard voor beheer', () => {
     await router.push('/recepten/nieuw')
 
     expect(router.currentRoute.value.name).toBe('recipe-new')
+  })
+})
+
+describe('scrollBehavior', () => {
+  const route = (path) => ({ path, matched: [{}] })
+  const start = { path: '/', matched: [] }
+
+  it('opent een nieuwe pagina bovenaan', async () => {
+    expect(await scrollBehavior(route('/recepten/5'), route('/'), null)).toEqual({ top: 0 })
+  })
+
+  it('springt niet als alleen de query verandert (filter aan/uit)', async () => {
+    expect(await scrollBehavior(route('/'), route('/'), null)).toBe(false)
+  })
+
+  it('begint bovenaan bij de eerste pagina', async () => {
+    expect(await scrollBehavior(route('/'), start, null)).toEqual({ top: 0 })
+  })
+
+  it('geeft bij terug de oude positie, ook als de pagina nog kort is (na de wachttijd)', async () => {
+    const saved = { left: 0, top: 999999 }
+    expect(await scrollBehavior(route('/'), route('/recepten/5'), saved)).toBe(saved)
   })
 })

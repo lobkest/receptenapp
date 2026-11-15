@@ -56,8 +56,8 @@ describe('ShoppingListView', () => {
 
     expect(listLines(wrapper)).toEqual(['300 g bloem', 'zout', 'wc-papier'])
     expect(wrapper.findAll('.items .sources').map((s) => s.text())).toEqual([
-      'uit: Wafels',
-      'uit: Pannenkoeken',
+      'Wafels',
+      'Pannenkoeken',
     ])
     // App en pagina laden tegelijk; de store maakt daar één request van.
     expect(getRequests(server.fetch)).toHaveLength(1)
@@ -93,8 +93,8 @@ describe('ShoppingListView', () => {
       'overig',
     ])
     expect(listLines(wrapper)).toEqual(['300 g bloem', 'bakpoeder', 'melk', 'zout'])
-    // "uit: …" staat in dezelfde rij als de naam.
-    expect(wrapper.find('.items li .text .sources').text()).toBe('uit: Wafels')
+    // De herkomst staat in dezelfde rij als de naam, zonder "uit:".
+    expect(wrapper.find('.items li .text .sources').text()).toBe('Wafels')
   })
 
   it('zegt niet meer dat de lijst alleen in deze browser staat', async () => {

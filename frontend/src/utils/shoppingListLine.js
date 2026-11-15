@@ -33,7 +33,7 @@ export function shoppingListLine(item) {
   return count >= 2 ? `${total} (×${count})` : total
 }
 
-// "uit: …" onder de regel: de herkomst, en ", standaard" als er van de standaardlijst
+// De herkomst klein onder de regel (zonder "uit:"), en ", standaard" als er van de standaardlijst
 // bij is geteld. Null als er niets te melden is.
 export function shoppingListSource(item) {
   if (isStandardOnly(item) || !item.standard_count) return item.source_label ?? null

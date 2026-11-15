@@ -598,7 +598,7 @@ test('standaard: selectiemodus, op lijst en bulk-verwijderen', async ({ page }) 
   expect(remaining.sort()).toEqual(['brood', 'chocola', 'melk', 'wc-papier'])
   await checkLayout(page, errors, 'standaard-na-bulk')
 
-  // Op de boodschappenlijst kwamen ze zonder hoeveelheid, "uit: standaard".
+  // Op de boodschappenlijst kwamen ze zonder hoeveelheid, herkomst "standaard".
   await page.goto('/boodschappen')
   await expect(page.locator('.items .line')).toContainText(['melk', 'wc-papier'])
 })
@@ -650,7 +650,7 @@ test('boodschappen: gedeeld tussen twee telefoons', async ({ browser }) => {
   await phoneB.page.reload()
   await expect.poll(() => sortedLines(phoneB.page)).toEqual(['250 g bloem', '500 ml melk', 'zout'])
   await expect(phoneB.page.locator('.items .sources').first()).toHaveText(
-    'uit: Erwtensoep met roggebrood',
+    'Erwtensoep met roggebrood',
   )
   const saved = phoneB.page.waitForResponse(
     (r) => r.url().includes('/api/shopping_list_items/') && r.request().method() === 'PATCH',

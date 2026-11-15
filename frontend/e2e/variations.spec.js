@@ -133,9 +133,7 @@ test('variatie toevoegen, recept bewerken, op lijst, verwijderen en terugzetten'
 
   await page.goto('/boodschappen')
   await expect(page.locator('.items .line')).toHaveText(['400 g rijst', '2 stuks ui', '300 g kip'])
-  await expect(page.locator('.items .sources').first()).toHaveText(
-    'uit: Tofucurry (variatie: Met kip)',
-  )
+  await expect(page.locator('.items .sources').first()).toHaveText('Tofucurry (variatie: Met kip)')
   await checkLayout(page, errors, 'variatie-boodschappen')
 
   // ---- Verwijderen: een verzoek met reden; de kaart verdwijnt.
@@ -196,7 +194,7 @@ test('recept op lijst: alles en los, geschaald', async ({ page }) => {
     '1,5 stuks ui',
     '7,5 g koriander',
   ])
-  await expect(page.locator('.items .sources')).toHaveText(Array(4).fill('uit: Tofucurry'))
+  await expect(page.locator('.items .sources')).toHaveText(Array(4).fill('Tofucurry'))
   await checkLayout(page, errors, 'recept-op-lijst')
 })
 

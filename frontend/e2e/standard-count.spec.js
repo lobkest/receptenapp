@@ -190,7 +190,7 @@ test('c+d) melk via recept: ✓ op de standaardlijst, tik geeft "(×2)"; recept-
   await openShoppingList(page)
   await expect(shoppingLines(page)).toHaveText(['400 ml melk (×2)'])
   await expect(shoppingRow(page, 'melk').locator('.sources')).toHaveText(
-    'uit: Teller-pannenkoeken, standaard',
+    'Teller-pannenkoeken, standaard',
   )
 
   // d) Op het recept "✓ op lijst" wegtikken: het receptdeel gaat, "melk" blijft (één minder).
@@ -312,8 +312,8 @@ test('screenshots: standaardlijst vóór en na ✓ wegtikken, boodschappenlijst 
   await expect(shoppingRow(page, 'broccoli').locator('.line')).toHaveText('3 broccoli')
   await expect(shoppingRow(page, 'room').locator('.line')).toHaveText('3 el room')
   await expect(shoppingRow(page, 'kaas')).toHaveCount(0)
-  // "uit: …" staat naast de naam (afgekapt als het niet past), dus elke rij is één regel
-  // hoog: de stepperknoppen van 44 px plus wat ruimte.
+  // De herkomst staat klein onder de naam (afgekapt als het niet past); samen passen ze
+  // binnen de stepperknoppen van 44 px, dus de rij wordt niet hoger.
   for (const height of await page
     .locator('.items li')
     .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))) {

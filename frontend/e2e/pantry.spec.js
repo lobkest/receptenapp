@@ -122,7 +122,7 @@ test('Ontbrekende op lijst, afstrepen zet het in huis, weer aanvinken haalt het 
     .click()
   const line = page.locator('.items li', { hasText: 'tomaat' })
   await expect(line.locator('.line')).toHaveText('500 g tomaat')
-  await expect(line.locator('.sources')).toHaveText(`uit: ${SOUP.title}`)
+  await expect(line.locator('.sources')).toHaveText(SOUP.title)
 
   // Afstrepen: in huis.
   await line.locator('input[type="checkbox"]').check()
